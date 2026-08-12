@@ -1,0 +1,316 @@
+/* v3.24 — only dark theme + opaque interface: no glass transparency through apps/panels */
+:root {
+  --glass: #18213d;
+  --glass-2: #232d50;
+  --glass-3: #2d3860;
+  --blur: 0px;
+}
+
+.glass,
+.toast,
+.desktop-sticky-settings,
+.zeter-table thead th,
+.zeter-table tbody th {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.top-menu.glass,
+.taskbar.glass,
+.start-menu.glass,
+.quick-panel.glass,
+.notification-center.glass,
+.global-search.glass,
+.context-menu.glass,
+.lock-card.glass,
+.window.glass {
+  background: var(--glass) !important;
+}
+
+.window-titlebar {
+  background: #1d2747;
+}
+
+.window-body {
+  background: #121a33;
+}
+
+.toast {
+  background: #18213d;
+}
+
+.desktop-sticky-settings,
+.zeter-table thead th,
+.zeter-table tbody th {
+  background-color: #232d50;
+}
+
+/* v3.24 long names: show full file/folder names on desktop and in folders */
+.desktop-icon {
+  height: auto;
+  overflow: visible;
+}
+
+.desktop-icon .label,
+.file-card b,
+.tree-name span,
+.pinned-name span {
+  -webkit-line-clamp: initial;
+  -webkit-box-orient: initial;
+  text-overflow: clip;
+}
+
+.file-card {
+  height: auto;
+  min-height: 118px;
+  overflow: visible;
+}
+
+.file-card small {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.explorer-file-icon {
+  height: auto;
+  min-height: 124px;
+  overflow: visible;
+}
+
+.tree-name,
+.pinned-name {
+  align-items: flex-start;
+  line-height: 1.25;
+}
+
+.explorer-tree-row,
+.explorer-pinned-row {
+  align-items: flex-start;
+}
+
+.explorer-sidebar {
+  overflow-wrap: anywhere;
+}
+
+
+/* task reminders */
+.task-endless-pill {
+  color: #f2ddff;
+  background: rgba(193,121,255,.16);
+  border: 1px solid rgba(213,175,255,.3);
+}
+
+.task-reminder-pill {
+  color: #dce7ff;
+  background: rgba(122,168,255,.18);
+  border: 1px solid rgba(160,190,255,.28);
+}
+
+.task-reminder-pill.due {
+  color: #ffe1aa;
+  background: rgba(255,194,97,.18);
+}
+
+.task-reminder-pill.sent {
+  color: #bffff0;
+  background: rgba(94,230,184,.14);
+}
+
+.task-actions button[data-reminder],
+.task-actions button[data-toggle-indefinite] {
+  background: rgba(193,121,255,.16);
+  border: 1px solid rgba(213,175,255,.34);
+}
+
+.task-reminder-editor {
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: rgba(255,255,255,.08);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 8px;
+  align-items: end;
+}
+
+.task-reminder-editor.hidden {
+  display: none;
+}
+
+.task-reminder-editor label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.task-reminder-editor label:first-child {
+  grid-column: 1 / -1;
+}
+
+.task-reminder-editor input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: rgba(255,255,255,.1);
+  color: var(--text);
+  padding: 7px 8px;
+  outline: 0;
+}
+
+.task-reminder-editor button {
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: rgba(255,255,255,.11);
+  border: 1px solid var(--stroke);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .task-editor-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  .task-reminder-editor {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* v3.26 Settings/Calendar overflow fixes */
+.settings,
+.setting-card,
+.desktop-profile-card,
+.custom-wallpaper-panel,
+.custom-wallpaper-actions,
+.choice-row {
+  min-width: 0;
+}
+
+.setting-card {
+  overflow: hidden;
+}
+
+.desktop-profile-head > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.desktop-profile-head p,
+.desktop-profile-head .muted,
+.desktop-profile-card small,
+.custom-wallpaper-panel small,
+.settings-field,
+.settings-field input,
+.settings-field select,
+.settings-field textarea {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.desktop-profile-head b {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.desktop-profile-head .muted {
+  white-space: normal;
+}
+
+.custom-wallpaper-preview {
+  max-width: 100%;
+  min-width: 0;
+  background-clip: padding-box;
+}
+
+.settings-field textarea {
+  white-space: pre-wrap;
+}
+
+.calendar-app .workspace-note {
+  flex-wrap: wrap;
+  gap: 0 4px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid button {
+  min-height: 44px;
+  height: 44px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.2;
+  overflow: hidden;
+}
+
+.form-grid select {
+  text-overflow: ellipsis;
+}
+
+.form-grid textarea {
+  line-height: 1.35;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+
+/* v3.26 shell hardening and UX additions */
+.window { animation: windowOpen .14s ease both; }
+.window.closing { opacity: 0; transform: translateY(14px) scale(.96); }
+@keyframes windowOpen { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+
+.notification-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.notification-filters button { border-radius: 999px; padding: 7px 10px; background: rgba(255,255,255,.09); border: 1px solid var(--stroke); color: var(--text); font-size: 12px; }
+.notification-filters button:hover, .notification-filters button.active { background: rgba(122,168,255,.22); border-color: rgba(160,190,255,.62); }
+
+.file-grid[data-view-mode="list"], .file-grid[data-view-mode="table"] { display: grid; grid-template-columns: 1fr; align-content: start; }
+.file-grid[data-view-mode="list"] .file-card, .file-grid[data-view-mode="table"] .file-card { min-height: 62px; grid-template-columns: 42px 1fr auto; align-items: center; }
+.file-grid[data-view-mode="list"] .file-card .file-emoji, .file-grid[data-view-mode="table"] .file-card .file-emoji { font-size: 26px; }
+.file-grid[data-view-mode="large"] { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
+.file-grid[data-view-mode="large"] .file-card { min-height: 152px; }
+.file-grid[data-view-mode="large"] .file-card .file-emoji { font-size: 44px; }
+
+.gallery-app { display: block; }
+.gallery-view { width: 100%; height: 100%; display: grid; grid-template-columns: 190px 1fr; gap: 14px; min-height: 0; }
+.gallery-strip { overflow: auto; display: grid; align-content: start; gap: 8px; border-radius: 18px; padding: 8px; background: rgba(255,255,255,.08); border: 1px solid var(--stroke); }
+.gallery-strip button { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 8px; min-height: 54px; border-radius: 14px; padding: 6px; text-align: left; background: rgba(255,255,255,.07); border: 1px solid transparent; color: var(--text); }
+.gallery-strip button.active, .gallery-strip button:hover { background: rgba(122,168,255,.18); border-color: rgba(160,190,255,.45); }
+.gallery-strip img { width: 44px; height: 44px; object-fit: cover; border-radius: 11px; }
+.gallery-strip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.gallery-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 10px; }
+.gallery-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.gallery-toolbar button { border-radius: 13px; padding: 9px 12px; background: rgba(255,255,255,.1); border: 1px solid var(--stroke); color: var(--text); }
+.gallery-image-wrap { min-height: 260px; display: grid; place-items: center; border-radius: 20px; background: rgba(255,255,255,.07); border: 1px solid var(--stroke); overflow: hidden; }
+.gallery-image-wrap img { max-width: 100%; max-height: 100%; border-radius: 18px; box-shadow: 0 24px 80px rgba(0,0,0,.28); transition: transform .18s ease; }
+
+.first-run-screen { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 80% 18%, rgba(122,168,255,.28), transparent 34%), rgba(4,7,18,.72); }
+.first-run-card { width: min(560px, calc(100vw - 36px)); border-radius: 30px; padding: 30px; text-align: center; }
+.first-run-card img { width: 64px; height: 64px; }
+.first-run-card h2 { margin: 14px 0 8px; font-size: clamp(24px, 4vw, 34px); letter-spacing: -.04em; }
+.first-run-card .choice-row { justify-content: center; margin-top: 18px; }
+.first-run-card button { min-height: 42px; }
+
+.file-grid[data-view-mode="list"].explorer-free-grid,
+.file-grid[data-view-mode="table"].explorer-free-grid {
+  width: 100%;
+  min-width: 100% !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.file-grid[data-view-mode="list"].explorer-free-grid .explorer-file-icon,
+.file-grid[data-view-mode="table"].explorer-free-grid .explorer-file-icon {
+  position: relative;
+  left: auto !important;
+  top: auto !important;
+  width: auto;
+}
+.file-grid[data-view-mode="large"].explorer-free-grid .explorer-file-icon { width: 180px; min-height: 156px; }
+

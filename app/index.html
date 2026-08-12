@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'self'" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZeTer OS</title>
+  <link rel="icon" href="assets/icons/zeter-logo.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b1020" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="boot" class="boot">
+    <div class="boot-card">
+      <img src="assets/icons/zeter-logo.svg" alt="ZeTer OS" class="boot-logo" />
+      <h1>ZeTer OS</h1>
+      <p>загрузка рабочей среды</p>
+      <div class="boot-progress"><span></span></div>
+    </div>
+  </div>
+
+  <main id="os" class="os" aria-label="ZeTer OS desktop">
+    <div class="wallpaper-lights"><i></i><b></b><em></em></div>
+
+    <nav id="top-menu" class="top-menu glass" aria-label="Верхнее меню ZeTer OS">
+      <button data-top-action="security">Центр безопасности данных</button>
+      <button data-top-action="monitor">Монитор системы</button>
+      <button data-top-action="settings">Настройки</button>
+      <button data-top-action="calendar">Календарь</button>
+      <button data-top-action="appcenter">Приложения</button>
+      <button data-top-action="search">Поиск по ОС</button>
+    </nav>
+
+    <section id="desktop" class="desktop-surface" aria-label="Рабочий стол">
+      <div id="desktop-items" class="desktop-items" data-folder-drop="desktop"></div>
+      <div id="selection-box" class="selection-box hidden"></div>
+    </section>
+
+    <section id="start-menu" class="start-menu glass hidden" aria-label="Меню ZeTer">
+      <div class="start-search">
+        <span>⌕</span>
+        <input id="start-search-input" placeholder="Поиск приложений, файлов, задач и настроек" autocomplete="off" />
+      </div>
+      <div class="start-section-title"><h2>Закреплено</h2><button id="start-all-apps">Все</button></div>
+      <div id="start-pinned" class="start-pinned"></div>
+      <div class="start-section-title start-desktop-title">
+        <h2>Рабочие столы</h2>
+        <button id="start-new-desktop" title="Создать новый рабочий стол">+ Создать</button>
+      </div>
+      <div id="start-desktops" class="start-desktops"></div>
+
+    </section>
+
+    <aside id="quick-panel" class="quick-panel glass hidden">
+      <div class="panel-head"><h2>Центр управления</h2><button data-close-panel>×</button></div>
+      <div class="quick-section-title">Обои</div>
+      <div class="quick-actions quick-wallpapers">
+        <button data-quick-wall="aurora">Aurora</button>
+        <button data-quick-wall="silk">Silk</button>
+        <button data-quick-wall="mint">Mint</button>
+        <button data-quick-wall="graphite">Graphite</button>
+      </div>
+      <div class="quick-actions">
+        <button id="quick-folder-save">Папка данных</button>
+        <button data-app="settings">Настройки</button>
+      </div>
+    </aside>
+
+    <aside id="notification-center" class="notification-center glass hidden">
+      <div class="panel-head"><h2>Уведомления</h2><button data-close-panel>×</button></div>
+      <div class="notification-filters" role="tablist" aria-label="Фильтр уведомлений">
+        <button data-notification-filter="all" class="active">Все</button>
+        <button data-notification-filter="tasks">Задачи</button>
+        <button data-notification-filter="calendar">Календарь</button>
+        <button data-notification-filter="system">Система</button>
+      </div>
+      <div id="notification-list" class="notification-list"></div>
+      <div class="panel-head calendar-mini-head"><h2 id="mini-date-title">Сегодня</h2><button data-app="calendar">Календарь</button></div>
+      <div id="mini-agenda" class="mini-agenda"></div>
+    </aside>
+
+    <section id="global-search" class="global-search glass hidden">
+      <button id="global-search-close" class="global-search-close" type="button" title="Закрыть поиск" aria-label="Закрыть поиск">×</button>
+      <div class="global-search-input"><span>⌕</span><input id="global-search-field" placeholder="Быстрый поиск по ОС" autocomplete="off"></div>
+      <div id="global-search-results" class="global-search-results"></div>
+    </section>
+
+    <div id="window-layer" class="window-layer"></div>
+    <div id="snap-overlay" class="snap-overlay hidden"><div data-snap="left">Левая половина</div><div data-snap="right">Правая половина</div><div data-snap="max">На весь экран</div></div>
+
+    <nav id="taskbar" class="taskbar glass" aria-label="Панель задач">
+      <button id="start-button" class="task-button zeter-button" title="ZeTer"><img src="assets/icons/zeter-logo.svg" alt=""></button>
+      <label class="taskbar-search" title="Быстрый поиск по ОС">
+        <span>⌕</span>
+        <input id="taskbar-search-field" type="search" placeholder="Поиск по ОС" autocomplete="off" aria-label="Быстрый поиск по ОС" />
+      </label>
+      <button class="task-button" data-app="tasks" title="Задачи">✅</button>
+      <button class="task-button" data-app="calendar" title="Календарь">📅</button>
+      <div id="taskbar-apps" class="taskbar-apps"></div>
+      <div class="taskbar-spacer"></div>
+      <button id="notifications-button" class="tray-small" title="Уведомления">🔔<span id="notif-count" class="notif-count hidden">0</span></button>
+      <button id="tray" class="tray" title="Календарь"><b id="clock">00:00</b><small id="date-line">—</small></button>
+    </nav>
+
+    <div id="context-menu" class="context-menu glass hidden"></div>
+    <div id="drag-ghost" class="drag-ghost hidden"></div>
+    <div id="toast-stack" class="toast-stack"></div>
+    <input id="import-file" type="file" accept="application/json,.json,application/zip,.zip,application/x-zeter-backup,.zeterbak" hidden />
+
+    <section id="lock-screen" class="lock-screen hidden">
+      <div class="lock-card glass">
+        <img src="assets/icons/zeter-logo.svg" alt="" />
+        <h2 id="lock-time">00:00</h2>
+        <p id="lock-date">—</p>
+        <p class="muted">Экран паузы скрывает рабочий стол, но не защищает данные паролем.</p>
+        <button id="unlock">Вернуться в ZeTer OS</button>
+      </div>
+    </section>
+
+    <template id="window-template">
+      <section class="window glass" role="dialog">
+        <header class="window-titlebar">
+          <div class="window-title"><span class="window-icon"></span><b></b><small></small></div>
+          <div class="window-controls">
+            <button data-win="snap" title="Snap">▦</button>
+            <button data-win="min" title="Свернуть">—</button>
+            <button data-win="max" title="Развернуть">□</button>
+            <button data-win="close" title="Закрыть">×</button>
+          </div>
+        </header>
+        <div class="window-body"></div>
+        <i class="resize-handle"></i>
+      </section>
+    </template>
+  </main>
+
+  <script src="js/core/boot-guard.js"></script>
+  <script src="js/core/version.js"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/utils.js"></script>
+  <script src="js/core/system-settings-utils.js"></script>
+  <script src="js/core/shortcut-utils.js"></script>
+  <script src="js/core/shell-ui-utils.js"></script>
+  <script src="js/core/first-run-ui-utils.js"></script>
+  <script src="js/core/context-menu-ui-utils.js"></script>
+  <script src="js/core/explorer-tab-utils.js"></script>
+  <script src="js/core/explorer-ui-utils.js"></script>
+  <script src="js/core/pinning-utils.js"></script>
+  <script src="js/core/trash-utils.js"></script>
+  <script src="js/core/desktop-layout-utils.js"></script>
+  <script src="js/core/item-drag-ui-utils.js"></script>
+  <script src="js/core/window-metrics-utils.js"></script>
+  <script src="js/core/window-session-utils.js"></script>
+  <script src="js/core/window-ui-utils.js"></script>
+  <script src="js/core/sticky-utils.js"></script>
+  <script src="js/core/native-storage.js"></script>
+  <script src="js/core/managed-file-utils.js"></script>
+  <script src="js/core/storage-utils.js"></script>
+  <script src="js/core/asset-utils.js"></script>
+  <script src="js/core/security-protection-utils.js"></script>
+  <script src="js/core/visual-utils.js"></script>
+  <script src="js/core/item-customization-utils.js"></script>
+  <script src="js/core/desktop-profile-utils.js"></script>
+  <script src="js/core/desktop-ui-utils.js"></script>
+  <script src="js/core/start-ui-utils.js"></script>
+  <script src="js/core/file-import-utils.js"></script>
+  <script src="js/core/file-template-utils.js"></script>
+  <script src="js/core/rich-text-utils.js"></script>
+  <script src="js/core/markdown-utils.js"></script>
+  <script src="js/core/editor-ui-utils.js"></script>
+  <script src="js/core/data-normalizers.js"></script>
+  <script src="js/core/workspace-utils.js"></script>
+  <script src="js/core/state-maintenance-utils.js"></script>
+  <script src="js/core/task-ui-utils.js"></script>
+  <script src="js/core/task-app-ui-utils.js"></script>
+  <script src="js/core/calendar-utils.js"></script>
+  <script src="js/core/calendar-ui-utils.js"></script>
+  <script src="js/core/notification-utils.js"></script>
+  <script src="js/core/notification-ui-utils.js"></script>
+  <script src="js/core/import-utils.js"></script>
+  <script src="js/core/state-import-validator.js"></script>
+  <script src="js/core/export-utils.js"></script>
+  <script src="js/core/download-utils.js"></script>
+  <script src="js/core/security-utils.js"></script>
+  <script src="js/core/security-ui-utils.js"></script>
+  <script src="js/core/readable-export-utils.js"></script>
+  <script src="js/core/table-utils.js"></script>
+  <script src="js/core/xlsx-utils.js"></script>
+  <script src="js/core/table-ui-utils.js"></script>
+  <script src="js/core/table-app-interactions.js"></script>
+  <script src="js/core/calculator-utils.js"></script>
+  <script src="js/core/calculator-ui-utils.js"></script>
+  <script src="js/core/app-catalog.js"></script>
+  <script src="js/core/item-metadata.js"></script>
+  <script src="js/core/item-properties-ui-utils.js"></script>
+  <script src="js/core/fs-item-utils.js"></script>
+  <script src="js/core/explorer-utils.js"></script>
+  <script src="js/core/help-content.js"></script>
+  <script src="js/core/monitor-utils.js"></script>
+  <script src="js/core/photo-ui-utils.js"></script>
+  <script src="js/core/settings-ui-utils.js"></script>
+  <script src="js/core/app-center-ui-utils.js"></script>
+  <script src="js/core/search-utils.js"></script>
+  <script src="js/core/initial-state-utils.js"></script>
+  <script src="js/core/state-migration-utils.js"></script>
+  <script src="js/core/search-ui-utils.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

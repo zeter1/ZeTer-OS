@@ -1,0 +1,62 @@
+/* v3.7 fix: контрастные выпадающие списки в редакторе документов */
+select {
+  color: var(--text);
+  background-color: rgba(255,255,255,.12);
+  border: 1px solid var(--stroke);
+}
+
+select option,
+select optgroup {
+  color: #f4f7ff;
+  background-color: #3f4256;
+}
+
+select option:checked,
+select option:hover {
+  color: #ffffff;
+  background-color: #8ea2ff;
+}
+
+.rich-toolbar select,
+.formatting-toolbar select {
+  color: #f4f7ff !important;
+  background: #55586d !important;
+  border-color: rgba(255,255,255,.34);
+}
+
+.rich-toolbar select option,
+.formatting-toolbar select option {
+  color: #f4f7ff !important;
+  background-color: #3f4256 !important;
+}
+
+.rich-toolbar select option:checked,
+.formatting-toolbar select option:checked {
+  color: #ffffff !important;
+  background-color: #8ea2ff !important;
+}
+
+body.light select {
+  color: #101523;
+  background-color: rgba(255,255,255,.88);
+}
+
+body.light select option,
+body.light select optgroup {
+  color: #101523;
+  background-color: #eef3ff;
+}
+
+body.light .rich-toolbar select,
+body.light .formatting-toolbar select {
+  color: #101523 !important;
+  background: #f4f7ff !important;
+}
+
+body.light .rich-toolbar select option,
+body.light .formatting-toolbar select option {
+  color: #101523 !important;
+  background-color: #eef3ff !important;
+}
+
+

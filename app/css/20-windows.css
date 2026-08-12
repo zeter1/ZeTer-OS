@@ -1,0 +1,42 @@
+.window-layer { position: absolute; inset: var(--topbar) 0 var(--taskbar) 0; pointer-events: none; z-index: 4700; overflow: visible; }
+.window { position: absolute; min-width: 330px; min-height: 240px; border-radius: 22px; overflow: hidden; pointer-events: auto; transition: border-color .12s ease, opacity .12s ease, transform .12s ease, box-shadow .12s ease; }
+.window.active { border-color: var(--stroke-strong); box-shadow: 0 32px 130px rgba(0,0,0,.5); }
+.window.minimized { opacity: 0; transform: translateY(18px) scale(.92); pointer-events: none; }
+.window.maximized { border-radius: 0; }
+.window-titlebar { height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--stroke); background: rgba(255,255,255,.06); cursor: grab; }
+.window-titlebar:active { cursor: grabbing; }
+.window-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.window-title b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.window-title small { color: var(--muted2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.window-icon { font-size: 19px; }
+.window-controls { display: flex; gap: 5px; }
+.window-controls button { width: 32px; height: 31px; border-radius: 10px; background: transparent; }
+.window-controls button:hover { background: rgba(255,255,255,.14); }
+.window-controls [data-win="close"]:hover { background: var(--danger); color: white; }
+.window-body { height: calc(100% - 48px); overflow: auto; padding: 16px; }
+.resize-handle { position: absolute; right: 3px; bottom: 3px; width: 18px; height: 18px; cursor: nwse-resize; opacity: .6; }
+.resize-handle::after { content: "◢"; position: absolute; right: 0; bottom: -3px; font-size: 14px; color: var(--muted); }
+.snap-overlay { position: absolute; inset: calc(var(--topbar) + 10px) 10px calc(var(--taskbar) + 10px) 10px; z-index: 900; pointer-events: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.snap-overlay div { display: grid; place-items: center; border-radius: 22px; border: 2px dashed rgba(255,255,255,.3); background: rgba(122,168,255,.11); color: var(--muted); font-weight: 700; }
+.snap-overlay [data-snap="max"] { grid-column: 1 / -1; }
+
+.context-menu { position: absolute; width: 250px; z-index: 7000; border-radius: 18px; padding: 8px; }
+.context-menu button { width: 100%; border-radius: 12px; padding: 10px 12px; background: transparent; text-align: left; display: flex; justify-content: space-between; gap: 10px; }
+.context-menu button:hover { background: rgba(255,255,255,.14); }
+.context-menu hr { border: 0; border-top: 1px solid var(--stroke); margin: 6px; }
+.drag-ghost { position: fixed; z-index: 9999; pointer-events: none; min-width: 120px; padding: 10px 12px; border-radius: 16px; background: rgba(20,25,45,.78); border: 1px solid rgba(255,255,255,.25); box-shadow: 0 20px 65px rgba(0,0,0,.38); display: flex; gap: 8px; align-items: center; }
+.drag-ghost b { font-size: 24px; }
+.toast-stack { position: absolute; right: 18px; bottom: 86px; display: grid; gap: 9px; z-index: 7200; }
+.toast { width: min(360px, calc(100vw - 36px)); border-radius: 18px; padding: 13px 14px; background: rgba(20,25,45,.76); border: 1px solid rgba(255,255,255,.22); box-shadow: 0 20px 70px rgba(0,0,0,.34); backdrop-filter: none; -webkit-backdrop-filter: none; animation: toast .22s ease; }
+body.light .toast { background: rgba(255,255,255,.82); }
+@keyframes toast { from { transform: translateY(10px); opacity: 0; } }
+.toast b, .toast span { display: block; }
+.toast span { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+.lock-screen { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: radial-gradient(circle at 80% 16%, rgba(122,168,255,.38), transparent 35%), linear-gradient(135deg, rgba(5,7,17,.93), rgba(31,17,64,.94)); }
+.lock-card { width: min(390px, calc(100vw - 32px)); border-radius: 30px; padding: 34px; text-align: center; }
+.lock-card img { width: 58px; }
+.lock-card h2 { font-size: 74px; letter-spacing: -.07em; margin: 14px 0 0; }
+.lock-card p { color: var(--muted); margin: 0; }
+.lock-card button { margin-top: 24px; height: 44px; padding: 0 26px; border-radius: 999px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+

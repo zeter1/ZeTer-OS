@@ -1,0 +1,474 @@
+/* v3.40 Explorer Plus: tabs, path panel, preview and bulk actions */
+.explorer-plus {
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+.explorer-plus .explorer-main {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+  gap: 10px;
+}
+
+.explorer-tabs {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: rgba(255,255,255,.06);
+  overflow-x: auto;
+}
+
+.explorer-tab,
+.explorer-tab-add {
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,.07);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.explorer-tab {
+  max-width: 190px;
+  padding: 7px 8px 7px 11px;
+}
+
+.explorer-tab span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-tab i {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  color: var(--muted);
+}
+
+.explorer-tab i:hover {
+  background: rgba(255,255,255,.14);
+  color: var(--text);
+}
+
+.explorer-tab.active {
+  border-color: rgba(122,168,255,.55);
+  background: rgba(122,168,255,.18);
+}
+
+.explorer-tab-add {
+  width: 34px;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+}
+
+.explorer-path-toolbar {
+  gap: 8px;
+}
+
+.explorer-path-panel {
+  min-width: 160px;
+  flex: 1 1 260px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: rgba(255,255,255,.07);
+  overflow-x: auto;
+}
+
+.explorer-path-panel button {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 9px;
+  color: var(--text);
+  background: transparent;
+}
+
+.explorer-path-panel button:hover {
+  background: rgba(255,255,255,.14);
+}
+
+.explorer-path-separator {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.explorer-bulkbar {
+  align-items: center;
+  gap: 7px;
+  background: rgba(122,168,255,.12);
+  border-color: rgba(122,168,255,.35);
+}
+
+.explorer-bulkbar.hidden {
+  display: none;
+}
+
+.explorer-bulkbar b {
+  margin-right: 4px;
+}
+
+.explorer-bulkbar .danger-btn,
+.explorer-preview-actions .danger-btn {
+  background: rgba(255,95,121,.18);
+}
+
+.explorer-content {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 10px;
+}
+
+.explorer-plus .explorer-free-grid {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+}
+
+.explorer-plus.has-folder-background .explorer-free-grid {
+  background-image:
+    linear-gradient(rgba(5,10,22,.28), rgba(5,10,22,.28)),
+    var(--folder-background-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.explorer-plus.has-folder-background .explorer-empty {
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0,0,0,.75);
+}
+
+.explorer-file-icon.selected {
+  outline: 2px solid var(--accent);
+  background: rgba(122,168,255,.18);
+}
+
+.explorer-preview {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: rgba(255,255,255,.075);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.explorer-preview-empty {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.explorer-preview-empty b,
+.explorer-preview-head b,
+.explorer-preview-folder b {
+  color: var(--text);
+}
+
+.explorer-preview-empty small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.explorer-preview-head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.explorer-preview-head div {
+  min-width: 0;
+}
+
+.explorer-preview-head b,
+.explorer-preview-head small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.explorer-preview-head small {
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.explorer-preview-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.11);
+  font-size: 24px;
+}
+
+.explorer-preview-image {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: rgba(0,0,0,.22);
+}
+
+.explorer-preview-text {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(0,0,0,.18);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.explorer-preview-folder,
+.explorer-preview-list {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.explorer-preview-folder span,
+.explorer-preview-list span {
+  padding: 7px 8px;
+  border-radius: 11px;
+  background: rgba(255,255,255,.07);
+  overflow-wrap: anywhere;
+}
+
+.explorer-preview-meta {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.explorer-preview-meta div {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.06);
+}
+
+.explorer-preview-meta dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.explorer-preview-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.explorer-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.explorer-preview-actions button {
+  flex: 1 1 auto;
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(255,255,255,.1);
+}
+
+@media (max-width: 980px) {
+  .explorer-content {
+    grid-template-columns: 1fr;
+  }
+  .explorer-preview {
+    min-height: 180px;
+    max-height: 260px;
+  }
+}
+
+@media (max-width: 780px) {
+  .explorer-tabs,
+  .explorer-path-panel {
+    max-width: calc(100vw - 36px);
+  }
+  .explorer-path-toolbar {
+    align-items: stretch;
+  }
+  .explorer-path-toolbar input[data-search] {
+    min-width: 100% !important;
+  }
+}
+
+/* v3.41 Explorer path input, blank tabs and empty-folder outline fix */
+.explorer-plus .explorer-free-grid {
+  scrollbar-gutter: stable;
+  overflow: auto;
+}
+
+.explorer-plus .explorer-empty {
+  inset: 10px 18px 12px 10px;
+  box-sizing: border-box;
+}
+
+.explorer-path-input {
+  min-width: 180px;
+  flex: 1 1 300px;
+  height: 42px;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: rgba(255,255,255,.07);
+  color: var(--text);
+  padding: 0 12px;
+  outline: 0;
+  user-select: text;
+}
+
+.explorer-path-input:focus {
+  border-color: rgba(122,168,255,.65);
+  background: rgba(255,255,255,.11);
+}
+
+.explorer-tab.empty span::before {
+  content: "＋ ";
+  color: var(--muted);
+}
+
+.explorer-content--blank {
+  grid-template-columns: 1fr;
+}
+
+.explorer-empty-tab {
+  min-height: 100%;
+  border: 1px dashed var(--stroke);
+  border-radius: 18px;
+  background: rgba(255,255,255,.055);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  text-align: center;
+  padding: 28px;
+  color: var(--muted);
+}
+
+.explorer-empty-tab b {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.explorer-empty-tab small {
+  color: var(--muted);
+}
+
+@media (max-width: 780px) {
+  .explorer-path-input {
+    min-width: 100%;
+  }
+}
+
+/* v3.42 Explorer: adaptive empty folder area and recursive search results */
+.explorer-content {
+  align-items: stretch;
+  height: 100%;
+}
+
+.explorer-plus .explorer-free-grid {
+  height: 100%;
+  min-height: 420px;
+  box-sizing: border-box;
+}
+
+.explorer-plus .explorer-free-grid.is-empty {
+  min-height: 420px;
+  overflow: auto;
+}
+
+.explorer-plus .explorer-free-grid.is-empty .explorer-empty {
+  position: relative;
+  inset: auto;
+  min-height: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.explorer-plus .explorer-free-grid:not(.is-empty) .explorer-empty {
+  position: relative;
+  inset: auto;
+}
+
+.explorer-plus .explorer-free-grid.is-searching .explorer-file-icon small {
+  line-height: 1.35;
+}
+
+/* v3.44 Explorer: mouse rectangle selection inside folders */
+.explorer-selection-box {
+  position: absolute;
+  z-index: 8;
+  border: 1px solid var(--accent);
+  background: rgba(122,168,255,.12);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.explorer-free-grid.is-selecting {
+  cursor: crosshair;
+  user-select: none;
+}
+.explorer-free-grid.is-selecting .explorer-file-icon {
+  pointer-events: none;
+}
+
+/* v3.49 Explorer: рабочая область папки заполняет всё окно и растёт вниз по содержимому */
+.window[data-app-id="folder"] .window-body {
+  overflow: hidden;
+}
+
+.window[data-app-id="folder"] .explorer,
+.window[data-app-id="folder"] .explorer-plus,
+.window[data-app-id="folder"] .explorer-main,
+.window[data-app-id="folder"] .explorer-content {
+  height: 100%;
+  min-height: 0;
+}
+
+.window[data-app-id="folder"] .explorer-main,
+.window[data-app-id="folder"] .explorer-content {
+  overflow: hidden;
+}
+
+.window[data-app-id="folder"] .explorer-plus .explorer-free-grid {
+  height: 100%;
+  min-height: 100%;
+  overflow: auto;
+}
+
+.window[data-app-id="folder"] .explorer-preview {
+  height: 100%;
+  min-height: 0;
+}
+

@@ -1,0 +1,404 @@
+/* v3.8 Explorer Pro */
+.explorer-pro .explorer-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.explorer-sidebar-section {
+  display: grid;
+  gap: 4px;
+}
+
+.explorer-side-title {
+  padding: 6px 8px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.explorer-tree-row,
+.explorer-pinned-row {
+  --level: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px;
+  border-radius: 12px;
+  padding-left: calc(var(--level) * 14px);
+}
+
+.explorer-pinned-row {
+  grid-template-columns: minmax(0, 1fr) 28px;
+  padding-left: 0;
+}
+
+.explorer-tree-row:hover,
+.explorer-tree-row.active,
+.explorer-pinned-row:hover,
+.explorer-pinned-row.active {
+  background: rgba(255,255,255,.13);
+}
+
+.explorer-tree-row.active,
+.explorer-pinned-row.active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.explorer-tree-row.navigation-root {
+  margin-bottom: 2px;
+  background: rgba(255,255,255,.055);
+}
+
+.explorer-tree-row.navigation-root.active {
+  background: rgba(122,168,255,.17);
+}
+
+.tree-toggle,
+.tree-name,
+.pinned-name,
+.pinned-unpin {
+  border-radius: 10px;
+  background: transparent;
+  min-width: 0;
+}
+
+.tree-toggle {
+  width: 24px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.tree-toggle.empty {
+  opacity: .65;
+}
+
+.tree-toggle-root {
+  cursor: default;
+}
+
+.tree-name,
+.pinned-name {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px;
+  text-align: left;
+}
+
+.tree-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  text-align: center;
+}
+
+.item-custom-icon {
+  display: block;
+  width: 1em;
+  height: 1em;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.item-folder-color-icon {
+  filter: drop-shadow(0 5px 8px rgba(0,0,0,.24));
+}
+
+.desktop-icon .icon > .item-custom-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.file-emoji > .item-custom-icon {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto;
+}
+
+.tree-icon > .item-custom-icon,
+.context-menu button span > .item-custom-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+
+.explorer-preview-icon > .item-custom-icon,
+.drag-ghost b > .item-custom-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.start-app b > .item-custom-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.tree-name span,
+.pinned-name span {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.pinned-unpin {
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  opacity: .2;
+}
+
+.explorer-pinned-row:hover .pinned-unpin {
+  opacity: 1;
+}
+
+.pinned-unpin:hover {
+  background: rgba(122,168,255,.22);
+  color: white;
+}
+
+.pinned-empty {
+  padding: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.explorer-free-grid {
+  position: relative;
+  display: block;
+  overflow: auto;
+  min-height: 100%;
+  height: 100%;
+  background:
+    linear-gradient(rgba(255,255,255,.025), rgba(255,255,255,.025));
+}
+
+.explorer-file-icon {
+  position: absolute;
+  width: 150px;
+  min-height: 124px;
+  user-select: none;
+}
+
+.explorer-file-icon.dragging-source {
+  opacity: .55;
+}
+
+.explorer-empty {
+  position: absolute;
+  inset: 8px;
+}
+
+.explorer-tree-row.folder-drop-hover,
+.explorer-pinned-row.folder-drop-hover,
+.explorer-file-icon.folder-drop-hover {
+  outline: 2px solid var(--accent);
+  background: rgba(122,168,255,.16);
+}
+
+@media (max-width: 780px) {
+  .explorer { grid-template-columns: 1fr; }
+  .explorer-sidebar { max-height: 220px; }
+  .explorer-file-icon { width: 136px; }
+}
+
+
+/* v3.9 Explorer sidebar context menu */
+.explorer-tree-row,
+.explorer-pinned-row {
+  cursor: default;
+}
+
+.explorer-tree-row .tree-name,
+.explorer-pinned-row .pinned-name {
+  cursor: pointer;
+}
+
+.explorer-tree-row::after,
+.explorer-pinned-row::after {
+  content: "";
+}
+
+.explorer-side-title {
+  user-select: none;
+}
+
+.explorer-tree-row[data-folder-row]:hover .tree-name span,
+.explorer-pinned-row[data-pinned-item]:hover .pinned-name span {
+  text-decoration: none;
+}
+
+.context-menu button span {
+  pointer-events: none;
+}
+
+
+/* v3.10 Explorer drag area fix */
+.explorer-main {
+  min-width: 0;
+  min-height: 0;
+}
+
+.explorer-free-grid {
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  pointer-events: auto;
+}
+
+.explorer-free-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  min-width: 100%;
+  min-height: 100%;
+  pointer-events: none;
+}
+
+.explorer-file-icon {
+  z-index: 2;
+}
+
+.explorer-file-icon:active {
+  cursor: grabbing;
+}
+
+
+/* v3.11 workspace window isolation */
+.window[data-desktop-id] {
+  contain: layout paint;
+}
+
+
+/* v3.12 boot safety */
+.boot-error-safe {
+  color: var(--muted);
+}
+
+
+/* v3.14 desktop open/drag fix */
+.desktop-icon {
+  touch-action: none;
+}
+
+.desktop-icon.dragging-source {
+  opacity: .55;
+}
+
+.desktop-icon.selected {
+  outline: 2px solid var(--accent);
+  background: rgba(122,168,255,.18);
+}
+
+
+/* v3.17 separated Explorer space */
+.explorer-side-title + .pinned-empty {
+  font-size: 12px;
+}
+
+.setting-card .choice-row button[data-folder-save],
+.setting-card .choice-row button[data-folder-save-now] {
+  border-color: rgba(122,168,255,.45);
+}
+
+
+/* v3.18 left sidebar drag-and-drop */
+.explorer-sidebar[data-folder-drop] {
+  position: relative;
+}
+
+.explorer-sidebar.folder-drop-hover {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+  background: rgba(122,168,255,.08);
+}
+
+.explorer-tree-row[data-sidebar-draggable="1"],
+.explorer-pinned-row[data-sidebar-draggable="1"] {
+  cursor: grab;
+}
+
+.explorer-tree-row[data-sidebar-draggable="1"]:active,
+.explorer-pinned-row[data-sidebar-draggable="1"]:active {
+  cursor: grabbing;
+}
+
+.explorer-tree-row.dragging-source,
+.explorer-pinned-row.dragging-source {
+  opacity: .48;
+  outline: 1px dashed var(--accent);
+}
+
+.explorer-tree-row.folder-drop-hover,
+.explorer-pinned-row.folder-drop-hover,
+.explorer-file-icon.folder-drop-hover {
+  outline: 2px solid var(--accent);
+  background: rgba(122,168,255,.22);
+}
+
+.explorer-tree-row.folder-drop-hover .tree-name span,
+.explorer-pinned-row.folder-drop-hover .pinned-name span {
+  color: var(--text);
+}
+
+
+/* v3.19 fix: sidebar rows open normally while still draggable */
+.explorer-tree-row[data-folder-row],
+.explorer-pinned-row[data-pinned-item] {
+  user-select: none;
+}
+
+.explorer-tree-row[data-folder-row] .tree-name,
+.explorer-pinned-row[data-pinned-item] .pinned-name {
+  cursor: pointer;
+}
+
+.explorer-tree-row[data-folder-row]:not(.dragging-source):hover .tree-name span,
+.explorer-pinned-row[data-pinned-item]:not(.dragging-source):hover .pinned-name span {
+  text-decoration: none;
+}
+
+/* Ordered Explorer view for the desktop root: do not reuse desktop icon coordinates. */
+.file-grid.explorer-free-grid.is-ordered {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(136px, 150px));
+  grid-auto-rows: minmax(124px, max-content);
+  align-content: start;
+  justify-content: start;
+  gap: 22px 8px;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.file-grid.explorer-free-grid.is-ordered .explorer-file-icon {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.file-grid.explorer-free-grid.is-ordered[data-view-mode="large"] {
+  grid-template-columns: repeat(auto-fill, minmax(168px, 180px));
+  grid-auto-rows: minmax(156px, max-content);
+}
+
+
