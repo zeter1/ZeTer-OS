@@ -58,6 +58,8 @@ assert.ok(topics.every(topic => topic.title && topic.summary && topic.steps?.len
 
 const html = help.helpContentHTML({ osVersion: "3.77" });
 assert.match(html, /Освой ZeTer OS шаг за шагом/, "help must start with a clear onboarding promise");
+assert.match(html, /стрелку ↓/, "help must explain how to leave a trailing quote with the keyboard");
+assert.match(html, /копирует только текст цитаты/, "help must explain the quote copy button");
 assert.match(html, /data-help-search/, "help must provide full-text search");
 assert.match(html, /data-help-target="start"/, "help must provide section navigation");
 assert.match(html, /start_zeter_os\.cmd/, "help must explain the supported desktop launch");

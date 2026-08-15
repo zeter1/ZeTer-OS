@@ -1258,6 +1258,56 @@ body.light .help-search-panel {
   overflow-wrap: anywhere;
 }
 
+.rich-editor-area blockquote {
+  position: relative;
+  padding-right: 2.75em;
+}
+
+.rich-quote-copy {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 7px;
+  background: rgba(255,255,255,.08);
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.rich-quote-copy::before,
+.rich-quote-copy::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+
+.rich-quote-copy::before {
+  left: 7px;
+  top: 8px;
+}
+
+.rich-quote-copy::after {
+  left: 10px;
+  top: 5px;
+  background: rgba(38,43,71,.96);
+}
+
+.rich-quote-copy:hover,
+.rich-quote-copy:focus-visible {
+  border-color: rgba(122,168,255,.72);
+  background: rgba(122,168,255,.2);
+  color: var(--text);
+  outline: none;
+}
+
 .rich-editor-area blockquote > :last-child,
 .desktop-sticky [data-sticky-text] blockquote > :last-child {
   margin-bottom: 0;

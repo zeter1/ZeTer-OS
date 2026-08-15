@@ -89,6 +89,11 @@
     return !event.isComposing && (event.key === "Delete" || event.code === "Delete");
   }
 
+  function isQuoteExitArrowShortcut(event = {}) {
+    return !event.isComposing && event.key === "ArrowDown"
+      && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
+  }
+
   function shouldRemoveQuoteFromSelection({
     startInsideQuote = false,
     endInsideQuote = false,
@@ -99,6 +104,48 @@
     const selection = normalizeText(selectedText);
     const quotes = normalizeText(selectedQuoteTexts.map(normalizeText).filter(Boolean).join(" "));
     return Boolean((startInsideQuote && endInsideQuote) || (selection && selection === quotes));
+  }
+
+  function ensureTrailingQuoteExitParagraph(area, documentRef = globalThis.document) {
+    if (!area || !documentRef?.createElement) return { paragraph: null, quote: null, changed: false };
+    const tagName = element => String(element?.tagName || "").toLowerCase();
+    const last = area.lastElementChild;
+    if (tagName(last) === "p" && tagName(last.previousElementSibling) === "blockquote" && !String(last.textContent || "").trim()) {
+      const children = [...(last.children || [])];
+      if (children.every(child => tagName(child) === "br")) {
+        if (!children.length) {
+          last.appendChild(documentRef.createElement("br"));
+          return { paragraph: last, quote: last.previousElementSibling, changed: true };
+        }
+        return { paragraph: last, quote: last.previousElementSibling, changed: false };
+      }
+    }
+    if (tagName(last) !== "blockquote") return { paragraph: null, quote: null, changed: false };
+    const paragraph = documentRef.createElement("p");
+    paragraph.appendChild(documentRef.createElement("br"));
+    area.appendChild(paragraph);
+    return { paragraph, quote: last, changed: true };
+  }
+
+  function rangeEndsAtElementEnd(range, element, documentRef = globalThis.document) {
+    if (!range || !element || !documentRef?.createRange) return false;
+    const endContainer = range.endContainer;
+    if (endContainer !== element && !element.contains?.(endContainer)) return false;
+    try {
+      const tail = documentRef.createRange();
+      tail.selectNodeContents(element);
+      tail.setStart(endContainer, range.endOffset);
+      return tail.collapsed;
+    } catch {
+      return false;
+    }
+  }
+
+  function quoteTextForClipboard(quote) {
+    if (!quote) return "";
+    const copy = quote.cloneNode?.(true) || quote;
+    copy.querySelectorAll?.("[data-quote-copy]").forEach(button => button.remove());
+    return String(copy.innerText || copy.textContent || "").replace(/\u00a0/g, " ").trim();
   }
 
   function findTextMatchOffsets(text = "", query = "") {
@@ -330,6 +377,7 @@
     downloadDocx = () => Promise.resolve(false),
     openFolder = () => {},
     openExternalLink = () => {},
+    copyText = () => Promise.resolve(false),
     requestLink = () => null,
     managedFiles = [],
     documentRef = globalThis.document
@@ -348,7 +396,26 @@
     const rangeOverlay = $("[data-range-overlay]", root);
     const imageResizer = $("[data-image-resizer]", root);
     area.innerHTML = cleanHtml(initialHtml);
+    const migratedQuoteExit = ensureTrailingQuoteExitParagraph(area, documentRef);
     const migratedFiles = ensureManagedFileInlineMarkers(area, managedFiles);
+    const refreshQuoteCopyButtons = () => {
+      area.querySelectorAll("[data-quote-copy]").forEach(button => {
+        if (String(button.parentElement?.tagName || "").toLowerCase() !== "blockquote") button.remove();
+      });
+      area.querySelectorAll("blockquote").forEach(quote => {
+        const existing = [...quote.children].find(child => child.matches?.("[data-quote-copy]"));
+        if (existing) return;
+        const button = documentRef.createElement("button");
+        button.type = "button";
+        button.className = "rich-quote-copy";
+        button.dataset.quoteCopy = "";
+        button.contentEditable = "false";
+        button.setAttribute("aria-label", "Копировать цитату");
+        button.setAttribute("title", "Копировать цитату");
+        quote.insertBefore(button, quote.firstChild);
+      });
+    };
+    refreshQuoteCopyButtons();
     const plainText = () => plainTextWithoutManagedFiles(area);
     const updateCount = () => {
       const text = plainText();
@@ -361,7 +428,7 @@
     const autosave = debounce(() => {
       autosaveStatus.run({ title: title.value, richHtml: cleanHtml(area.innerHTML), plainText: plainText() }).catch(() => {});
     }, 250);
-    if (migratedFiles) autosave();
+    if (migratedFiles || migratedQuoteExit.changed) autosave();
 
     const getSelection = () => documentRef.defaultView?.getSelection?.() || globalThis.getSelection?.();
     const rangeInsideArea = range => Boolean(range && (range.commonAncestorContainer === area || area.contains(range.commonAncestorContainer)));
@@ -440,6 +507,26 @@
       if (selection) {
         selection.removeAllRanges();
         selection.addRange(range);
+      }
+      return true;
+    };
+    const moveCaretAfterTrailingQuote = () => {
+      const exit = ensureTrailingQuoteExitParagraph(area, documentRef);
+      if (!exit.paragraph || !documentRef.createRange) return false;
+      const selection = getSelection();
+      if (!selection) return false;
+      const caret = documentRef.createRange();
+      caret.selectNodeContents(exit.paragraph);
+      caret.collapse(true);
+      area.focus({ preventScroll: true });
+      selection.removeAllRanges();
+      selection.addRange(caret);
+      savedRange = caret.cloneRange();
+      clearRangeOverlay();
+      exit.paragraph.scrollIntoView?.({ block: "nearest" });
+      if (exit.changed) {
+        status.textContent = "Сохраняю строку после цитаты…";
+        autosave();
       }
       return true;
     };
@@ -544,6 +631,8 @@
       });
       const selectionOffsets = editorTextOffsetsForRange(area, range, documentRef);
       documentRef.execCommand("formatBlock", false, removeQuote ? "p" : "blockquote");
+      if (!removeQuote) ensureTrailingQuoteExitParagraph(area, documentRef);
+      refreshQuoteCopyButtons();
       if (!restoreSelectionOffsets(selectionOffsets)) rememberSelection();
       showRangeOverlay(savedRange);
       status.textContent = `${removeQuote ? "Цитата убрана" : "Текст оформлен как цитата"} · сохраняю…`;
@@ -716,12 +805,16 @@
         : (cleanedHtml || plainToHtml(text));
       documentRef.execCommand("insertHTML", false, pastedHtml);
       if (activeFontSize) normalizeFontSizeMarkers(area, activeFontSize, documentRef);
+      ensureTrailingQuoteExitParagraph(area, documentRef);
+      refreshQuoteCopyButtons();
       updateCount();
       status.textContent = "Сохраняю…";
       autosave();
     });
     area.addEventListener("input", () => {
       if (activeFontSize) normalizeFontSizeMarkers(area, activeFontSize, documentRef);
+      ensureTrailingQuoteExitParagraph(area, documentRef);
+      refreshQuoteCopyButtons();
       rememberSelection();
       updateCount();
       status.textContent = "Сохраняю…";
@@ -735,6 +828,10 @@
       positionRangeOverlay();
     }, { passive: true });
     root.addEventListener("pointerdown", event => {
+      if (event.target.closest("[data-quote-copy]")) {
+        event.preventDefault();
+        return;
+      }
       const resizeHandle = event.target.closest("[data-image-resize]");
       if (resizeHandle) {
         beginImageResize(event, resizeHandle.dataset.imageResize || "se");
@@ -749,6 +846,28 @@
       }
     });
     root.addEventListener("click", event => {
+      const quoteCopyButton = event.target.closest("[data-quote-copy]");
+      if (quoteCopyButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        const quote = quoteCopyButton.closest("blockquote");
+        const text = quoteTextForClipboard(quote);
+        if (!text) {
+          status.textContent = "В цитате нет текста для копирования";
+          return;
+        }
+        status.textContent = "Копирую цитату…";
+        Promise.resolve()
+          .then(() => copyText(text))
+          .then(copied => {
+            status.textContent = copied === false ? "Не удалось скопировать цитату" : "Цитата скопирована";
+          })
+          .catch(error => {
+            console.error("Не удалось скопировать цитату", error);
+            status.textContent = "Не удалось скопировать цитату";
+          });
+        return;
+      }
       const image = event.target.closest(".rich-editor-area img");
       if (image) {
         event.preventDefault();
@@ -763,6 +882,15 @@
         return;
       }
       if (event.target.closest(".rich-editor-area")) hideImageResizer();
+      const quoteExit = ensureTrailingQuoteExitParagraph(area, documentRef);
+      const clickedExit = quoteExit.paragraph && (event.target === quoteExit.paragraph || quoteExit.paragraph.contains?.(event.target));
+      const clickedBelowQuote = event.target === area
+        && quoteExit.quote?.getBoundingClientRect
+        && Number(event.clientY) >= quoteExit.quote.getBoundingClientRect().bottom;
+      if ((clickedExit || clickedBelowQuote) && moveCaretAfterTrailingQuote()) {
+        event.preventDefault();
+        return;
+      }
       const format = event.target.closest("[data-format]")?.dataset.format;
       if (format) runFormat(format);
       const action = event.target.closest("[data-action]")?.dataset.action;
@@ -800,6 +928,16 @@
       if (event.target.matches("[data-bg]")) runFormat("hiliteColor", event.target.value);
     });
     root.addEventListener("keydown", event => {
+      if (isQuoteExitArrowShortcut(event) && (event.target === area || area.contains(event.target))) {
+        const quoteExit = ensureTrailingQuoteExitParagraph(area, documentRef);
+        const selection = getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        if (quoteExit.quote && rangeEndsAtElementEnd(range, quoteExit.quote, documentRef) && moveCaretAfterTrailingQuote()) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
       if (selectedImage && isRichEditorImageDeleteShortcut(event)) {
         event.preventDefault();
         event.stopPropagation();
@@ -967,6 +1105,7 @@
     const stripKnownExtension = typeof options.stripKnownExtension === "function" ? options.stripKnownExtension : name => String(name || "").replace(/\.(txt|docx|html|md)$/i, "");
     const toast = typeof options.toast === "function" ? options.toast : () => {};
     const openExternalLink = typeof options.openExternalLink === "function" ? options.openExternalLink : () => {};
+    const copyText = typeof options.copyText === "function" ? options.copyText : () => Promise.resolve(false);
     const createRichEditor = typeof options.createRichEditor === "function" ? options.createRichEditor : createRichEditorUI;
     const now = typeof options.now === "function" ? options.now : Date.now;
     const documentRef = options.documentRef || globalThis.document;
@@ -1036,6 +1175,7 @@
           else toast("Файл на рабочем столе", "Этот файл находится прямо на рабочем столе.");
         },
         openExternalLink,
+        copyText,
         requestLink: defaultValue => requestText("Адрес ссылки для выделенного текста:", defaultValue || "https://"),
         documentRef
       });
@@ -1156,7 +1296,11 @@
     richEditorHTML,
     isRichEditorFindShortcut,
     isRichEditorImageDeleteShortcut,
+    isQuoteExitArrowShortcut,
     shouldRemoveQuoteFromSelection,
+    ensureTrailingQuoteExitParagraph,
+    rangeEndsAtElementEnd,
+    quoteTextForClipboard,
     findTextMatchOffsets,
     imageResizeDimensions,
     createAutosaveStatusController,

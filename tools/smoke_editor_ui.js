@@ -90,9 +90,59 @@ assert.strictEqual(editor.isRichEditorFindShortcut({ ctrlKey: false, code: "KeyF
 assert.strictEqual(editor.isRichEditorImageDeleteShortcut({ key: "Delete", code: "Delete" }), true);
 assert.strictEqual(editor.isRichEditorImageDeleteShortcut({ key: "Delete", code: "Delete", isComposing: true }), false);
 assert.strictEqual(editor.isRichEditorImageDeleteShortcut({ key: "Backspace", code: "Backspace" }), false);
+assert.strictEqual(editor.isQuoteExitArrowShortcut({ key: "ArrowDown" }), true);
+assert.strictEqual(editor.isQuoteExitArrowShortcut({ key: "ArrowDown", shiftKey: true }), false);
+assert.strictEqual(editor.isQuoteExitArrowShortcut({ key: "ArrowDown", isComposing: true }), false);
+assert.strictEqual(editor.isQuoteExitArrowShortcut({ key: "ArrowUp" }), false);
 assert.strictEqual(editor.shouldRemoveQuoteFromSelection({ startInsideQuote: true, endInsideQuote: true, selectedText: "часть цитаты" }), true);
 assert.strictEqual(editor.shouldRemoveQuoteFromSelection({ selectedText: "Вся цитата", selectedQuoteTexts: ["Вся\nцитата"] }), true);
 assert.strictEqual(editor.shouldRemoveQuoteFromSelection({ selectedText: "Ввод Вся цитата", selectedQuoteTexts: ["Вся цитата"] }), false);
+assert.strictEqual(editor.quoteTextForClipboard({ innerText: "  Первая строка\nВторая строка  " }), "Первая строка\nВторая строка");
+assert.strictEqual(editor.quoteTextForClipboard(null), "");
+
+const makeFakeElement = tagName => ({
+  tagName: String(tagName || "").toUpperCase(),
+  textContent: "",
+  children: [],
+  appendChild(child) {
+    this.children.push(child);
+    return child;
+  }
+});
+const fakeQuote = makeFakeElement("blockquote");
+const fakeArea = makeFakeElement("div");
+fakeArea.lastElementChild = fakeQuote;
+fakeArea.appendChild = function appendChild(child) {
+  child.previousElementSibling = this.lastElementChild;
+  this.children.push(child);
+  this.lastElementChild = child;
+  return child;
+};
+const fakeDocument = { createElement: makeFakeElement };
+const createdQuoteExit = editor.ensureTrailingQuoteExitParagraph(fakeArea, fakeDocument);
+assert.strictEqual(createdQuoteExit.changed, true);
+assert.strictEqual(createdQuoteExit.quote, fakeQuote);
+assert.strictEqual(createdQuoteExit.paragraph.tagName, "P");
+assert.strictEqual(createdQuoteExit.paragraph.children[0].tagName, "BR");
+const existingQuoteExit = editor.ensureTrailingQuoteExitParagraph(fakeArea, fakeDocument);
+assert.strictEqual(existingQuoteExit.changed, false);
+assert.strictEqual(existingQuoteExit.paragraph, createdQuoteExit.paragraph);
+
+const fakeCaretContainer = {};
+fakeQuote.contains = node => node === fakeCaretContainer;
+const fakeRange = { endContainer: fakeCaretContainer, endOffset: 4 };
+const rangeDocument = {
+  createRange: () => ({
+    collapsed: false,
+    selectNodeContents() {},
+    setStart() { this.collapsed = true; }
+  })
+};
+assert.strictEqual(editor.rangeEndsAtElementEnd(fakeRange, fakeQuote, rangeDocument), true);
+assert.strictEqual(editor.rangeEndsAtElementEnd(fakeRange, fakeQuote, {
+  createRange: () => ({ collapsed: false, selectNodeContents() {}, setStart() {} })
+}), false);
+assert.strictEqual(editor.rangeEndsAtElementEnd({ endContainer: {}, endOffset: 0 }, fakeQuote, rangeDocument), false);
 
 assert.deepStrictEqual(
   Array.from(editor.findTextMatchOffsets("Альфа beta альфа", "АЛЬФА"), match => ({ ...match })),
@@ -174,6 +224,7 @@ async function runRuntimeSmoke() {
   let exportedItem = null;
   let downloaded = null;
   let saveCalls = 0;
+  const copyText = async () => true;
   const controller = editor.createDocumentEditorRuntimeController({
     getState: () => state,
     getDesktopRoot: () => "desktop",
@@ -195,11 +246,13 @@ async function runRuntimeSmoke() {
       saveCalls++;
       return { saved: true, fallback: false };
     },
+    copyText,
     documentRef: {}
   });
   const root = controller.renderRichEditorApp({ itemId: "note1" }, "win1");
   assert.strictEqual(root.dataset.managedFileItemId, "note1");
   assert.strictEqual(typeof richOptions.downloadDocx, "function");
+  assert.strictEqual(richOptions.copyText, copyText);
   const saveResult = await richOptions.save({
     title: "Сохранённый план.txt",
     richHtml: "<p>Сохранённый текст</p>",

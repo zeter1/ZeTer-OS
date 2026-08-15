@@ -1,4 +1,4 @@
-const ZETER_CACHE = "zeter-os-3.88";
+const ZETER_CACHE = "zeter-os-3.89";
 const ZETER_ASSETS = [
   "./",
   "./index.html",

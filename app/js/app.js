@@ -586,6 +586,7 @@
     stripKnownExtension,
     toast,
     openExternalLink: target => openExternalTarget(target),
+    copyText: copyTextToClipboard,
     documentRef: document,
     itemInWorkspace,
     getWindowRecord: winId => ui.windows.get(winId),
