@@ -1,30 +1,66 @@
-# User data
+﻿# Пользовательские данные ZeTer OS
 /data/
 
-# Python
+# Локальные данные Codex, агентов и редакторов
+/.agents/
+/.codex/
+/.codex-stage-backup/
+/.idea/
+/.vscode/
+/.vs/
+
+# Секреты и локальные переменные окружения
+.env
+.env.*
+!.env.example
+!.env.template
+/secrets/
+/credentials/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Python: окружения, байткод, кэши и отчёты покрытия
 __pycache__/
 *.py[cod]
-*.pyo
-.venv/
-venv/
+*$py.class
+/.venv/
+/venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
-# Build and release artifacts
+# Node.js: зависимости и диагностические журналы пакетных менеджеров
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Сборки и готовые архивы
 /build/
 /dist/
+/ZeTer OS.zip
 *.exe
 
-# Temporary Codex / development artifacts
-.codex-stage-backup/
-/work/refactor-backups/
-/work/ui-checks/
-
-# Logs and temporary files
+# Временная рабочая область, файлы редакторов и логи
+/work/
 *.log
 *.tmp
 *.bak
+*.swp
+*.swo
+*~
 
-# OS / editor files
+# Системные файлы Windows и macOS
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 .DS_Store
-.vscode/
-.idea/
+._*
