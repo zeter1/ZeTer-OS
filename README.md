@@ -117,3 +117,7 @@ The release builder validates the archive, checks extraction into Windows-style 
 ## Project status
 
 This is an actively developed personal project used to explore reliable desktop application architecture, local-first data handling, Windows integration and AI-assisted software engineering.
+
+## License
+
+No open-source license is currently granted. The source code is published for portfolio and code-review purposes.
