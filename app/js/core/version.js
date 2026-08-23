@@ -1,1 +1,1 @@
-window.ZETER_OS_VERSION = "3.89";
+window.ZETER_OS_VERSION = "3.95";

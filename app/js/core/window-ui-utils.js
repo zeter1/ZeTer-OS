@@ -26,6 +26,24 @@
     return $(".window-body", element) || $(".win-body", element);
   }
 
+  function windowHeaderToolsEl(element) {
+    return $("[data-window-header-tools]", element);
+  }
+
+  function syncWindowHeaderTools(element, renderedRoot = null) {
+    const slot = windowHeaderToolsEl(element);
+    if (!slot) return false;
+    const source = renderedRoot?.matches?.("[data-window-header-tools-source]")
+      ? renderedRoot
+      : renderedRoot?.querySelector?.("[data-window-header-tools-source]");
+    slot.replaceChildren();
+    if (source) slot.appendChild(source);
+    slot.hidden = !source;
+    slot.setAttribute("aria-hidden", source ? "false" : "true");
+    element.classList.toggle("has-window-header-tools", Boolean(source));
+    return Boolean(source);
+  }
+
   function createWindowElement(options = {}) {
     const template = options.template;
     const app = options.app;
@@ -64,6 +82,7 @@
       bodyNode.innerHTML = windowRestoreFailureHTML();
     }
     body.appendChild(bodyNode);
+    syncWindowHeaderTools(element, bodyNode);
     return element;
   }
 
@@ -342,7 +361,9 @@
       const title = windowTitleEl(record.el);
       if (title) title.textContent = typeof app.title === "function" ? app.title(record.params || {}) : app.name;
       body.innerHTML = "";
-      body.appendChild(app.render(record.params, winId));
+      const bodyNode = app.render(record.params, winId);
+      body.appendChild(bodyNode);
+      syncWindowHeaderTools(record.el, bodyNode);
       return true;
     }
 
@@ -477,6 +498,8 @@
     windowIconEl,
     windowTitleEl,
     windowBodyEl,
+    windowHeaderToolsEl,
+    syncWindowHeaderTools,
     createWindowElement,
     bindWindowInteractions,
     createWindowRuntimeController

@@ -1128,55 +1128,120 @@ body.light .help-search-panel {
 
 .rich-editor {
   position: relative;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.rich-editor > .editor-status {
+  align-self: start;
+  align-items: flex-start;
+  align-content: flex-start;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .formatting-toolbar {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  width: min(560px, calc(100% - 16px));
+  max-width: calc(100% - 16px);
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid var(--stroke);
+  border-radius: 13px;
+  background: rgba(24,28,52,.96);
+  box-shadow: 0 16px 42px rgba(0,0,0,.42);
+  animation: formatting-toolbar-in .14s ease-out;
+}
+
+.formatting-toolbar[hidden] {
+  display: none;
+}
+
+body.light .formatting-toolbar {
+  background: rgba(245,248,255,.97);
+  box-shadow: 0 16px 38px rgba(50,64,102,.25);
+}
+
+@keyframes formatting-toolbar-in {
+  from { opacity: 0; transform: translateY(4px) scale(.985); }
+}
+
+.formatting-toolbar button {
+  min-height: 30px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.formatting-toolbar > * {
+  flex: 0 0 auto;
 }
 
 .formatting-toolbar select {
-  min-width: 110px;
+  min-width: 96px;
+  height: 30px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  font-size: 12px;
 }
 
 .font-size-tool {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 7px 5px 9px;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 5px 3px 7px;
   border: 1px solid var(--stroke);
-  border-radius: 14px;
+  border-radius: 9px;
   background: rgba(255,255,255,.08);
   color: var(--muted);
   font-size: 12px;
 }
 
 .formatting-toolbar .font-size-tool input {
-  width: 66px;
+  width: 54px;
   min-width: 0;
-  padding: 6px 7px;
-  border-radius: 9px;
+  padding: 4px 6px;
+  border-radius: 7px;
   text-align: center;
 }
 
 .color-tool {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 9px;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 7px;
   border: 1px solid var(--stroke);
-  border-radius: 14px;
+  border-radius: 9px;
   background: rgba(255,255,255,.08);
   color: var(--muted);
   font-size: 12px;
 }
 
 .color-tool input {
-  width: 28px;
-  height: 24px;
+  width: 24px;
+  height: 20px;
   border: 0;
   padding: 0;
   background: transparent;
+}
+
+.editor-status-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: flex-start;
+  justify-content: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.editor-status-meta [data-autosave] {
+  color: var(--muted);
 }
 
 .rich-editor-find {
@@ -1386,7 +1451,7 @@ body.light .help-search-panel {
 
 @media (max-width: 760px) {
   .formatting-toolbar select {
-    min-width: 100%;
+    min-width: 96px;
   }
 
   .rich-editor-find {

@@ -215,7 +215,7 @@
       "scenario": "desktop-windows",
       "keywords": ["window", "snap", "minimize", "окно"],
       "files": ["app/index.html", "app/js/core/window-ui-utils.js", "app/css/20-windows.css"],
-      "hooks": ["data-win", "window-controls", "window-body"]
+      "hooks": ["data-win", "data-window-header-tools", "window-controls", "window-body"]
     },
     {
       "id": "global-search",
@@ -271,7 +271,7 @@
       "scenario": "editors-notes",
       "keywords": ["notes", "editor", "markdown", "find", "font size", "selection", "docx", "image resize", "link", "заметки", "поиск", "размер шрифта", "выделение", "скачать docx", "размер изображения", "ссылка"],
       "files": ["app/js/core/editor-ui-utils.js", "app/css/40-app-foundation.css", "app/css/60-apps-calendar-notes-tables.css"],
-      "hooks": ["notes-app", "data-action", "data-new-folder", "data-font-size", "data-find-panel", "data-find-action", "data-range-overlay", "data-image-resize", "download-docx"]
+      "hooks": ["notes-app", "data-action", "data-new-folder", "data-window-header-tools-source", "data-formatting-toolbar", "data-font-size", "data-find-panel", "data-find-action", "data-range-overlay", "data-image-resize", "download-docx"]
     },
     {
       "id": "table-editor",

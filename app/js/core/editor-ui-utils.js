@@ -19,19 +19,20 @@
   const { markdown } = markdownUtils;
   const { ensureManagedFileInlineMarkers, plainTextWithoutManagedFiles } = managedFileUtils;
   const safeAttr = escapeHtml;
+  const FORMATTING_TOOLBAR_REVEAL_DELAY_MS = 1000;
 
   function richEditorHTML(itemName = "") {
     return `
       <input class="editor-title" value="${escapeHtml(itemName)}" />
-      <div class="toolbar rich-toolbar">
-        <button data-action="new">Новый файл</button>
-        <button data-action="duplicate">Копия</button>
-        <button data-action="download-txt">Скачать .txt</button>
-        <button data-action="download-html">Скачать .html</button>
-        <button data-action="download-docx">Скачать .docx</button>
-        <button data-action="folder">Показать в папке</button>
+      <div class="editor-header-actions" data-window-header-tools-source role="toolbar" aria-label="Действия с файлом">
+        <button type="button" data-action="new" title="Создать новый файл" aria-label="Создать новый файл">Новый</button>
+        <button type="button" data-action="duplicate" title="Создать копию файла" aria-label="Создать копию файла">Копия</button>
+        <button type="button" data-action="download-txt" title="Скачать файл в формате TXT" aria-label="Скачать файл в формате TXT">TXT</button>
+        <button type="button" data-action="download-html" title="Скачать файл в формате HTML" aria-label="Скачать файл в формате HTML">HTML</button>
+        <button type="button" data-action="download-docx" title="Скачать файл в формате DOCX" aria-label="Скачать файл в формате DOCX">DOCX</button>
+        <button type="button" data-action="folder" title="Показать файл в папке" aria-label="Показать файл в папке">Папка</button>
       </div>
-      <div class="toolbar rich-toolbar formatting-toolbar">
+      <div class="toolbar rich-toolbar formatting-toolbar" data-formatting-toolbar hidden aria-hidden="true" role="toolbar" aria-label="Форматирование выделенного текста">
         <button title="Жирный" data-format="bold"><b>Ж</b></button>
         <button title="Курсив" data-format="italic"><i>К</i></button>
         <button title="Подчёркнутый" data-format="underline"><u>Ч</u></button>
@@ -59,7 +60,6 @@
         <label class="color-tool">Текст <input type="color" data-color value="#ffffff"></label>
         <label class="color-tool">Фон <input type="color" data-bg value="#7aa8ff"></label>
         <button data-format="removeFormat">Очистить стиль</button>
-        <span class="muted" data-autosave>Автосохранение включено</span>
       </div>
       <div class="rich-editor-find" data-find-panel hidden>
         <input type="search" data-find-input placeholder="Найти в заметке" autocomplete="off" spellcheck="false" aria-label="Поиск по тексту заметки">
@@ -76,7 +76,60 @@
         <button type="button" data-image-resize="sw" aria-label="Изменить размер изображения от нижнего левого угла"></button>
         <button type="button" data-image-resize="se" aria-label="Изменить размер изображения от нижнего правого угла"></button>
       </div>
-      <div class="editor-status"><span data-status>Готово</span><span data-count>0 символов</span></div>`;
+      <div class="editor-status"><span data-status>Готово</span><span class="editor-status-meta"><span data-autosave>Автосохранение включено</span><span data-count>0 символов</span></span></div>`;
+  }
+
+  function selectionBoundingRect(range) {
+    if (!range?.getClientRects) return null;
+    let rectangles = [];
+    try {
+      rectangles = [...range.getClientRects()].filter(rect => Number(rect.width) > 0 && Number(rect.height) > 0);
+    } catch {
+      return null;
+    }
+    if (!rectangles.length) return null;
+    return rectangles.reduce((result, rect) => ({
+      left: Math.min(result.left, Number(rect.left) || 0),
+      top: Math.min(result.top, Number(rect.top) || 0),
+      right: Math.max(result.right, Number(rect.right) || 0),
+      bottom: Math.max(result.bottom, Number(rect.bottom) || 0)
+    }), {
+      left: Number(rectangles[0].left) || 0,
+      top: Number(rectangles[0].top) || 0,
+      right: Number(rectangles[0].right) || 0,
+      bottom: Number(rectangles[0].bottom) || 0
+    });
+  }
+
+  function formattingToolbarPosition({ selectionRect = {}, rootRect = {}, boundaryRect = null, toolbarRect = {}, gap = 8, inset = 8 } = {}) {
+    const rootLeft = Number(rootRect.left) || 0;
+    const rootTop = Number(rootRect.top) || 0;
+    const safeBoundary = boundaryRect || rootRect;
+    const boundaryLeft = Number(safeBoundary.left) || 0;
+    const boundaryTop = Number(safeBoundary.top) || 0;
+    const boundaryWidth = Math.max(0, Number(safeBoundary.width) || ((Number(safeBoundary.right) || 0) - boundaryLeft));
+    const boundaryHeight = Math.max(0, Number(safeBoundary.height) || ((Number(safeBoundary.bottom) || 0) - boundaryTop));
+    const toolbarWidth = Math.max(0, Number(toolbarRect.width) || 0);
+    const toolbarHeight = Math.max(0, Number(toolbarRect.height) || 0);
+    const selectionLeft = Number(selectionRect.left) || 0;
+    const selectionRight = Number(selectionRect.right) || selectionLeft;
+    const selectionTop = Number(selectionRect.top) || 0;
+    const selectionBottom = Number(selectionRect.bottom) || selectionTop;
+    const safeInset = Math.max(0, Number(inset) || 0);
+    const safeGap = Math.max(0, Number(gap) || 0);
+    const minLeft = boundaryLeft - rootLeft + safeInset;
+    const maxLeft = Math.max(minLeft, boundaryLeft - rootLeft + boundaryWidth - toolbarWidth - safeInset);
+    const centeredLeft = ((selectionLeft + selectionRight) / 2) - rootLeft - (toolbarWidth / 2);
+    const aboveTop = selectionTop - rootTop - toolbarHeight - safeGap;
+    const belowTop = selectionBottom - rootTop + safeGap;
+    const minTop = boundaryTop - rootTop + safeInset;
+    const maxTop = Math.max(minTop, boundaryTop - rootTop + boundaryHeight - toolbarHeight - safeInset);
+    const placement = aboveTop >= minTop ? "above" : "below";
+    return {
+      left: Math.round(Math.min(maxLeft, Math.max(minLeft, centeredLeft))),
+      top: Math.round(Math.min(maxTop, Math.max(minTop, placement === "above" ? aboveTop : belowTop))),
+      placement
+    };
   }
 
   function isRichEditorFindShortcut(event = {}) {
@@ -387,6 +440,8 @@
     root.innerHTML = richEditorHTML(itemName);
     const title = $(".editor-title", root);
     const area = $(".rich-editor-area", root);
+    const fileActions = $("[data-window-header-tools-source]", root);
+    const formattingToolbar = $("[data-formatting-toolbar]", root);
     const status = $("[data-status]", root);
     const count = $("[data-count]", root);
     const fontSizeInput = $("[data-font-size]", root);
@@ -499,6 +554,61 @@
         return false;
       }
     };
+    const editorWindow = documentRef.defaultView || globalThis;
+    let selectionRefreshToken = 0;
+    let selectionRefreshTimer = null;
+    const cancelFormattingToolbarRefresh = () => {
+      selectionRefreshToken += 1;
+      if (selectionRefreshTimer !== null && typeof editorWindow.clearTimeout === "function") {
+        editorWindow.clearTimeout(selectionRefreshTimer);
+      }
+      selectionRefreshTimer = null;
+    };
+    const hideFormattingToolbar = (clearHighlight = false) => {
+      cancelFormattingToolbarRefresh();
+      formattingToolbar.hidden = true;
+      formattingToolbar.setAttribute("aria-hidden", "true");
+      formattingToolbar.style.visibility = "";
+      formattingToolbar.removeAttribute("data-placement");
+      if (clearHighlight && overlayKind === "selection") clearRangeOverlay();
+    };
+    const positionFormattingToolbar = (range = savedRange) => {
+      const selectionRect = selectionBoundingRect(range);
+      if (!selectionRect || !rangeInsideArea(range) || range.collapsed) {
+        hideFormattingToolbar(true);
+        return false;
+      }
+      formattingToolbar.hidden = false;
+      formattingToolbar.setAttribute("aria-hidden", "false");
+      formattingToolbar.style.visibility = "hidden";
+      const position = formattingToolbarPosition({
+        selectionRect,
+        rootRect: root.getBoundingClientRect(),
+        boundaryRect: area.getBoundingClientRect(),
+        toolbarRect: formattingToolbar.getBoundingClientRect()
+      });
+      formattingToolbar.style.left = `${position.left}px`;
+      formattingToolbar.style.top = `${position.top}px`;
+      formattingToolbar.dataset.placement = position.placement;
+      formattingToolbar.style.visibility = "";
+      return true;
+    };
+    const refreshFormattingToolbarFromSelection = () => {
+      const selection = getSelection();
+      if (!selection?.rangeCount || selection.isCollapsed) {
+        savedRange = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+        hideFormattingToolbar(true);
+        return false;
+      }
+      const range = selection.getRangeAt(0);
+      if (!rangeInsideArea(range)) {
+        hideFormattingToolbar(true);
+        return false;
+      }
+      savedRange = range.cloneRange();
+      showRangeOverlay(savedRange);
+      return positionFormattingToolbar(savedRange);
+    };
     const restoreSelectionOffsets = offsets => {
       const range = editorRangeForTextMatch(area, offsets, documentRef);
       if (!range) return rememberSelection();
@@ -522,6 +632,7 @@
       selection.removeAllRanges();
       selection.addRange(caret);
       savedRange = caret.cloneRange();
+      hideFormattingToolbar(true);
       clearRangeOverlay();
       exit.paragraph.scrollIntoView?.({ block: "nearest" });
       if (exit.changed) {
@@ -538,6 +649,7 @@
       documentRef.execCommand(command, false, value);
       if (!restoreSelectionOffsets(selectionOffsets)) rememberSelection();
       showRangeOverlay(savedRange);
+      positionFormattingToolbar(savedRange);
       status.textContent = "Сохраняю…";
       autosave();
       updateCount();
@@ -561,6 +673,7 @@
       normalizeFontSizeMarkers(area, size, documentRef);
       if (!restoreSelectionOffsets(selectionOffsets)) rememberSelection();
       showRangeOverlay(savedRange);
+      positionFormattingToolbar(savedRange);
       status.textContent = `Размер шрифта: ${size} px · сохраняю…`;
       autosave();
       updateCount();
@@ -595,6 +708,7 @@
       documentRef.execCommand("createLink", false, href);
       rememberSelection();
       showRangeOverlay(savedRange);
+      positionFormattingToolbar(savedRange);
       status.textContent = "Ссылка добавлена · сохраняю…";
       autosave();
       updateCount();
@@ -635,6 +749,7 @@
       refreshQuoteCopyButtons();
       if (!restoreSelectionOffsets(selectionOffsets)) rememberSelection();
       showRangeOverlay(savedRange);
+      positionFormattingToolbar(savedRange);
       status.textContent = `${removeQuote ? "Цитата убрана" : "Текст оформлен как цитата"} · сохраняю…`;
       autosave();
       updateCount();
@@ -667,6 +782,7 @@
     const openFind = initialQuery => {
       const wasHidden = findPanel.hidden;
       if (wasHidden) rememberSelection();
+      hideFormattingToolbar(true);
       findPanel.hidden = false;
       findPanel.setAttribute("aria-hidden", "false");
       if (typeof initialQuery === "string") {
@@ -711,6 +827,7 @@
         return;
       }
       selectedImage = image;
+      hideFormattingToolbar(true);
       area.focus({ preventScroll: true });
       imageResizer.hidden = false;
       imageResizer.setAttribute("aria-hidden", "false");
@@ -793,7 +910,37 @@
       documentRef.addEventListener("pointercancel", finish);
     };
 
+    const runFileAction = action => {
+      hideFormattingToolbar(true);
+      if (action === "new") createNew();
+      if (action === "duplicate") duplicate();
+      if (action === "download-txt") downloadText();
+      if (action === "download-html") downloadHtml();
+      if (action === "download-docx") {
+        status.textContent = "Создаю DOCX…";
+        Promise.resolve(downloadDocx({
+          title: title.value,
+          richHtml: cleanHtml(area.innerHTML),
+          plainText: plainText()
+        })).then(result => {
+          if (result?.cancelled || result === false) status.textContent = "Скачивание DOCX отменено";
+          else if (result?.ok === false) status.textContent = "Не удалось скачать DOCX";
+          else status.textContent = "DOCX скачан";
+        }).catch(error => {
+          console.error("Не удалось скачать заметку в DOCX", error);
+          status.textContent = "Не удалось скачать DOCX";
+        });
+      }
+      if (action === "folder") openFolder();
+    };
+
     title.addEventListener("input", autosave);
+    fileActions.addEventListener("click", event => {
+      const action = event.target.closest("[data-action]")?.dataset.action;
+      if (!action) return;
+      event.stopPropagation();
+      runFileAction(action);
+    });
     area.addEventListener("paste", event => {
       const html = event.clipboardData?.getData("text/html") || "";
       const text = event.clipboardData?.getData("text/plain") || "";
@@ -820,12 +967,77 @@
       status.textContent = "Сохраняю…";
       autosave();
       if (!findPanel.hidden) refreshFind(Math.max(0, findIndex));
+      hideFormattingToolbar(true);
     });
-    area.addEventListener("mouseup", rememberSelection);
-    area.addEventListener("keyup", rememberSelection);
+    const scheduleFormattingToolbarRefresh = () => {
+      cancelFormattingToolbarRefresh();
+      const token = selectionRefreshToken;
+      const refreshAfterSelectionSettles = () => {
+        if (token !== selectionRefreshToken) return;
+        refreshFormattingToolbarFromSelection();
+      };
+      if (typeof editorWindow.setTimeout !== "function") return;
+      selectionRefreshTimer = editorWindow.setTimeout(() => {
+        selectionRefreshTimer = null;
+        if (token !== selectionRefreshToken) return;
+        if (typeof editorWindow.requestAnimationFrame === "function") {
+          editorWindow.requestAnimationFrame(refreshAfterSelectionSettles);
+        } else {
+          refreshAfterSelectionSettles();
+        }
+      }, FORMATTING_TOOLBAR_REVEAL_DELAY_MS);
+    };
+    area.addEventListener("keyup", scheduleFormattingToolbarRefresh);
+    let mouseSelectingText = false;
+    const finishMouseSelection = () => {
+      if (!root.isConnected) {
+        detachSelectionListeners();
+        return;
+      }
+      if (!mouseSelectingText) return;
+      mouseSelectingText = false;
+      scheduleFormattingToolbarRefresh();
+    };
+    const cancelMouseSelection = () => {
+      mouseSelectingText = false;
+      cancelFormattingToolbarRefresh();
+    };
+    const refreshFormattingToolbarOnSelectionChange = () => {
+      if (!root.isConnected) {
+        detachSelectionListeners();
+        return;
+      }
+      if (mouseSelectingText || formattingToolbar.contains(documentRef.activeElement)) return;
+      scheduleFormattingToolbarRefresh();
+    };
+    function detachSelectionListeners() {
+      documentRef.removeEventListener("selectionchange", refreshFormattingToolbarOnSelectionChange);
+      documentRef.removeEventListener("mouseup", finishMouseSelection, true);
+      editorWindow.removeEventListener?.("blur", cancelMouseSelection);
+      cancelFormattingToolbarRefresh();
+    }
+    area.addEventListener("mousedown", event => {
+      if (Number(event.button) !== 0) return;
+      mouseSelectingText = true;
+      hideFormattingToolbar(true);
+    });
+    documentRef.addEventListener("selectionchange", refreshFormattingToolbarOnSelectionChange);
+    documentRef.addEventListener("mouseup", finishMouseSelection, true);
+    editorWindow.addEventListener?.("blur", cancelMouseSelection);
+    const hideFormattingToolbarAfterFocusChange = () => {
+      const schedule = documentRef.defaultView?.setTimeout || globalThis.setTimeout;
+      schedule?.(() => {
+        const activeElement = documentRef.activeElement;
+        if (formattingToolbar.contains(activeElement) || activeElement === area || area.contains(activeElement)) return;
+        hideFormattingToolbar(true);
+      }, 0);
+    };
+    area.addEventListener("blur", hideFormattingToolbarAfterFocusChange);
+    formattingToolbar.addEventListener("focusout", hideFormattingToolbarAfterFocusChange);
     area.addEventListener("scroll", () => {
       positionImageResizer();
       positionRangeOverlay();
+      hideFormattingToolbar(true);
     }, { passive: true });
     root.addEventListener("pointerdown", event => {
       if (event.target.closest("[data-quote-copy]")) {
@@ -841,7 +1053,9 @@
       if (event.target.closest(".formatting-toolbar")) {
         rememberSelection();
         showRangeOverlay(savedRange);
+        if (event.target.closest("button")) event.preventDefault();
       } else if (!event.target.closest("[data-find-panel]")) {
+        hideFormattingToolbar(true);
         clearRangeOverlay();
       }
     });
@@ -894,26 +1108,6 @@
       const format = event.target.closest("[data-format]")?.dataset.format;
       if (format) runFormat(format);
       const action = event.target.closest("[data-action]")?.dataset.action;
-      if (action === "new") createNew();
-      if (action === "duplicate") duplicate();
-      if (action === "download-txt") downloadText();
-      if (action === "download-html") downloadHtml();
-      if (action === "download-docx") {
-        status.textContent = "Создаю DOCX…";
-        Promise.resolve(downloadDocx({
-          title: title.value,
-          richHtml: cleanHtml(area.innerHTML),
-          plainText: plainText()
-        })).then(result => {
-          if (result?.cancelled || result === false) status.textContent = "Скачивание DOCX отменено";
-          else if (result?.ok === false) status.textContent = "Не удалось скачать DOCX";
-          else status.textContent = "DOCX скачан";
-        }).catch(error => {
-          console.error("Не удалось скачать заметку в DOCX", error);
-          status.textContent = "Не удалось скачать DOCX";
-        });
-      }
-      if (action === "folder") openFolder();
       if (action === "link") addLinkToSelection();
       if (action === "quote") toggleQuoteForSelection();
       const findAction = event.target.closest("[data-find-action]")?.dataset.findAction;
@@ -1294,6 +1488,8 @@
 
   window.ZETER_EDITOR_UI_UTILS = Object.freeze({
     richEditorHTML,
+    selectionBoundingRect,
+    formattingToolbarPosition,
     isRichEditorFindShortcut,
     isRichEditorImageDeleteShortcut,
     isQuoteExitArrowShortcut,

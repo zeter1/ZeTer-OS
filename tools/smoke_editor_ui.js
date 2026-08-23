@@ -73,15 +73,36 @@ vm.createContext(editorSandbox);
 runScript("app/js/core/editor-ui-utils.js", editorSandbox);
 
 const editor = editorSandbox.window.ZETER_EDITOR_UI_UTILS;
+const editorSource = fs.readFileSync(path.join(projectRoot, "app/js/core/editor-ui-utils.js"), "utf8");
+const editorCss = fs.readFileSync(path.join(projectRoot, "app/css/40-app-foundation.css"), "utf8");
 const html = editor.richEditorHTML("Тест");
 assert.match(html, /type="number" data-font-size min="8" max="200"/);
 assert.doesNotMatch(html, /data-size=/);
+assert.match(html, /data-window-header-tools-source/);
+assert.match(html, /data-formatting-toolbar hidden aria-hidden="true"/);
+assert.match(html, /data-action="download-txt"[^>]+title="Скачать файл в формате TXT"[^>]+>TXT</);
 assert.match(html, /data-action="link"/);
 assert.match(html, /data-action="quote"/);
 assert.match(html, /data-action="download-docx"/);
 assert.match(html, /data-find-panel/);
 assert.match(html, /data-range-overlay/);
 assert.strictEqual((html.match(/data-image-resize=/g) || []).length, 4);
+assert.match(editorSource, /fileActions\.addEventListener\("click"/);
+assert.match(editorSource, /runFileAction\(action\)/);
+assert.match(editorSource, /documentRef\.addEventListener\("selectionchange", refreshFormattingToolbarOnSelectionChange\)/);
+assert.match(editorSource, /documentRef\.removeEventListener\("selectionchange", refreshFormattingToolbarOnSelectionChange\)/);
+assert.match(editorSource, /FORMATTING_TOOLBAR_REVEAL_DELAY_MS = 1000/);
+assert.match(editorSource, /area\.addEventListener\("mousedown"/);
+assert.match(editorSource, /documentRef\.addEventListener\("mouseup", finishMouseSelection, true\)/);
+assert.match(editorSource, /documentRef\.removeEventListener\("mouseup", finishMouseSelection, true\)/);
+assert.match(editorSource, /if \(mouseSelectingText \|\| formattingToolbar\.contains\(documentRef\.activeElement\)\) return/);
+assert.match(editorSource, /if \(!root\.isConnected\)/);
+assert.match(editorSource, /requestAnimationFrame\(refreshAfterSelectionSettles\)/);
+assert.match(editorSource, /area\.addEventListener\("keyup", scheduleFormattingToolbarRefresh\)/);
+assert.doesNotMatch(editorSource, /area\.addEventListener\("mouseup", scheduleFormattingToolbarRefresh\)/);
+assert.doesNotMatch(editorSource, /area\.addEventListener\("(?:mouse|key)up", refreshFormattingToolbarFromSelection\)/);
+assert.match(editorCss, /\.rich-editor > \.editor-status\s*{[^}]*align-self:\s*start;[^}]*justify-content:\s*flex-start;[^}]*flex-wrap:\s*wrap;/s);
+assert.match(editorCss, /\.editor-status-meta\s*{[^}]*align-self:\s*flex-start;[^}]*justify-content:\s*flex-start;/s);
 
 assert.strictEqual(editor.isRichEditorFindShortcut({ ctrlKey: true, code: "KeyF", key: "а" }), true);
 assert.strictEqual(editor.isRichEditorFindShortcut({ ctrlKey: true, code: "", key: "А" }), true);
@@ -163,6 +184,112 @@ assert.deepStrictEqual(
     { left: 5, top: 1, width: 3, height: 4 }
   ]
 );
+
+assert.deepStrictEqual(
+  JSON.parse(JSON.stringify(editor.selectionBoundingRect({
+    getClientRects: () => [
+      { left: 80, top: 100, right: 180, bottom: 116, width: 100, height: 16 },
+      { left: 40, top: 118, right: 140, bottom: 136, width: 100, height: 18 }
+    ]
+  }))),
+  { left: 40, top: 100, right: 180, bottom: 136 }
+);
+assert.strictEqual(editor.selectionBoundingRect({ getClientRects: () => [] }), null);
+
+assert.deepStrictEqual(
+  { ...editor.formattingToolbarPosition({
+    selectionRect: { left: 100, top: 100, right: 180, bottom: 120 },
+    rootRect: { left: 0, top: 0, width: 400, height: 300 },
+    toolbarRect: { width: 200, height: 40 }
+  }) },
+  { left: 40, top: 52, placement: "above" }
+);
+assert.deepStrictEqual(
+  { ...editor.formattingToolbarPosition({
+    selectionRect: { left: 0, top: 18, right: 40, bottom: 34 },
+    rootRect: { left: 0, top: 0, width: 220, height: 120 },
+    toolbarRect: { width: 180, height: 36 }
+  }) },
+  { left: 8, top: 42, placement: "below" }
+);
+assert.deepStrictEqual(
+  { ...editor.formattingToolbarPosition({
+    selectionRect: { left: 120, top: 100, right: 220, bottom: 118 },
+    rootRect: { left: 0, top: 0, width: 500, height: 400 },
+    boundaryRect: { left: 20, top: 80, width: 460, height: 300 },
+    toolbarRect: { width: 240, height: 52 }
+  }) },
+  { left: 50, top: 126, placement: "below" },
+  "the toolbar must fall below first-line selection instead of overlapping controls above the text area"
+);
+assert.deepStrictEqual(
+  { ...editor.formattingToolbarPosition({
+    selectionRect: { left: 22, top: 220, right: 82, bottom: 238 },
+    rootRect: { left: 0, top: 0, width: 500, height: 400 },
+    boundaryRect: { left: 20, top: 80, width: 460, height: 300 },
+    toolbarRect: { width: 240, height: 52 }
+  }) },
+  { left: 28, top: 160, placement: "above" },
+  "horizontal and vertical placement must remain inside the text area bounds"
+);
+
+const windowSandbox = {
+  window: {
+    ZETER_CORE_UTILS: {
+      $: (selector, root) => root?.querySelector?.(selector) || null,
+      $$: () => [],
+      clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+      cssEscape: value => String(value || "")
+    },
+    ZETER_WINDOW_METRICS_UTILS: {
+      topMenuHeight: () => 0,
+      taskbarSpace: () => 0,
+      availableWindowHeight: () => 600,
+      normalizeOpeningWindowRect: value => value
+    },
+    ZETER_WINDOW_SESSION_UTILS: {
+      serializableParams: value => value,
+      normalizeWindowSessionList: value => value,
+      collectWindowSessionsFromRuntime: () => []
+    }
+  },
+  console,
+  document: {},
+  globalThis: null
+};
+windowSandbox.globalThis = windowSandbox;
+vm.createContext(windowSandbox);
+runScript("app/js/core/window-ui-utils.js", windowSandbox);
+const windowUi = windowSandbox.window.ZETER_WINDOW_UI_UTILS;
+const classes = new Set();
+const slot = {
+  child: null,
+  hidden: true,
+  attributes: {},
+  replaceChildren() { this.child = null; },
+  appendChild(child) { this.child = child; return child; },
+  setAttribute(name, value) { this.attributes[name] = value; }
+};
+const windowElement = {
+  classList: { toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); } },
+  querySelector: selector => selector === "[data-window-header-tools]" ? slot : null
+};
+const headerSource = { kind: "file-actions" };
+assert.strictEqual(windowUi.syncWindowHeaderTools(windowElement, {
+  matches: () => false,
+  querySelector: selector => selector === "[data-window-header-tools-source]" ? headerSource : null
+}), true);
+assert.strictEqual(slot.child, headerSource);
+assert.strictEqual(slot.hidden, false);
+assert.strictEqual(slot.attributes["aria-hidden"], "false");
+assert.strictEqual(classes.has("has-window-header-tools"), true);
+assert.strictEqual(windowUi.syncWindowHeaderTools(windowElement, { matches: () => false, querySelector: () => null }), false);
+assert.strictEqual(slot.child, null);
+assert.strictEqual(slot.hidden, true);
+assert.strictEqual(classes.has("has-window-header-tools"), false);
+const windowSource = fs.readFileSync(path.join(projectRoot, "app/js/core/window-ui-utils.js"), "utf8");
+assert.match(windowSource, /syncWindowHeaderTools\(element, bodyNode\)/);
+assert.match(windowSource, /syncWindowHeaderTools\(record\.el, bodyNode\)/);
 
 assert.deepStrictEqual(
   { ...editor.imageResizeDimensions({ startWidth: 400, startHeight: 200, deltaX: -200, direction: "se" }) },

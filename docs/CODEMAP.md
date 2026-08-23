@@ -57,7 +57,7 @@
 | `app/js/core/item-drag-ui-utils.js` | `ZETER_ITEM_DRAG_UI_UTILS` | Runtime-controller pointer drag/drop: threshold, точный delta от точки захвата, ghost, широкие fallback-зоны текущей папки, подсветка folder/inline/table целей и перенос managed-файлов без создания дубля через callbacks |
 | `app/js/core/window-metrics-utils.js` | `ZETER_WINDOW_METRICS_UTILS` | Начальная геометрия окон |
 | `app/js/core/window-session-utils.js` | `ZETER_WINDOW_SESSION_UTILS` | Сбор runtime-сессий и нормализация сохранённых окон |
-| `app/js/core/window-ui-utils.js` | `ZETER_WINDOW_UI_UTILS` | DOM-фабрика и полный runtime lifecycle окон: open/focus/actions, collect/persist/restore/cycle сессий, fallback восстановления, pointer drag/resize и геометрия |
+| `app/js/core/window-ui-utils.js` | `ZETER_WINDOW_UI_UTILS` | DOM-фабрика и полный runtime lifecycle окон: open/focus/actions, синхронизация app-инструментов в шапке, collect/persist/restore/cycle сессий, fallback восстановления, pointer drag/resize и геометрия |
 | `app/js/core/sticky-utils.js` | `ZETER_STICKY_UTILS` | Модели lifecycle стикеров: нормализация, открытие/закрытие, размеры, цвета, стиль и resize-геометрия |
 | `app/js/core/visual-utils.js` | `ZETER_VISUAL_UTILS` | Обои, иконки и visual settings |
 | `app/js/core/item-customization-utils.js` | `ZETER_ITEM_CUSTOMIZATION_UTILS` | Модель и отдельное окно настройки папок/ярлыков: цвет, свои значки, фон папки, изменение имени/цели ярлыка и переносимые asset-пути |
@@ -96,7 +96,7 @@
 | `app/js/core/item-properties-ui-utils.js` | `ZETER_ITEM_PROPERTIES_UI_UTILS` | Текст окна свойств item |
 | `app/js/core/rich-text-utils.js` | `ZETER_RICH_TEXT_UTILS` | Безопасный rich-text HTML с каноническими маркерами inline-файлов и проверенным горизонтальным смещением |
 | `app/js/core/markdown-utils.js` | `ZETER_MARKDOWN_UTILS` | Markdown renderer |
-| `app/js/core/editor-ui-utils.js` | `ZETER_EDITOR_UI_UTILS` | HTML/UI и runtime-controller rich-text, Markdown и Notes: inline-файлы в позиции текста, navigation/grid, actions, Promise-aware autosave status и save/download dispatchers |
+| `app/js/core/editor-ui-utils.js` | `ZETER_EDITOR_UI_UTILS` | HTML/UI и runtime-controller rich-text, Markdown и Notes: компактные файловые действия в шапке, контекстное форматирование выделения, inline-файлы в позиции текста, navigation/grid, actions, Promise-aware autosave status и save/download dispatchers |
 
 ### Предметные данные и приложения
 
