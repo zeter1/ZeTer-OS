@@ -286,7 +286,7 @@ def _atomic_replace_bytes(path: Path, data: bytes) -> None:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temp_path, path)
+        replace_transiently_locked_file(temp_path, path)
     finally:
         try:
             temp_path.unlink(missing_ok=True)
@@ -308,6 +308,23 @@ def read_json_file(path: Path) -> Any:
     if path.stat().st_size > MAX_STATE_FILE_BYTES:
         raise RuntimeError(f"Файл слишком большой: {path.name}")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def replace_transiently_locked_file(source: Path, target: Path) -> None:
+    """Atomically replace one file, retrying only transient Windows lock errors."""
+    retry_delays = (0.05, 0.15, 0.4, 1.0)
+    for attempt in range(len(retry_delays) + 1):
+        try:
+            os.replace(source, target)
+            return
+        except OSError as exc:
+            if (
+                not sys.platform.startswith("win")
+                or getattr(exc, "winerror", None) not in {5, 32, 33}
+                or attempt >= len(retry_delays)
+            ):
+                raise
+            time.sleep(retry_delays[attempt])
 
 
 def unlink_transiently_locked_file(path: Path) -> None:

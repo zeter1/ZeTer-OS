@@ -234,9 +234,33 @@ def main() -> None:
         assert atomic_target.read_bytes() in atomic_payloads, "Concurrent atomic write produced mixed bytes"
         assert not list(zeter.DATA_DIR.rglob(".zeter-atomic-*.tmp")), "Successful atomic write left temporary files"
 
+        transient_replace_target = zeter.DATA_DIR / "transient-replace.bin"
+        transient_replace_target.write_bytes(b"previous")
+        original_replace = zeter.os.replace
+        original_sleep = zeter.time.sleep
+        transient_replace_attempts = 0
+
+        def transient_atomic_replace(source: object, target: object) -> None:
+            nonlocal transient_replace_attempts
+            transient_replace_attempts += 1
+            if transient_replace_attempts < 3:
+                error = PermissionError("simulated Windows sharing violation")
+                error.winerror = 32
+                raise error
+            original_replace(source, target)
+
+        zeter.os.replace = transient_atomic_replace
+        zeter.time.sleep = lambda _seconds: None
+        try:
+            zeter.atomic_write_bytes(transient_replace_target, b"new")
+        finally:
+            zeter.os.replace = original_replace
+            zeter.time.sleep = original_sleep
+        assert transient_replace_attempts == 3, transient_replace_attempts
+        assert transient_replace_target.read_bytes() == b"new"
+
         atomic_failure_target = zeter.DATA_DIR / "atomic-failure.bin"
         atomic_failure_target.write_bytes(b"previous")
-        original_replace = zeter.os.replace
 
         def fail_atomic_replace(source: object, target: object) -> None:
             if Path(target) == atomic_failure_target:
