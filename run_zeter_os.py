@@ -312,7 +312,7 @@ def read_json_file(path: Path) -> Any:
 
 def unlink_transiently_locked_file(path: Path) -> None:
     """Remove one owned file, retrying only transient Windows lock errors."""
-    retry_delays = (0.02, 0.05, 0.1)
+    retry_delays = (0.05, 0.15, 0.4, 1.0)
     for attempt in range(len(retry_delays) + 1):
         try:
             path.unlink()

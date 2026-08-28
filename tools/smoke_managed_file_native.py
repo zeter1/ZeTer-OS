@@ -861,6 +861,14 @@ def main() -> None:
             "versionNumber": 1,
         })
         assert recovery_saved.get("ok") is True and recovery_saved.get("payloadGcOk") is True, recovery_saved
+        recovery_pending = sorted(
+            str(path.relative_to(zeter.DATA_DIR))
+            for path in zeter.ITEM_ASSET_ROOT_DIR.rglob("*.pending.json")
+        )
+        assert not recovery_pending, {
+            "pending": recovery_pending,
+            "logTail": zeter.LOG_FILE.read_text(encoding="utf-8")[-2000:] if zeter.LOG_FILE.exists() else "",
+        }
         recovery_point = recovery_api.save_restore_point({
             "id": "recovery-point",
             "name": "Recovery payload",
