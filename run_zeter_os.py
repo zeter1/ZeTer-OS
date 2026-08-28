@@ -2625,6 +2625,10 @@ class NativeStorageApi:
                 unlink_transiently_locked_file(marker)
             except (ValueError, OSError) as exc:
                 self._problem(exc, "payload_cleanup", "partial")
+                log(
+                    "ITEM_ASSET marker commit error "
+                    f"file={json.dumps(str(marker), ensure_ascii=False)} detail={type(exc).__name__}: {exc}"
+                )
 
     @diagnosed("primary_confirm")
     def _write_and_confirm_primary_state(self, clean_record: Dict[str, Any]) -> tuple[bool, bytes]:
