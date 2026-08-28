@@ -20,10 +20,35 @@
     return size;
   }
 
-  function sanitizeRichTextSpanStyle(value = "") {
-    const match = String(value || "").match(/^\s*font-size\s*:\s*(\d+(?:\.\d+)?)px\s*;?\s*$/i);
-    const size = normalizeRichTextFontSize(match?.[1]);
-    return size ? `font-size: ${size}px` : "";
+  function sanitizeRichTextSpanStyle(value = "", tag = "span") {
+    const fonts = ["Arial", "Segoe UI", "Georgia", "Times New Roman", "Courier New", "Verdana"];
+    const styles = new Map();
+    const safeColor = text => {
+      if (/^#[a-f0-9]{3}(?:[a-f0-9]{3})?$/i.test(text)) return text.toLowerCase();
+      const match = text.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(0|1|0?\.\d+))?\s*\)$/i);
+      return match && match.slice(1, 4).every(channel => Number(channel) <= 255) ? text : "";
+    };
+    for (const part of String(value || "").slice(0, 2048).split(";")) {
+      const match = part.match(/^\s*([a-z-]+)\s*:\s*(.*?)\s*$/i);
+      if (!match) continue;
+      const property = match[1].toLowerCase();
+      const text = match[2];
+      let safe = "";
+      if (property === "font-size") {
+        const size = normalizeRichTextFontSize(text.match(/^(\d+(?:\.\d+)?)px$/i)?.[1]);
+        if (size) safe = `${size}px`;
+      } else if (property === "color" || property === "background-color") safe = safeColor(text);
+      else if (property === "font-family") {
+        const name = text.replace(/^["']|["']$/g, "");
+        safe = fonts.find(font => font.toLowerCase() === name.toLowerCase()) || "";
+      } else if (property === "text-align" && ["p", "div", "li", "h1", "h2", "h3", "blockquote"].includes(tag)) {
+        if (/^(left|center|right|justify)$/.test(text)) safe = text;
+      } else if (property === "font-weight" && /^(normal|bold|[1-9]00)$/.test(text)) safe = text;
+      else if (property === "font-style" && /^(normal|italic)$/.test(text)) safe = text;
+      else if (property === "text-decoration" && /^(none|underline|line-through)$/.test(text)) safe = text;
+      if (safe) styles.set(property, safe);
+    }
+    return [...styles].map(([property, text]) => `${property}: ${text}`).join("; ");
   }
 
   function normalizeRichTextLink(value = "") {
@@ -62,7 +87,7 @@
     const box = document.createElement("div");
     box.innerHTML = String(html || "");
     const dangerous = new Set(["script", "iframe", "object", "embed", "style", "link", "meta", "base", "form", "input", "button", "textarea", "select", "svg", "math"]);
-    const allowed = new Set(["b", "i", "u", "s", "p", "br", "ul", "ol", "li", "h1", "h2", "h3", "blockquote", "span", "img", "a"]);
+    const allowed = new Set(["b", "i", "u", "s", "p", "div", "br", "ul", "ol", "li", "h1", "h2", "h3", "blockquote", "span", "img", "a"]);
     const allowedAttrs = {
       img: new Set(["src", "alt", "title", "width", "height"]),
       span: new Set(["style", "data-managed-file-inline", "data-managed-file-inline-x"]),
@@ -76,8 +101,22 @@
       return "";
     };
     const walk = node => {
-      [...node.children].forEach(el => {
-        const tag = el.tagName.toLowerCase();
+      [...node.children].forEach(original => {
+        let el = original;
+        let tag = el.tagName.toLowerCase();
+        if (tag === "font") {
+          const span = document.createElement("span");
+          span.setAttribute("style", sanitizeRichTextSpanStyle(
+            `color:${el.getAttribute("color") || ""};font-family:${el.getAttribute("face") || ""};${el.getAttribute("style") || ""}`
+          ));
+          span.replaceChildren(...el.childNodes);
+          el.replaceWith(span);
+          el = span;
+          tag = "span";
+        }
+        if (allowed.has(tag) && el.getAttribute("align")) {
+          el.setAttribute("style", `${el.getAttribute("style") || ""};text-align:${el.getAttribute("align")}`);
+        }
         const managedFileId = tag === "span" ? String(el.getAttribute("data-managed-file-inline") || "").trim() : "";
         const managedFileInlineXRaw = tag === "span" ? el.getAttribute("data-managed-file-inline-x") : null;
         const managedFileInlineX = managedFileInlineXRaw === null || managedFileInlineXRaw === ""
@@ -94,7 +133,7 @@
         }
         [...el.attributes].forEach(attr => {
           const name = attr.name.toLowerCase();
-          const keep = allowedAttrs[tag]?.has(name);
+          const keep = allowedAttrs[tag]?.has(name) || (name === "style" && tag !== "img");
           if (!keep || /^on/i.test(name)) {
             el.removeAttribute(attr.name);
             return;
@@ -107,8 +146,8 @@
             const href = normalizeRichTextLink(attr.value);
             if (!href) el.removeAttribute(attr.name);
             else el.setAttribute("href", href);
-          } else if (name === "style" && tag === "span") {
-            const style = sanitizeRichTextSpanStyle(attr.value);
+          } else if (name === "style") {
+            const style = sanitizeRichTextSpanStyle(attr.value, tag);
             if (!style) el.removeAttribute(attr.name);
             else el.setAttribute("style", style);
           } else if (name === "width" || name === "height") {

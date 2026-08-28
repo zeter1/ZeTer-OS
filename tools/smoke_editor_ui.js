@@ -50,7 +50,10 @@ assert.strictEqual(rich.normalizeRichTextFontSize("199.6"), 200);
 assert.strictEqual(rich.normalizeRichTextFontSize("7"), 0);
 assert.strictEqual(rich.normalizeRichTextFontSize("201"), 0);
 assert.strictEqual(rich.sanitizeRichTextSpanStyle("font-size: 27px;"), "font-size: 27px");
-assert.strictEqual(rich.sanitizeRichTextSpanStyle("font-size: 27px; color: red"), "");
+assert.strictEqual(rich.sanitizeRichTextSpanStyle("font-size: 27px; color: red"), "font-size: 27px");
+assert.strictEqual(rich.sanitizeRichTextSpanStyle("color:#123456;background-color:rgb(20, 30, 40);font-family:'Georgia';text-align:center", "p"), "color: #123456; background-color: rgb(20, 30, 40); font-family: Georgia; text-align: center");
+assert.strictEqual(rich.sanitizeRichTextSpanStyle("color:url(https://private.invalid);font-family:evil;position:fixed;background-color:expression(alert(1));text-align:expression(alert(1))", "p"), "");
+assert.strictEqual(rich.sanitizeRichTextSpanStyle("color:rgb(999,0,0);font-size:900px;font-family:Georgia,url(x)"), "");
 assert.strictEqual(rich.normalizeRichTextLink("www.example.com"), "https://www.example.com");
 assert.strictEqual(rich.normalizeRichTextLink("javascript:alert(1)"), "");
 
@@ -73,6 +76,36 @@ vm.createContext(editorSandbox);
 runScript("app/js/core/editor-ui-utils.js", editorSandbox);
 
 const editor = editorSandbox.window.ZETER_EDITOR_UI_UTILS;
+
+const markerChild = { nodeType: 3, textContent: "цвет затем размер" };
+const marker = {
+  firstChild: markerChild,
+  getAttribute(name) {
+    return ({ color: "#d63844", face: "Georgia", style: "background-color:rgb(245,205,71)" })[name] || "";
+  },
+  parentNode: {
+    replaceChild(next) { this.replacement = next; }
+  }
+};
+const replacement = {
+  attributes: {},
+  style: {},
+  children: [],
+  setAttribute(name, value) { this.attributes[name] = value; },
+  appendChild(child) {
+    this.children.push(child);
+    marker.firstChild = null;
+  }
+};
+assert.strictEqual(editor.normalizeFontSizeMarkers(
+  { querySelectorAll: selector => selector === 'font[size="7"]' ? [marker] : [] },
+  27,
+  { createElement: () => replacement }
+), 1);
+assert.match(replacement.attributes.style, /color: #d63844/);
+assert.match(replacement.attributes.style, /font-family: Georgia/);
+assert.match(replacement.attributes.style, /background-color: rgb\(245,205,71\)/);
+assert.strictEqual(replacement.style.fontSize, "27px");
 const editorSource = fs.readFileSync(path.join(projectRoot, "app/js/core/editor-ui-utils.js"), "utf8");
 const editorCss = fs.readFileSync(path.join(projectRoot, "app/css/40-app-foundation.css"), "utf8");
 const html = editor.richEditorHTML("Тест");

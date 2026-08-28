@@ -7,7 +7,7 @@
 
 - Core-модулей: 70.
 - Публичных глобалов: 70.
-- Статических зависимостей: 152.
+- Статических зависимостей: 153.
 - Подробный порядок: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
 <!-- END GENERATED CORE SUMMARY -->
 
@@ -15,7 +15,8 @@
 
 | Файл | Ответственность |
 |---|---|
-| `run_zeter_os.py` | Python launcher, локальный сервер, pywebview API, пользовательский автозапуск Windows, уникальные атомарные записи, транзакционная primary-запись, синхронизированные restore points, `data/`, резервные и Windows-копии, объединённое удержание/GC payload и preflight локального восстановления |
+| `run_zeter_os.py` | Python launcher, локальный сервер, pywebview API, пользовательский автозапуск Windows, уникальные атомарные записи, транзакционная primary-запись, синхронизированные restore points, `data/`, резервные и Windows-копии, объединённое удержание/GC payload и preflight локального восстановления; подключает diagnostics только в `main()` |
+| `problem_logs.py` | Дневные компактные content-free `Логи проблем` для CODEX: run identity, safe stages/evidence, fingerprints, timeline, improvement signals, caps, 120-дневное retention и emergency health |
 | `start_zeter_os.cmd` | Пользовательский запуск на Windows |
 | `build_release.cmd`, `tools/build_release.py` | Многоразовая воспроизводимая сборка проверенного portable ZIP по белому списку, без `data`, логов и служебных файлов |
 | `app/index.html` | DOM-оболочка и порядок подключения ресурсов |
@@ -23,9 +24,10 @@
 | `app/css/style.css` | Единственная CSS-точка входа |
 | `app/service-worker.js` | PWA cache-name и список offline-ресурсов |
 | `check_project.cmd` | Windows-wrapper поиска Python/Node и единого запуска checker’а |
-| `tools/check_project.py` | Проверка структуры, документации, ресурсов, синтаксиса, JavaScript suite, Python native-smoke и smoke сборщика релиза |
+| `tools/check_project.py` | Проверка структуры, документации, ресурсов, синтаксиса, JavaScript suite, Python native/problem-logs smokes и smoke сборщика релиза |
 | `tools/run_smokes.js` | Последовательный запуск постоянных сценарных smoke-тестов, включая пользовательскую справку |
 | `tools/smoke_release_builder.py` | Герметичная проверка воспроизводимости, исключений, распаковки и безопасной публикации portable ZIP |
+| `tools/smoke_problem_logs.py` | Герметичная проверка schema, privacy, pointers, retention, deduplication и degraded health подсистемы `Логи проблем` |
 | `tools/update_docs.py` | Проверка и атомарное обновление генерируемой документации |
 | `tools/code_owners.json` | Машиночитаемые владельцы сценариев, UI-hooks и жизненного цикла state |
 | `tools/navigation_index.py` | Разбор публичного core API, проверка manifest и генерация навигационных карт |
@@ -108,7 +110,7 @@
 | `app/js/core/task-ui-utils.js` | `ZETER_TASK_UI_UTILS` | Store adapters, доска, карточки и формы задач |
 | `app/js/core/task-app-ui-utils.js` | `ZETER_TASK_APP_UI_UTILS` | Runtime-controller задач: доска, редактор, обновление открытых окон и единая навигация из поиска/уведомлений |
 | `app/js/core/calendar-utils.js` | `ZETER_CALENDAR_UTILS` | Даты, повторы и операции событий |
-| `app/js/core/calendar-ui-utils.js` | `ZETER_CALENDAR_UI_UTILS` | Формы, представления и полная UI-оркестрация приложения календаря |
+| `app/js/core/calendar-ui-utils.js` | `ZETER_CALENDAR_UI_UTILS` | Формы, представления и полная UI-оркестрация календаря; запрет создания событий до сегодняшней локальной даты без ограничения редактирования существующих |
 | `app/js/core/notification-utils.js` | `ZETER_NOTIFICATION_UTILS` | Записи уведомлений, сбор напоминаний задач/календаря и lifecycle watchers |
 | `app/js/core/notification-ui-utils.js` | `ZETER_NOTIFICATION_UI_UTILS` | Центр уведомлений, DOM-binding, мини-повестка и переходы к задаче или дню календаря |
 | `app/js/core/security-protection-utils.js` | `ZETER_SECURITY_PROTECTION_UTILS` | Политики защиты, журнал, сводки state, manifest и контрольные суммы ZIP, проверка восстановления и переносимое AES-GCM-шифрование `.zeterbak` |

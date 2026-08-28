@@ -12,7 +12,7 @@
 
 - Начни с `git status --short`, относящегося diff и [docs/README.md](docs/README.md). Не откатывай чужую работу.
 - Неизвестного владельца ищи через `python tools/find_owner.py "запрос"`; для структурной frontend-задачи читай [docs/FRONTEND_WORKFLOW.md](docs/FRONTEND_WORKFLOW.md). Подтверди результат через [docs/CODEMAP.md](docs/CODEMAP.md), вызовы и `rg` по функциям, глобалам, классам, `data-*` и state-путям.
-- При проблемах запуска, storage или bridge сначала читай `data/logs/zeter-os.log` и [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+- При проблемах запуска, storage или bridge сначала читай [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) и указанный там актуальный журнал.
 - Не делай массовое форматирование, несвязанный рефакторинг и удаление возможностей. Уточняй существенный выбор или риск для данных.
 
 ## JavaScript, CSS и данные

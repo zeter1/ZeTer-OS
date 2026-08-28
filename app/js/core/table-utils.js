@@ -109,7 +109,7 @@
     }
 
     const rowCount = clamp(rows.length || TABLE_DEFAULT_ROWS, TABLE_MIN_ROWS, TABLE_MAX_ROWS);
-    const detectedCols = Math.max(columns.length, ...rows.map(row => row.length), TABLE_DEFAULT_COLS);
+    const detectedCols = Math.max(columns.length, ...rows.map(row => row.length), 0) || TABLE_DEFAULT_COLS;
     const colCount = clamp(detectedCols, TABLE_MIN_COLS, TABLE_MAX_COLS);
 
     if (!columns.length) columns = Array.from({ length: colCount }, (_, i) => spreadsheetColumnName(i));

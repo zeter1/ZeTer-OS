@@ -65,7 +65,7 @@
       "css": ["app/css/30-app-common.css", "app/css/60-apps-calendar-notes-tables.css", "app/css/80-overrides.css"],
       "state": ["workspace.events", "workspace.calendarState"],
       "smokes": ["tools/smoke_calendar_runtime.js", "tools/smoke_state_migration.js"],
-      "manual": "Проверить тёмно-синюю кнопку «Добавить событие» в каждом дне месяца; открыть отдельное окно из разных дат, создать, изменить и удалить событие; проверить рост списка выбранного дня, repeat, reminder и все views."
+      "manual": "Проверить, что «Добавить событие» недоступно до сегодняшней локальной даты, а сегодня и позже открывает редактор; вручную ввести прошлую дату и проверить отказ кнопкой и Ctrl+Enter, включая окно, открытое до полуночи. Проверить просмотр, изменение и удаление старого события, рост списка выбранного дня, repeat, reminder и все views."
     },
     {
       "id": "notifications",
@@ -141,8 +141,8 @@
       "app_anchors": ["securityRuntimeController", "renderMonitorApp"],
       "css": ["app/css/40-app-foundation.css", "app/css/90-security.css"],
       "state": ["storage runtime", "state.security protection policy and journal", "restore points", "integrity snapshot"],
-      "smokes": ["tools/smoke_storage_runtime.js", "tools/smoke_monitor_runtime.js", "tools/smoke_export_runtime.js", "tools/smoke_import_runtime.js", "tools/smoke_security_protection.js", "tools/smoke_managed_file_native.py"],
-      "manual": "Открыть Монитор системы с верхней панели; сверить обновление CPU/RAM/диска, предупреждения, ручное обновление, копирование отчёта, открытие data/logs и браузерный fallback. Затем проверить structured security status, manifest/encryption, recovery drill, точки, preflight import, cleanup preview, reset safety, journal, policy и storage pressure."
+      "smokes": ["tools/smoke_storage_runtime.js", "tools/smoke_monitor_runtime.js", "tools/smoke_export_runtime.js", "tools/smoke_import_runtime.js", "tools/smoke_security_protection.js", "tools/smoke_managed_file_native.py", "tools/smoke_problem_logs.py"],
+      "manual": "Открыть Монитор системы с верхней панели; сверить обновление CPU/RAM/диска, предупреждения, ручное обновление, копирование отчёта, открытие data, «Логи проблем», журнал операций и браузерный fallback. В `Логи проблем` проверить latest_run → summary, отсутствие текста/имён тестовых документов и закрытый health. Затем проверить structured security status, manifest/encryption, recovery drill, точки, preflight import, cleanup preview, reset safety, journal, policy и storage pressure."
     },
     {
       "id": "settings-visual",

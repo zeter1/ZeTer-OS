@@ -9,6 +9,8 @@ ZeTer OS Python Launcher
 from __future__ import annotations
 
 import base64
+import contextlib
+import hashlib
 import ctypes
 import csv
 import html
@@ -32,6 +34,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
+
+from problem_logs import DailyProblemLogs, ProblemLogs, diagnosed, plain_path
 
 APP_NAME = "ZeTer OS"
 WINDOWS_RUN_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -457,11 +461,14 @@ def item_asset_path(relative_path: Any, *, require_file: bool = False) -> Path:
         raise ValueError("Некорректный путь изображения оформления.")
     if parts[1] not in {"Папки", "Ярлыки"} or not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", parts[2]):
         raise ValueError("Некорректный путь изображения оформления.")
-    if not re.fullmatch(r"(?:значок|фон)\.(?:png|jpe?g|webp|gif|bmp)", parts[3], flags=re.I):
+    if not re.fullmatch(r"(?:значок|фон)(?:-[a-f0-9]{64})?\.(?:png|jpe?g|webp|gif|bmp)", parts[3], flags=re.I):
         raise ValueError("Некорректный файл изображения оформления.")
-    if parts[1] == "Ярлыки" and not parts[3].lower().startswith("значок."):
+    if parts[1] == "Ярлыки" and not re.match(r"значок[.-]", parts[3], re.I):
         raise ValueError("У ярлыка может быть только свой значок.")
-    target = DATA_DIR.joinpath(*parts).resolve()
+    target = DATA_DIR.joinpath(*parts)
+    if parts[2] in {".", ".."} or not plain_path(DATA_DIR, target):
+        raise ValueError("Небезопасный путь изображения оформления.")
+    target = target.resolve()
     try:
         target.relative_to(ITEM_ASSET_ROOT_DIR.resolve())
     except ValueError as exc:
@@ -525,7 +532,7 @@ def collect_managed_file_paths(value: Any) -> set[str]:
 
 def collect_item_asset_paths(value: Any) -> set[str]:
     """Collect only safe item customization assetPath values."""
-    return set(inspect_payload_references(value)["itemAssets"])
+    return set(inspect_payload_references(value)["itemAssets"].values())
 
 
 def unique_child_path(path: Path, used: set[str]) -> Path:
@@ -1592,9 +1599,12 @@ class NativeStorageApi:
         self,
         platform_opener: Optional[Any] = None,
         windows_startup_manager: Optional[Any] = None,
+        problem_logs: Optional[ProblemLogs | DailyProblemLogs] = None,
     ) -> None:
+        self._problem_logs = problem_logs
         ensure_dirs()
-        make_startup_backup()
+        with self._diagnostic_operation("startup_backup"):
+            make_startup_backup()
         self._platform_opener = platform_opener or DefaultPlatformOpener()
         self._windows_startup_manager = windows_startup_manager or WindowsStartupManager()
         self._window: Any = None
@@ -1614,10 +1624,18 @@ class NativeStorageApi:
             log(f"SYSTEM_METRICS initial CPU sample unavailable: {exc}")
         self._process_cpu_sample = (time.perf_counter(), time.process_time())
 
+    def _diagnostic_operation(self, stage: str):
+        return self._problem_logs.operation(stage) if self._problem_logs else contextlib.nullcontext()
+
+    def _problem(self, exc: BaseException, stage: Optional[str] = None, outcome: str = "error") -> None:
+        if self._problem_logs:
+            self._problem_logs.failure(exc, stage=stage, outcome=outcome)
+
     def _ok(self, **data: Any) -> Dict[str, Any]:
         return {"ok": True, **data}
 
     def _error(self, exc: BaseException) -> Dict[str, Any]:
+        self._problem(exc)
         log(f"ERROR: {exc}")
         return {"ok": False, "error": str(exc)}
 
@@ -1628,22 +1646,20 @@ class NativeStorageApi:
             raise ValueError(error_message)
         return payload
 
+    @diagnosed("incoming_cleanup")
     def _cleanup_orphaned_incoming_files(self) -> int:
-        """A new API instance has no active uploads, so old .part files are stale."""
-        if not MANAGED_FILE_INCOMING_DIR.exists():
-            return 0
-        removed = 0
-        for path in MANAGED_FILE_INCOMING_DIR.iterdir():
-            if not path.is_file():
-                continue
-            try:
-                path.unlink()
-                removed += 1
-            except OSError as exc:
-                log(f"FILE_IMPORT stale cleanup error file={json.dumps(str(path), ensure_ascii=False)} detail={exc}")
-        if removed:
-            log(f"FILE_IMPORT stale cleanup removed={removed}")
-        return removed
+        # Other processes and unknown interrupted uploads have no proven disposable owner.
+        # Only this instance's registered sessions can be cancelled/expired below.
+        if self._problem_logs and MANAGED_FILE_INCOMING_DIR.exists():
+            self._problem_logs.event("incoming_cleanup", preserved=sum(1 for _ in MANAGED_FILE_INCOMING_DIR.iterdir()))
+        return 0
+
+    def _remove_owned_upload_temp(self, upload_id: str, session: Dict[str, Any]) -> None:
+        path = session.get("tempPath")
+        expected = MANAGED_FILE_INCOMING_DIR / f"{upload_id}.part"
+        if not isinstance(path, Path) or path != expected or not plain_path(DATA_DIR, path):
+            raise ValueError("Небезопасный временный путь импорта.")
+        path.unlink(missing_ok=True)
 
     def _cleanup_expired_file_uploads(self) -> int:
         cutoff = time.time() - MANAGED_FILE_UPLOAD_TTL_SECONDS
@@ -1651,13 +1667,13 @@ class NativeStorageApi:
         with self._file_upload_lock:
             expired = [upload_id for upload_id, session in self._file_uploads.items() if float(session.get("startedAt") or 0) < cutoff]
             for upload_id in expired:
-                session = self._file_uploads.pop(upload_id, None)
-                temp_path = session.get("tempPath") if isinstance(session, dict) else None
-                if isinstance(temp_path, Path):
-                    try:
-                        temp_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
+                session = self._file_uploads[upload_id]
+                try:
+                    self._remove_owned_upload_temp(upload_id, session)
+                except (OSError, ValueError) as exc:
+                    self._problem(exc, "incoming_cleanup", "partial")
+                    continue
+                self._file_uploads.pop(upload_id, None)
                 removed += 1
         return removed
 
@@ -1806,13 +1822,15 @@ class NativeStorageApi:
         kept_files = 0
         if ITEM_ASSET_ROOT_DIR.exists():
             for path in ITEM_ASSET_ROOT_DIR.rglob("*"):
-                if not path.is_file():
+                if not path.is_file() or not plain_path(DATA_DIR, path):
                     continue
                 try:
-                    relative = item_asset_relative_path(path).casefold()
+                    relative = item_asset_relative_path(path)
+                    item_asset_path(relative)
+                    relative = relative.casefold()
                 except (ValueError, OSError):
                     continue
-                if relative in referenced:
+                if relative in referenced or path.with_name("." + path.name + ".pending.json").exists():
                     kept_files += 1
                     continue
                 try:
@@ -1838,6 +1856,7 @@ class NativeStorageApi:
             "itemAssetsRemovedBytes": removed_bytes,
         }
 
+    @diagnosed("payload_cleanup")
     def _garbage_collect_payload(self, current_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         references = self._collect_retained_payload_references(current_state)
         errors = references["errors"]
@@ -1932,6 +1951,10 @@ class NativeStorageApi:
         return target
 
 
+    @diagnosed("readable_export")
+    def _export_readable(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        return export_windows_readable_data(state)
+
     def _export_existing_state_to_readable_folder(self) -> None:
         try:
             record = read_json_file(STATE_FILE)
@@ -1946,7 +1969,7 @@ class NativeStorageApi:
                     record["updatedAt"] = now_ms()
                     record["savedAt"] = datetime.now().isoformat(timespec="seconds")
                     atomic_write_json(STATE_FILE, record)
-                result = export_windows_readable_data(state)
+                result = self._export_readable(state)
                 payload_gc = self._garbage_collect_payload(state)
                 log(f"WINDOWS_READABLE startup files={result.get('readableFiles')} portableMetadata={normalized_portable_metadata} workspaceAliases={normalized_workspace_aliases} purgedDeleted={purged_deleted} payloadGcOk={payload_gc.get('payloadGcOk')} managedFiles={payload_gc.get('managedFiles')} managedFilesRemoved={payload_gc.get('managedFilesRemoved')} itemAssets={payload_gc.get('itemAssets')} itemAssetsRemoved={payload_gc.get('itemAssetsRemoved')} dir={result.get('readableDir')}")
             else:
@@ -1958,8 +1981,10 @@ class NativeStorageApi:
                     f"itemAssetsRemoved={payload_gc.get('itemAssetsRemoved')}"
                 )
         except Exception as exc:
+            self._problem(exc, "readable_export", "partial")
             log(f"WINDOWS_READABLE startup error: {exc}")
 
+    @diagnosed("get_storage_info")
     def get_storage_info(self) -> Dict[str, Any]:
         try:
             state_bytes = STATE_FILE.stat().st_size if STATE_FILE.exists() else 0
@@ -1999,12 +2024,14 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("get_windows_startup_status")
     def get_windows_startup_status(self) -> Dict[str, Any]:
         try:
             return self._ok(**self._windows_startup_manager.status())
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("set_windows_startup_enabled")
     def set_windows_startup_enabled(self, enabled: Any) -> Dict[str, Any]:
         try:
             if not isinstance(enabled, bool):
@@ -2015,6 +2042,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("get_system_metrics")
     def get_system_metrics(self) -> Dict[str, Any]:
         """Return real host metrics for the system monitor without extra packages."""
         try:
@@ -2083,49 +2111,28 @@ class NativeStorageApi:
             return self._error(exc)
 
     def report_client_error(self, details: Any) -> Dict[str, Any]:
-        """Записывает ограниченную диагностику фатальной ошибки JavaScript при boot."""
+        """Bounded content-free JS diagnostics, including errors after frontend readiness."""
         try:
-            if isinstance(details, str):
-                try:
-                    details = json.loads(details)
-                except json.JSONDecodeError:
-                    details = {"message": details}
             if not isinstance(details, dict):
-                details = {"message": str(details or "Неизвестная ошибка JavaScript")}
-
-            def text_field(name: str, limit: int) -> str:
-                return str(details.get(name) or "").strip()[:limit]
-
-            try:
-                line = max(0, int(details.get("line") or 0))
-            except (TypeError, ValueError):
-                line = 0
-            try:
-                column = max(0, int(details.get("column") or 0))
-            except (TypeError, ValueError):
-                column = 0
-
-            payload = {
-                "kind": text_field("kind", 80) or "boot_error",
-                "message": text_field("message", 900) or "Неизвестная ошибка JavaScript",
-                "source": text_field("source", 500),
-                "line": line,
-                "column": column,
-                "stack": text_field("stack", 5000),
-                "page": text_field("page", 500),
-                "occurredAt": text_field("occurredAt", 80),
-            }
-            log(f"CLIENT_ERROR {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}")
-            return self._ok(recorded=True)
+                details = {}
+            recorded = False
+            if self._problem_logs:
+                if details.get("kind") == "frontend_ready":
+                    recorded = bool(self._problem_logs.event("frontend_ready", "success"))
+                else:
+                    recorded = bool(self._problem_logs.failure(stage="client_runtime", client=details))
+            log("CLIENT_ERROR diagnostic metadata received; message and stack omitted for privacy")
+            return self._ok(recorded=recorded)
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("save_item_asset")
     def save_item_asset(self, payload: Any) -> Dict[str, Any]:
         """Atomically store a folder/shortcut image in data/Оформление объектов."""
         try:
             data = self._payload_dict(payload, "Некорректные данные изображения оформления.")
             item_id = str(data.get("itemId") or "").strip()
-            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", item_id):
+            if item_id in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", item_id):
                 raise ValueError("Некорректный ID папки или ярлыка.")
             kind = str(data.get("kind") or "").strip()
             layout = ITEM_ASSET_KIND_LAYOUT.get(kind)
@@ -2147,15 +2154,47 @@ class NativeStorageApi:
             category, stem = layout
             extension = mime_to_extension(mime)
             target_dir = ITEM_ASSET_ROOT_DIR / category / item_id
-            target = target_dir / f"{stem}.{extension}"
-            atomic_write_bytes(target, raw)
-            for old in target_dir.glob(f"{stem}.*"):
-                if old == target or not old.is_file():
-                    continue
-                try:
-                    old.unlink()
-                except OSError as exc:
-                    log(f"ITEM_ASSET old cleanup error file={json.dumps(str(old), ensure_ascii=False)} detail={exc}")
+            digest = hashlib.sha256(raw).hexdigest()
+            target = target_dir / f"{stem}-{digest}.{extension}"
+            marker = target.with_name("." + target.name + ".pending.json")
+            if not plain_path(DATA_DIR, target) or not plain_path(DATA_DIR, marker):
+                raise ValueError("Небезопасный путь изображения оформления.")
+            pending = []
+            if ITEM_ASSET_ROOT_DIR.exists():
+                for directory, dirs, files in os.walk(ITEM_ASSET_ROOT_DIR, followlinks=False):
+                    for name in dirs + files:
+                        if not plain_path(DATA_DIR, Path(directory) / name):
+                            raise ValueError("Небезопасная ссылка в каталоге оформления.")
+                    pending.extend(Path(directory) / name for name in files if name.endswith(".pending.json"))
+                    if len(pending) > 64:
+                        raise OSError("Слишком много незавершённых изображений оформления; сохраните состояние перед новым импортом.")
+            pending_bytes = sum(p.with_name(p.name[1:-13]).stat().st_size for p in pending if p.with_name(p.name[1:-13]).is_file())
+            if not marker.exists() and (len(pending) >= 64 or pending_bytes + len(raw) > 128 * 1024 * 1024):
+                raise OSError("Лимит незавершённых изображений оформления: 64 файла или 128 МБ. Старые данные сохранены.")
+            marker_created = False
+            try:
+                if marker.exists():
+                    if read_json_file(marker) != {"owner": "zeter-item-asset-pending-v1", "digest": digest}:
+                        raise ValueError("Неизвестный маркер изображения; существующие данные сохранены.")
+                else:
+                    atomic_write_json(marker, {"owner": "zeter-item-asset-pending-v1", "digest": digest})
+                    marker_created = True
+                if target.exists():
+                    if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                        raise ValueError("Существующее изображение не совпадает с контрольной суммой.")
+                else:
+                    atomic_write_bytes(target, raw)
+                if target.read_bytes() != raw:
+                    raise OSError("Не удалось подтвердить сохранённое изображение.")
+            except Exception:
+                # The marker belongs to this call until an asset is returned to JavaScript.
+                # A marker that existed before the call may belong to another live window/process.
+                if marker_created:
+                    try:
+                        marker.unlink(missing_ok=True)
+                    except OSError as cleanup_error:
+                        self._problem(cleanup_error, "save_item_asset", "partial")
+                raise
 
             relative_path = item_asset_relative_path(target)
             original_name = safe_windows_name(data.get("name"), "Изображение", max_len=160, keep_ext=True)
@@ -2172,6 +2211,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("begin_file_import")
     def begin_file_import(self, payload: Any) -> Dict[str, Any]:
         """Reserve a managed path and a temporary file for a complete file copy."""
         try:
@@ -2187,6 +2227,8 @@ class NativeStorageApi:
                 raise ValueError("Файл превышает допустимый размер ZeTer OS.")
 
             ensure_dirs()
+            if not plain_path(DATA_DIR, MANAGED_FILE_INCOMING_DIR):
+                raise ValueError("Небезопасная папка временного импорта.")
             MANAGED_FILE_INCOMING_DIR.mkdir(parents=True, exist_ok=True)
             free_bytes = shutil.disk_usage(DATA_DIR).free
             if free_bytes < expected_size + 64 * 1024 * 1024:
@@ -2227,6 +2269,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("append_file_chunk")
     def append_file_chunk(self, payload: Any) -> Dict[str, Any]:
         """Append one bounded Base64 chunk while enforcing strict byte offsets."""
         try:
@@ -2265,6 +2308,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("finish_file_import")
     def finish_file_import(self, payload: Any) -> Dict[str, Any]:
         """Verify the complete byte count and atomically publish the copied file."""
         try:
@@ -2314,21 +2358,23 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("cancel_file_import")
     def cancel_file_import(self, payload: Any) -> Dict[str, Any]:
         try:
             data = self._payload_dict(payload, "Некорректная отмена копирования файла.")
             upload_id = str(data.get("uploadId") or "")
             with self._file_upload_lock:
-                session = self._file_uploads.pop(upload_id, None)
-                temp_path = session.get("tempPath") if isinstance(session, dict) else None
-                if isinstance(temp_path, Path):
-                    temp_path.unlink(missing_ok=True)
+                session = self._file_uploads.get(upload_id)
+                if session:
+                    self._remove_owned_upload_temp(upload_id, session)
+                    self._file_uploads.pop(upload_id, None)
             if session:
                 log(f"FILE_IMPORT cancel id={upload_id}")
             return self._ok(cancelled=bool(session))
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("open_managed_file")
     def open_managed_file(self, payload: Any) -> Dict[str, Any]:
         """Open only a verified managed file copy with the OS default application."""
         try:
@@ -2340,6 +2386,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("open_external_target")
     def open_external_target(self, payload: Any) -> Dict[str, Any]:
         """Open an explicit http(s) URL or absolute Windows path without a shell."""
         try:
@@ -2369,6 +2416,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("save_text_download")
     def save_text_download(self, payload: Any) -> Dict[str, Any]:
         """Показывает системный диалог и сохраняет выбранный текстовый файл."""
         try:
@@ -2406,6 +2454,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("save_binary_download")
     def save_binary_download(self, payload: Any) -> Dict[str, Any]:
         """Показывает системный диалог и сохраняет переданный двоичный файл."""
         try:
@@ -2443,6 +2492,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("open_data_folder")
     def open_data_folder(self) -> Dict[str, Any]:
         try:
             ensure_dirs()
@@ -2452,6 +2502,7 @@ class NativeStorageApi:
             return self._error(exc)
 
 
+    @diagnosed("open_logs_folder")
     def open_logs_folder(self) -> Dict[str, Any]:
         try:
             ensure_dirs()
@@ -2461,6 +2512,19 @@ class NativeStorageApi:
             return self._error(exc)
 
 
+    @diagnosed("open_problem_logs_folder")
+    def open_problem_logs_folder(self) -> Dict[str, Any]:
+        try:
+            if not self._problem_logs or not self._problem_logs.available:
+                raise OSError("Папка «Логи проблем» недоступна. Нужен запуск из доступной для записи папки программы.")
+            if not plain_path(self._problem_logs.app_root, self._problem_logs.root):
+                raise OSError("Небезопасный путь папки диагностики.")
+            self._platform_opener.open_path(self._problem_logs.root)
+            return self._ok(logDir=str(self._problem_logs.root))
+        except Exception as exc:
+            return self._error(exc)
+
+    @diagnosed("close_app")
     def close_app(self) -> Dict[str, Any]:
         try:
             if self._window is None or not callable(getattr(self._window, "destroy", None)):
@@ -2473,6 +2537,7 @@ class NativeStorageApi:
 
 
 
+    @diagnosed("open_readable_folder")
     def open_readable_folder(self) -> Dict[str, Any]:
         try:
             ensure_dirs()
@@ -2483,6 +2548,7 @@ class NativeStorageApi:
             return self._error(exc)
 
 
+    @diagnosed("load_state")
     def load_state(self) -> Dict[str, Any]:
         try:
             if not STATE_FILE.exists():
@@ -2511,6 +2577,24 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    def _commit_item_asset_markers(self, state: Dict[str, Any]) -> None:
+        for relative in collect_item_asset_paths(state):
+            path = item_asset_path(relative)
+            marker = path.with_name("." + path.name + ".pending.json")
+            if not marker.exists():
+                continue
+            try:
+                if not plain_path(DATA_DIR, marker):
+                    raise ValueError("Небезопасный маркер изображения.")
+                digest_match = re.search(r"-([a-f0-9]{64})\.", path.name)
+                expected = {"owner": "zeter-item-asset-pending-v1", "digest": digest_match[1] if digest_match else ""}
+                if read_json_file(marker) != expected or not digest_match:
+                    raise ValueError("Неизвестный маркер изображения сохранён.")
+                marker.unlink()
+            except (ValueError, OSError) as exc:
+                self._problem(exc, "payload_cleanup", "partial")
+
+    @diagnosed("primary_confirm")
     def _write_and_confirm_primary_state(self, clean_record: Dict[str, Any]) -> tuple[bool, bytes]:
         previous_existed = STATE_FILE.exists()
         previous_bytes = STATE_FILE.read_bytes() if previous_existed else b""
@@ -2540,6 +2624,7 @@ class NativeStorageApi:
                 ) from primary_error
             raise
 
+    @diagnosed("save_state")
     def save_state(self, record: Any) -> Dict[str, Any]:
         with self._state_save_lock:
             return self._save_state_locked(record)
@@ -2572,6 +2657,7 @@ class NativeStorageApi:
             }
 
             previous_existed, previous_bytes = self._write_and_confirm_primary_state(clean_record)
+            self._commit_item_asset_markers(state)
 
             backup_error = ""
             previous_backup = ""
@@ -2586,13 +2672,15 @@ class NativeStorageApi:
                     self._last_previous_backup_at = time.time()
                     removed_backups = prune_backups()
                 except Exception as exc:
+                    self._problem(exc, "previous_backup", "partial")
                     backup_error = str(exc)
                     log(f"BACKUP previous snapshot error: {exc}")
 
             readable_error = ""
             try:
-                readable = export_windows_readable_data(state)
+                readable = self._export_readable(state)
             except Exception as exc:
+                self._problem(exc, "readable_export", "partial")
                 readable_error = str(exc)
                 log(f"WINDOWS_READABLE save error: {exc}")
                 readable = {
@@ -2605,6 +2693,7 @@ class NativeStorageApi:
             try:
                 payload_gc = self._garbage_collect_payload(state)
             except Exception as exc:
+                self._problem(exc, "payload_cleanup", "partial")
                 payload_gc_error = str(exc)
                 log(f"PAYLOAD_GC save error: {exc}")
                 payload_gc = {
@@ -2645,10 +2734,12 @@ class NativeStorageApi:
                 **readable,
             )
         except Exception as exc:
+            self._problem(exc, "primary_confirm")
             message = f"Основной state не сохранён и не подтверждён: {exc}"
             log(f"SAVE_ERROR stage=primary-confirm error={type(exc).__name__}: {exc}")
             return {"ok": False, "error": message, "stage": "primary-confirm"}
 
+    @diagnosed("clear_state")
     def clear_state(self) -> Dict[str, Any]:
         with self._state_save_lock:
             try:
@@ -2692,6 +2783,7 @@ class NativeStorageApi:
             except Exception as exc:
                 return self._error(exc)
 
+    @diagnosed("load_restore_points")
     def load_restore_points(self) -> Dict[str, Any]:
         try:
             with self._restore_points_lock:
@@ -2709,6 +2801,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("preflight_restore_point")
     def preflight_restore_point(self, point_id: Any) -> Dict[str, Any]:
         try:
             safe_id = str(point_id or "").strip()
@@ -2751,6 +2844,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("save_restore_point")
     def save_restore_point(self, point: Any) -> Dict[str, Any]:
         try:
             if isinstance(point, str):
@@ -2783,6 +2877,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("delete_restore_point")
     def delete_restore_point(self, point_id: Any) -> Dict[str, Any]:
         try:
             safe_id = str(point_id or "").strip()
@@ -2803,6 +2898,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("cleanup_security_artifacts")
     def cleanup_security_artifacts(self, payload: Any) -> Dict[str, Any]:
         try:
             data = json.loads(payload) if isinstance(payload, str) else payload
@@ -2861,6 +2957,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @diagnosed("clear_restore_points")
     def clear_restore_points(self) -> Dict[str, Any]:
         try:
             with self._state_save_lock:
@@ -2911,45 +3008,56 @@ def startup_window_maximized() -> bool:
 
 
 def main() -> int:
-    ensure_dirs()
-    try:
-        import webview  # type: ignore
-    except ModuleNotFoundError:
-        print("pywebview не установлен.")
-        print("Установи зависимости командой:")
-        print("  py -3 -m pip install -r requirements.txt")
-        print("Потом запусти:")
-        print("  py -3 run_zeter_os.py")
-        return 1
-
+    diagnostics = DailyProblemLogs(BASE_DIR)
+    outcome = "error"
     server: Optional[ThreadingHTTPServer] = None
     try:
-        server, port = start_local_server()
+        with diagnostics.operation("boot"):
+            ensure_dirs()
+        import webview  # type: ignore
+    except Exception as exc:
+        diagnostics.failure(exc, stage="boot")
+        diagnostics.close("error")
+        print("Не удалось подготовить запуск. Проверьте зависимости и права записи; см. «Логи проблем».")
+        return 1
+
+    try:
+        with diagnostics.operation("server_start"):
+            server, port = start_local_server()
         url = f"http://127.0.0.1:{port}/index.html?native=1"
-        api = NativeStorageApi()
+        api = NativeStorageApi(problem_logs=diagnostics)
         log(f"START {APP_NAME} on {url}; data={DATA_DIR}")
-        window = webview.create_window(
-            APP_NAME,
-            url,
-            js_api=api,
-            width=1320,
-            height=840,
-            min_size=(1024, 640),
-            maximized=startup_window_maximized(),
-            text_select=True,
-        )
+        with diagnostics.operation("window_create"):
+            window = webview.create_window(
+                APP_NAME,
+                url,
+                js_api=api,
+                width=1320,
+                height=840,
+                min_size=(1024, 640),
+                maximized=startup_window_maximized(),
+                text_select=True,
+            )
         api._window = window
         webview.start(debug=False)
+        outcome = "success"
         return 0
     except Exception as exc:
+        diagnostics.failure(exc, stage="boot")
         log(f"FATAL: {exc}")
         print(f"Ошибка запуска ZeTer OS: {exc}")
         return 1
     finally:
-        if server is not None:
-            server.shutdown()
-            server.server_close()
-            log("STOP ZeTer OS")
+        try:
+            with diagnostics.operation("shutdown"):
+                if server is not None:
+                    server.shutdown()
+                    server.server_close()
+                    log("STOP ZeTer OS")
+        except Exception:
+            outcome = "partial"
+        finally:
+            diagnostics.close(outcome)
 
 
 if __name__ == "__main__":

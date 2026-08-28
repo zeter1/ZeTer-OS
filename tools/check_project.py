@@ -29,6 +29,8 @@ SERVICE_WORKER = APP_DIR / "service-worker.js"
 VERSION_JS = APP_DIR / "js" / "core" / "version.js"
 APP_JS = APP_DIR / "js" / "app.js"
 PYTHON_ENTRY = PROJECT_ROOT / "run_zeter_os.py"
+PROBLEM_LOGS_MODULE = PROJECT_ROOT / "problem_logs.py"
+PROBLEM_LOGS_README = PROJECT_ROOT / "Логи проблем" / "README_FOR_CODEX.md"
 AGENTS_MD = PROJECT_ROOT / "AGENTS.md"
 MANIFEST_JSON = APP_DIR / "manifest.json"
 DOCS_DIR = PROJECT_ROOT / "docs"
@@ -46,6 +48,7 @@ BUILD_RELEASE_CMD = PROJECT_ROOT / "build_release.cmd"
 BUILD_RELEASE_TOOL = PROJECT_ROOT / "tools" / "build_release.py"
 SMOKE_RUNNER = PROJECT_ROOT / "tools" / "run_smokes.js"
 NATIVE_SMOKE = PROJECT_ROOT / "tools" / "smoke_managed_file_native.py"
+PROBLEM_LOGS_SMOKE = PROJECT_ROOT / "tools" / "smoke_problem_logs.py"
 RELEASE_SMOKE = PROJECT_ROOT / "tools" / "smoke_release_builder.py"
 SMOKE_SCRIPTS = (
     PROJECT_ROOT / "tools" / "smoke_system_settings.js",
@@ -240,6 +243,8 @@ def check_required_files() -> list[CheckResult]:
         VERSION_JS,
         APP_JS,
         PYTHON_ENTRY,
+        PROBLEM_LOGS_MODULE,
+        PROBLEM_LOGS_README,
         MANIFEST_JSON,
         UPDATE_DOCS_TOOL,
         OWNER_MANIFEST_JSON,
@@ -249,6 +254,8 @@ def check_required_files() -> list[CheckResult]:
         BUILD_RELEASE_CMD,
         BUILD_RELEASE_TOOL,
         SMOKE_RUNNER,
+        NATIVE_SMOKE,
+        PROBLEM_LOGS_SMOKE,
         RELEASE_SMOKE,
         *SMOKE_SCRIPTS,
     ]
@@ -1187,11 +1194,13 @@ def check_version_cache_match() -> list[CheckResult]:
 def check_python_syntax() -> list[CheckResult]:
     scripts = (
         PYTHON_ENTRY,
+        PROBLEM_LOGS_MODULE,
         Path(__file__).resolve(),
         UPDATE_DOCS_TOOL,
         NAVIGATION_INDEX_TOOL,
         FIND_OWNER_TOOL,
         NATIVE_SMOKE,
+        PROBLEM_LOGS_SMOKE,
         BUILD_RELEASE_TOOL,
         RELEASE_SMOKE,
     )
@@ -1330,6 +1339,34 @@ def check_release_smoke(strict_node: bool) -> list[CheckResult]:
     return [ok("python.release_smoke", summary)]
 
 
+def check_problem_logs_smoke(strict_node: bool) -> list[CheckResult]:
+    if not strict_node:
+        return []
+    if not PROBLEM_LOGS_SMOKE.exists():
+        return [fail("python.problem_logs_smoke", "tools/smoke_problem_logs.py is missing")]
+
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(PROBLEM_LOGS_SMOKE)],
+            cwd=PROJECT_ROOT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return [fail("python.problem_logs_smoke", "problem logs smoke exceeded 30 seconds")]
+
+    output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
+    output = output or "problem logs smoke failed"
+    if completed.returncode != 0:
+        return [fail("python.problem_logs_smoke", output)]
+    summary = output.splitlines()[-1] if output else "problem logs smoke passed"
+    return [ok("python.problem_logs_smoke", summary)]
+
+
 def run_checks(strict_node: bool) -> list[CheckResult]:
     checks: list[CheckResult] = []
     checks.extend(check_required_files())
@@ -1360,6 +1397,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_javascript_syntax(strict_node=strict_node))
     checks.extend(check_scenario_smokes(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node))
+    checks.extend(check_problem_logs_smoke(strict_node=strict_node))
     checks.extend(check_release_smoke(strict_node=strict_node))
     return checks
 

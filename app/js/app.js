@@ -1370,8 +1370,8 @@
     });
   }
 
-  function removeLegacyFullStateFromLocalStorage() {
-    return removeLegacyFullStateFromLocalStorageFromStorage({ storage: localStorage, storageKey: STORAGE_KEY, warn: (...args) => console.warn(...args) });
+  function removeLegacyFullStateFromLocalStorage(record = {}) {
+    return removeLegacyFullStateFromLocalStorageFromStorage({ storage: localStorage, storageKey: STORAGE_KEY, primaryUpdatedAt: record.updatedAt, warn: (...args) => console.warn(...args) });
   }
 
   function saveFullStateToLocalStorageFallback(snapshot = state, fallbackOptions = {}) {
@@ -2096,6 +2096,7 @@
       readNativeSystemMetrics: () => nativeStorageCall("get_system_metrics"),
       openDataFolder: () => nativeStorageCall("open_data_folder"),
       openLogsFolder: () => nativeStorageCall("open_logs_folder"),
+      openProblemLogsFolder: () => nativeStorageCall("open_problem_logs_folder"),
       openApp,
       copyText: copyTextToClipboard,
       toast
@@ -2511,9 +2512,9 @@
       error,
       message: error?.message || "Не удалось прочитать data/zeter-os-state.json.",
       onRetry: loadStorageAndInitialize,
-      onOpenData: () => nativeStorageCall("open_data_folder"),
-      onOpenLogs: () => nativeStorageCall("open_logs_folder"),
-      onClose: () => nativeStorageCall("close_app")
+      onOpenData: shouldUseNativeStorage() ? () => nativeStorageCall("open_data_folder") : null,
+      onOpenLogs: shouldUseNativeStorage() ? () => nativeStorageCall("open_problem_logs_folder") : null,
+      onClose: shouldUseNativeStorage() ? () => nativeStorageCall("close_app") : null
     });
     if (!shown) {
       guard?.reportFailure?.({
@@ -2528,8 +2529,7 @@
     try {
       await loadStorageAndInitialize();
     } catch (error) {
-      if (shouldUseNativeStorage()) showNativeStorageRecovery(error);
-      else window.ZETER_BOOT_GUARD?.reportFailure?.({ kind: "storage_load_error", message: error?.message, error });
+      showNativeStorageRecovery(error);
     }
   }
 

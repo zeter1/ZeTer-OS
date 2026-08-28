@@ -4,14 +4,14 @@
 
 - Core-модулей: 70.
 - Публичных глобалов: 70.
-- Статических зависимостей: 152.
+- Статических зависимостей: 153.
 - Порядок взят из `app/index.html`; каждая зависимость должна загружаться раньше потребителя.
 
 Назначение модулей описано в [CODEMAP.md](CODEMAP.md), правила направления зависимостей — в [ARCHITECTURE.md](ARCHITECTURE.md).
 
 | № | Модуль | Публичный глобал | Зависимости | Строк |
 |---:|---|---|---|---:|
-| 1 | `app/js/core/boot-guard.js` | `ZETER_BOOT_GUARD` | — | 205 |
+| 1 | `app/js/core/boot-guard.js` | `ZETER_BOOT_GUARD` | — | 206 |
 | 2 | `app/js/core/version.js` | `ZETER_OS_VERSION` | — | 1 |
 | 3 | `app/js/core/config.js` | `ZETER_OS_CONFIG` | `ZETER_OS_VERSION` | 66 |
 | 4 | `app/js/core/utils.js` | `ZETER_CORE_UTILS` | `ZETER_OS_CONFIG` | 99 |
@@ -32,7 +32,7 @@
 | 19 | `app/js/core/sticky-utils.js` | `ZETER_STICKY_UTILS` | `ZETER_CORE_UTILS`, `ZETER_WINDOW_METRICS_UTILS` | 144 |
 | 20 | `app/js/core/native-storage.js` | `ZETER_NATIVE_STORAGE` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS` | 84 |
 | 21 | `app/js/core/managed-file-utils.js` | `ZETER_MANAGED_FILE_UTILS` | `ZETER_CORE_UTILS`, `ZETER_SHORTCUT_UTILS` | 1041 |
-| 22 | `app/js/core/storage-utils.js` | `ZETER_STORAGE_UTILS` | — | 568 |
+| 22 | `app/js/core/storage-utils.js` | `ZETER_STORAGE_UTILS` | — | 570 |
 | 23 | `app/js/core/asset-utils.js` | `ZETER_ASSET_UTILS` | `ZETER_OS_CONFIG` | 489 |
 | 24 | `app/js/core/security-protection-utils.js` | `ZETER_SECURITY_PROTECTION_UTILS` | `ZETER_ASSET_UTILS` | 312 |
 | 25 | `app/js/core/visual-utils.js` | `ZETER_VISUAL_UTILS` | `ZETER_CORE_UTILS`, `ZETER_ASSET_UTILS` | 258 |
@@ -42,16 +42,16 @@
 | 29 | `app/js/core/start-ui-utils.js` | `ZETER_START_UI_UTILS` | `ZETER_CORE_UTILS` | 344 |
 | 30 | `app/js/core/file-import-utils.js` | `ZETER_FILE_IMPORT_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS`, `ZETER_ASSET_UTILS` | 255 |
 | 31 | `app/js/core/file-template-utils.js` | `ZETER_FILE_TEMPLATE_UTILS` | — | 19 |
-| 32 | `app/js/core/rich-text-utils.js` | `ZETER_RICH_TEXT_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS`, `ZETER_SHORTCUT_UTILS`, `ZETER_ASSET_UTILS` | 191 |
+| 32 | `app/js/core/rich-text-utils.js` | `ZETER_RICH_TEXT_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS`, `ZETER_SHORTCUT_UTILS`, `ZETER_ASSET_UTILS` | 230 |
 | 33 | `app/js/core/markdown-utils.js` | `ZETER_MARKDOWN_UTILS` | `ZETER_CORE_UTILS` | 24 |
-| 34 | `app/js/core/editor-ui-utils.js` | `ZETER_EDITOR_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_MANAGED_FILE_UTILS`, `ZETER_RICH_TEXT_UTILS`, `ZETER_MARKDOWN_UTILS` | 1520 |
+| 34 | `app/js/core/editor-ui-utils.js` | `ZETER_EDITOR_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_MANAGED_FILE_UTILS`, `ZETER_RICH_TEXT_UTILS`, `ZETER_MARKDOWN_UTILS` | 1532 |
 | 35 | `app/js/core/data-normalizers.js` | `ZETER_DATA_NORMALIZERS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS` | 417 |
 | 36 | `app/js/core/workspace-utils.js` | `ZETER_WORKSPACE_UTILS` | `ZETER_OS_CONFIG`, `ZETER_WINDOW_SESSION_UTILS`, `ZETER_VISUAL_UTILS`, `ZETER_DATA_NORMALIZERS` | 449 |
 | 37 | `app/js/core/state-maintenance-utils.js` | `ZETER_STATE_MAINTENANCE_UTILS` | `ZETER_OS_CONFIG` | 296 |
 | 38 | `app/js/core/task-ui-utils.js` | `ZETER_TASK_UI_UTILS` | `ZETER_CORE_UTILS` | 356 |
 | 39 | `app/js/core/task-app-ui-utils.js` | `ZETER_TASK_APP_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_DATA_NORMALIZERS`, `ZETER_TASK_UI_UTILS` | 586 |
-| 40 | `app/js/core/calendar-utils.js` | `ZETER_CALENDAR_UTILS` | `ZETER_CORE_UTILS`, `ZETER_DATA_NORMALIZERS` | 109 |
-| 41 | `app/js/core/calendar-ui-utils.js` | `ZETER_CALENDAR_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_DATA_NORMALIZERS`, `ZETER_CALENDAR_UTILS` | 566 |
+| 40 | `app/js/core/calendar-utils.js` | `ZETER_CALENDAR_UTILS` | `ZETER_CORE_UTILS`, `ZETER_DATA_NORMALIZERS` | 115 |
+| 41 | `app/js/core/calendar-ui-utils.js` | `ZETER_CALENDAR_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_DATA_NORMALIZERS`, `ZETER_CALENDAR_UTILS` | 582 |
 | 42 | `app/js/core/notification-utils.js` | `ZETER_NOTIFICATION_UTILS` | — | 418 |
 | 43 | `app/js/core/notification-ui-utils.js` | `ZETER_NOTIFICATION_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_NOTIFICATION_UTILS` | 265 |
 | 44 | `app/js/core/import-utils.js` | `ZETER_IMPORT_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS`, `ZETER_ASSET_UTILS`, `ZETER_SECURITY_PROTECTION_UTILS` | 378 |
@@ -64,7 +64,7 @@
 | 51 | `app/js/core/table-utils.js` | `ZETER_TABLE_UTILS` | `ZETER_CORE_UTILS`, `ZETER_MANAGED_FILE_UTILS`, `ZETER_EXPORT_UTILS` | 346 |
 | 52 | `app/js/core/xlsx-utils.js` | `ZETER_XLSX_UTILS` | `ZETER_ASSET_UTILS`, `ZETER_EXPORT_UTILS` | 176 |
 | 53 | `app/js/core/table-ui-utils.js` | `ZETER_TABLE_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_SHORTCUT_UTILS`, `ZETER_MANAGED_FILE_UTILS`, `ZETER_TABLE_UTILS` | 399 |
-| 54 | `app/js/core/table-app-interactions.js` | `ZETER_TABLE_APP_INTERACTIONS` | `ZETER_CORE_UTILS`, `ZETER_TABLE_UTILS`, `ZETER_XLSX_UTILS`, `ZETER_TABLE_UI_UTILS` | 298 |
+| 54 | `app/js/core/table-app-interactions.js` | `ZETER_TABLE_APP_INTERACTIONS` | `ZETER_CORE_UTILS`, `ZETER_EDITOR_UI_UTILS`, `ZETER_TABLE_UTILS`, `ZETER_XLSX_UTILS`, `ZETER_TABLE_UI_UTILS` | 304 |
 | 55 | `app/js/core/calculator-utils.js` | `ZETER_CALCULATOR_UTILS` | — | 74 |
 | 56 | `app/js/core/calculator-ui-utils.js` | `ZETER_CALCULATOR_UI_UTILS` | `ZETER_CORE_UTILS` | 42 |
 | 57 | `app/js/core/app-catalog.js` | `ZETER_APP_CATALOG` | — | 53 |
@@ -73,7 +73,7 @@
 | 60 | `app/js/core/fs-item-utils.js` | `ZETER_FS_ITEM_UTILS` | `ZETER_OS_CONFIG` | 409 |
 | 61 | `app/js/core/explorer-utils.js` | `ZETER_EXPLORER_UTILS` | `ZETER_ASSET_UTILS`, `ZETER_DATA_NORMALIZERS`, `ZETER_EXPORT_UTILS`, `ZETER_READABLE_EXPORT_UTILS`, `ZETER_TABLE_UTILS` | 1180 |
 | 62 | `app/js/core/help-content.js` | `ZETER_HELP_CONTENT` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS` | 878 |
-| 63 | `app/js/core/monitor-utils.js` | `ZETER_MONITOR_UTILS` | `ZETER_CORE_UTILS` | 899 |
+| 63 | `app/js/core/monitor-utils.js` | `ZETER_MONITOR_UTILS` | `ZETER_CORE_UTILS` | 902 |
 | 64 | `app/js/core/photo-ui-utils.js` | `ZETER_PHOTO_UI_UTILS` | `ZETER_CORE_UTILS` | 127 |
 | 65 | `app/js/core/settings-ui-utils.js` | `ZETER_SETTINGS_UI_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS`, `ZETER_SYSTEM_SETTINGS_UTILS` | 589 |
 | 66 | `app/js/core/app-center-ui-utils.js` | `ZETER_APP_CENTER_UI_UTILS` | `ZETER_CORE_UTILS` | 132 |

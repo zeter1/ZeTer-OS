@@ -185,10 +185,14 @@
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (parsed?.storageMode === "indexeddb-primary" || parsed?.fullState === false) return null;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Аварийная копия состояния повреждена.");
+      if (parsed.storageMode === "localStorage-emergency" && (!parsed.state || typeof parsed.state !== "object" || Array.isArray(parsed.state) || !Number.isFinite(parsed.updatedAt))) {
+        throw new Error("Аварийная копия состояния повреждена.");
+      }
       return parsed;
     } catch (error) {
       options.warn?.("[ZeTer OS legacy localStorage load]", error);
-      return null;
+      throw error;
     }
   }
 
@@ -211,6 +215,10 @@
   function removeLegacyFullStateFromLocalStorage(options = {}) {
     const storage = options.storage || window.localStorage;
     try {
+      if (Number.isFinite(options.primaryUpdatedAt)) {
+        const current = JSON.parse(storage?.getItem(options.storageKey) || "null");
+        if (current?.storageMode === "localStorage-emergency" && current.updatedAt > options.primaryUpdatedAt) return false;
+      }
       storage?.removeItem(options.storageKey);
       return true;
     } catch (error) {
@@ -224,7 +232,7 @@
     const runtime = options.runtime || {};
     const byteSize = typeof options.byteSize === "function" ? options.byteSize : value => new TextEncoder().encode(String(value || "")).length;
     try {
-      const raw = JSON.stringify(snapshot);
+      const raw = JSON.stringify({ app: "ZeTer OS", storageMode: "localStorage-emergency", updatedAt: options.updatedAt || Date.now(), state: snapshot });
       storage?.setItem(options.storageKey, raw);
       runtime.mode = "localStorage fallback";
       runtime.fallback = true;
@@ -273,7 +281,7 @@
           runtime.lastError = "";
           runtime.lastSavedAt = record.updatedAt || Date.now();
           runtime.stateBytes = record.stateBytes || runtime.stateBytes;
-          removeLegacyState();
+          removeLegacyState(record);
           return { saved: true, fallback: false, record };
         })
         .catch(async error => {
@@ -351,35 +359,35 @@
       runtime.loadStatus = "loading";
       runtime.writesAllowed = false;
       let loaded = null;
+      let recovering = false;
       try {
         const record = await readPrimaryRecord();
-        if (record?.state) {
+        if (record != null && (!record.state || typeof record.state !== "object" || Array.isArray(record.state))) {
+          throw new Error("Основное хранилище вернуло повреждённую запись.");
+        }
+        const legacy = nativeMode ? null : readLegacyState();
+        const emergency = legacy?.storageMode === "localStorage-emergency";
+        // Old full-state localStorage copies were left only when primary publication failed.
+        // New copies carry a timestamp so an older fallback cannot beat a newer primary.
+        recovering = Boolean(legacy && (!record || (emergency && legacy.updatedAt >= Number(record.updatedAt || 0))));
+        if (recovering) {
+          loaded = emergency ? legacy.state : legacy;
+          runtime.mode = "migration from localStorage";
+          runtime.fallback = true;
+          runtime.lastSavedAt = emergency ? legacy.updatedAt : 0;
+        } else if (record) {
           loaded = record.state;
           runtime.mode = nativeMode ? nativeStorageLabel() : "IndexedDB";
           runtime.fallback = false;
-          runtime.lastLoadedAt = Date.now();
           runtime.lastSavedAt = Number(record.updatedAt || 0);
-          runtime.stateBytes = Number(record.stateBytes || 0) || byteSize(JSON.stringify(record.state));
         }
+        if (loaded) runtime.stateBytes = !recovering && Number(record?.stateBytes) > 0 ? Number(record.stateBytes) : byteSize(JSON.stringify(loaded));
       } catch (error) {
         runtime.lastError = error?.message || String(error);
         runtime.loadStatus = "error";
         runtime.writesAllowed = false;
-        warn(nativeMode ? "[ZeTer OS native storage load]" : "[ZeTer OS IndexedDB load]", error);
-        if (nativeMode) throw error;
-      }
-
-      if (!loaded && !nativeMode) {
-        try {
-          const legacy = readLegacyState();
-          if (legacy) {
-            loaded = legacy;
-            runtime.mode = "migration from localStorage";
-          }
-        } catch (error) {
-          runtime.lastError = error?.message || String(error);
-          warn("[ZeTer OS legacy localStorage load]", error);
-        }
+        warn(nativeMode ? "[ZeTer OS native storage load]" : "[ZeTer OS browser storage load]", error);
+        throw error;
       }
 
       const migrated = migrateState(loaded || defaultState());
@@ -390,7 +398,7 @@
       runtime.writesAllowed = true;
       runtime.lastLoadedAt = Date.now();
       if (loaded) runtime.lastError = "";
-      if (!loaded || runtime.mode === "migration from localStorage") {
+      if (!loaded || recovering) {
         try {
           const initialSave = Promise.resolve(queuePrimarySave({ silentStorageError: true }));
           initialSave.catch(error => {
@@ -440,13 +448,7 @@
         runtime.ready = false;
         runtime.loadStatus = "error";
         runtime.writesAllowed = false;
-        if (nativeStorage()) throw error;
-        const fallback = migrateState(defaultState());
-        setState(fallback);
-        runtime.ready = true;
-        runtime.loadStatus = "first-run";
-        runtime.writesAllowed = true;
-        return fallback;
+        throw error;
       }
     }
 

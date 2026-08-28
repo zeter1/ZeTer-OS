@@ -125,7 +125,23 @@ def main() -> None:
             platform_opener=platform_opener,
             windows_startup_manager=startup_manager,
         )
-        assert not stale_part.exists(), "Stale partial upload was not cleaned on startup"
+        class RecordingAcknowledgment:
+            available = True
+            confirmed = False
+
+            def event(self, *_args, **_kwargs):
+                return self.confirmed
+
+            def failure(self, *_args, **_kwargs):
+                return self.confirmed
+
+        diagnostic_ack = RecordingAcknowledgment()
+        api._problem_logs = diagnostic_ack
+        assert api.report_client_error({"kind": "runtime_error"})["recorded"] is False
+        diagnostic_ack.confirmed = True
+        assert api.report_client_error({"kind": "frontend_ready"})["recorded"] is True
+        api._problem_logs = None
+        assert stale_part.exists(), "Startup removed an unowned partial upload from another process"
         startup_status = api.get_windows_startup_status()
         assert startup_status.get("ok") is True and startup_status.get("enabled") is False
         invalid_startup = api.set_windows_startup_enabled("yes")
@@ -379,6 +395,11 @@ def main() -> None:
         assert incomplete.get("ok") is True, incomplete
         partial = api.append_file_chunk({"uploadId": incomplete["uploadId"], "offset": 0, "base64": base64.b64encode(b"x").decode("ascii")})
         assert partial.get("ok") is True, partial
+        active_temp = api._file_uploads[incomplete["uploadId"]]["tempPath"]
+        competing_api = zeter.NativeStorageApi(platform_opener=RecordingPlatformOpener())
+        assert active_temp.exists(), "A second API instance deleted the first instance's active upload"
+        assert competing_api._cleanup_orphaned_incoming_files() == 0
+        assert active_temp.exists(), "Unowned incoming cleanup removed another instance's upload"
         rejected = api.finish_file_import({"uploadId": incomplete["uploadId"]})
         assert rejected.get("ok") is False, rejected
         cancelled = api.cancel_file_import({"uploadId": incomplete["uploadId"]})
@@ -443,6 +464,26 @@ def main() -> None:
         folder_icon_path = zeter.item_asset_path(folder_icon_result["asset"]["path"], require_file=True)
         folder_background_path = zeter.item_asset_path(folder_background_result["asset"]["path"], require_file=True)
         shortcut_icon_path = zeter.item_asset_path(shortcut_icon_result["asset"]["path"], require_file=True)
+        pending_before_failure = set(zeter.ITEM_ASSET_ROOT_DIR.rglob("*.pending.json"))
+        original_atomic_write_bytes_for_asset = zeter.atomic_write_bytes
+
+        def fail_new_asset_bytes(path: Path, payload: bytes) -> None:
+            if zeter.ITEM_ASSET_ROOT_DIR in path.parents and not path.name.endswith(".pending.json"):
+                raise OSError("simulated item asset write failure")
+            original_atomic_write_bytes_for_asset(path, payload)
+
+        zeter.atomic_write_bytes = fail_new_asset_bytes
+        try:
+            failed_asset = api.save_item_asset({
+                "itemId": "failed-asset",
+                "kind": "folder-icon",
+                "name": "ошибка.png",
+                "dataURL": tiny_png_data_url,
+            })
+        finally:
+            zeter.atomic_write_bytes = original_atomic_write_bytes_for_asset
+        assert failed_asset.get("ok") is False, failed_asset
+        assert set(zeter.ITEM_ASSET_ROOT_DIR.rglob("*.pending.json")) == pending_before_failure, "Failed asset save left an owned pending marker"
 
         windows_target = r"C:\ZeTer OS\Документ.txt"
         opened = api.open_managed_file({"managedPath": managed_file["managedPath"]})

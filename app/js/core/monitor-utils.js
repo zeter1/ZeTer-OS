@@ -556,7 +556,7 @@
       <div class="monitor-actions" aria-label="Действия монитора">
         <button type="button" class="primary" data-monitor-action="refresh"${system.loading ? " disabled" : ""}>↻ Обновить сейчас</button>
         <button type="button" data-monitor-action="copy-report">⧉ Скопировать отчёт</button>
-        ${nativeMode ? `<button type="button" data-monitor-action="open-data">📁 Папка data</button><button type="button" data-monitor-action="open-logs">🧾 Журналы</button>` : ""}
+        ${nativeMode ? `<button type="button" data-monitor-action="open-data">📁 Папка data</button><button type="button" data-monitor-action="open-problem-logs">🧾 Логи проблем</button><button type="button" data-monitor-action="open-logs">Журнал операций</button>` : ""}
         <button type="button" data-monitor-action="security">🛡️ Центр безопасности</button>
       </div>
       ${alerts.length ? `<div class="monitor-alerts">${monitorAlertsHTML(alerts)}</div>` : ""}
@@ -744,6 +744,7 @@
     const readNativeSystemMetrics = typeof api.readNativeSystemMetrics === "function" ? api.readNativeSystemMetrics : null;
     const openDataFolder = typeof api.openDataFolder === "function" ? api.openDataFolder : async () => {};
     const openLogsFolder = typeof api.openLogsFolder === "function" ? api.openLogsFolder : async () => {};
+    const openProblemLogsFolder = typeof api.openProblemLogsFolder === "function" ? api.openProblemLogsFolder : async () => {};
     const openApp = typeof api.openApp === "function" ? api.openApp : () => {};
     const copyText = typeof api.copyText === "function" ? api.copyText : async () => false;
     const toast = typeof api.toast === "function" ? api.toast : () => {};
@@ -846,6 +847,8 @@
           await openDataFolder();
         } else if (action === "open-logs") {
           await openLogsFolder();
+        } else if (action === "open-problem-logs") {
+          await openProblemLogsFolder();
         } else if (action === "security") {
           openApp("security");
         }

@@ -138,7 +138,7 @@ async function main() {
     assert.deepEqual(actions.children.map(button => button.textContent), [
       "Повторить чтение",
       "Открыть папку data",
-      "Открыть журналы",
+      "Логи проблем",
       "Безопасно закрыть"
     ]);
     for (const button of actions.children) await button.listener("click")();
@@ -151,8 +151,17 @@ async function main() {
     const harness = createHarness(true);
     harness.window.ZETER_BOOT_GUARD.markReady();
     assert.equal(harness.timers.size, 0);
-    assert.equal(harness.eventListeners.has("error"), false);
-    assert.equal(harness.eventListeners.has("unhandledrejection"), false);
+    assert.equal(harness.eventListeners.has("error"), true);
+    assert.equal(harness.eventListeners.has("unhandledrejection"), true);
+    harness.eventListeners.get("error")({
+      message: "runtime after ready",
+      filename: "http://127.0.0.1/js/app.js",
+      lineno: 10,
+      colno: 2,
+      error: new Error("runtime after ready")
+    });
+    await Promise.resolve();
+    assert.equal(harness.nativeReports.at(-1).kind, "runtime_error");
   }
 
   console.log("boot guard smoke: ok");

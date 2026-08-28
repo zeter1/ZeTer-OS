@@ -5,7 +5,8 @@
   const tableUtils = window.ZETER_TABLE_UTILS;
   const tableUiUtils = window.ZETER_TABLE_UI_UTILS;
   const xlsxUtils = window.ZETER_XLSX_UTILS;
-  if (!coreUtils || !tableUtils || !tableUiUtils || !xlsxUtils) throw new Error("ZeTer OS table interactions require table UI and XLSX dependencies.");
+  const editorUiUtils = window.ZETER_EDITOR_UI_UTILS;
+  if (!coreUtils || !tableUtils || !tableUiUtils || !xlsxUtils || !editorUiUtils) throw new Error("ZeTer OS table interactions require table UI, editor UI and XLSX dependencies.");
 
   const { $, $$, clamp } = coreUtils;
   const {
@@ -193,16 +194,21 @@
         activeTablePage(item.table).active = { row: initialSearchHit.row, col: initialSearchHit.col };
       }
 
-      const save = debounce(() => {
-        item.name = title.value.trim() || item.name;
-        item.table = normalizeTableData(item.table);
-        item.content = tableToCSV(item);
-        item.updatedAt = now();
-        saveState();
-        renderFileSurfaces();
-        refreshWindowTitle(winId, item.name);
-        status.textContent = `Автосохранено: ${new Date().toLocaleTimeString("ru-RU")}`;
-      }, 220);
+      const autosaveStatus = editorUiUtils.createAutosaveStatusController({
+        setStatus: text => { status.textContent = text; },
+        save: async () => {
+          item.name = title.value.trim() || item.name;
+          item.table = normalizeTableData(item.table);
+          item.content = tableToCSV(item);
+          item.updatedAt = now();
+          const result = await saveState();
+          renderFileSurfaces();
+          refreshWindowTitle(winId, item.name);
+          return result;
+        }
+      });
+      const delayedSave = debounce(() => { autosaveStatus.run().catch(() => {}); }, 220);
+      const save = () => { autosaveStatus.markPending(); delayedSave(); };
 
       const { drawPages, draw, setActive } = createView({
         item, root, tableEl, pagesEl, size, searchQuery: params.searchQuery,

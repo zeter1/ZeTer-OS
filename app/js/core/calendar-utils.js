@@ -87,7 +87,13 @@
     }
     const date = parseISO(calendar.date || todayISO());
     const direction = action === "next" ? 1 : -1;
-    if (view === "month") date.setMonth(date.getMonth() + direction);
+    if (view === "month") {
+      const day = date.getDate();
+      date.setDate(1);
+      date.setMonth(date.getMonth() + direction);
+      const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      date.setDate(Math.min(day, lastDay));
+    }
     else if (view === "week") date.setDate(date.getDate() + direction * 7);
     else date.setDate(date.getDate() + direction);
     const iso = dateISO(date);

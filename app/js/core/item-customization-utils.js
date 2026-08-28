@@ -31,7 +31,7 @@
     "#e4854d",
     "#39a8b8"
   ]);
-  const ITEM_ASSET_PATH_RE = /^Оформление объектов\/(Папки|Ярлыки)\/([A-Za-z0-9_.-]{1,160})\/(значок|фон)\.(png|jpe?g|webp|gif|bmp)$/iu;
+  const ITEM_ASSET_PATH_RE = /^Оформление объектов\/(Папки|Ярлыки)\/([A-Za-z0-9_.-]{1,160})\/(значок|фон)(?:-[a-f0-9]{64})?\.(png|jpe?g|webp|gif|bmp)$/iu;
 
   function normalizeFolderColor(value = "") {
     const raw = String(value || "").trim();

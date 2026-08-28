@@ -18,9 +18,11 @@ ARCHIVE_ROOT = "ZeTer OS"
 FIXED_ZIP_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
 RELEASE_ROOT_FILES = (
     "README_PYTHON.md",
+    "problem_logs.py",
     "requirements.txt",
     "run_zeter_os.py",
     "start_zeter_os.cmd",
+    "Логи проблем/README_FOR_CODEX.md",
 )
 REQUIRED_RELEASE_FILES = (
     *RELEASE_ROOT_FILES,

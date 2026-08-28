@@ -251,12 +251,21 @@
   } = {}) {
     let latestSequence = 0;
 
+    function markPending() {
+      latestSequence++;
+      setStatus("Сохранение…");
+    }
+
     async function run(payload) {
       const sequence = ++latestSequence;
       setStatus("Сохранение…");
       try {
         const result = await save(payload);
         if (sequence === latestSequence) {
+          if (result?.skipped || result?.saved === false) {
+            setStatus("Не сохранено: хранилище ещё не загружено");
+            return result;
+          }
           const label = result?.fallback ? "Сохранено аварийно" : "Автосохранено";
           setStatus(`${label}: ${now().toLocaleTimeString("ru-RU")}`);
         }
@@ -269,7 +278,7 @@
       }
     }
 
-    return Object.freeze({ run });
+    return Object.freeze({ run, markPending });
   }
 
   function editorTextNodes(area, documentRef = globalThis.document) {
@@ -365,6 +374,9 @@
     let changed = 0;
     area.querySelectorAll('font[size="7"]').forEach(marker => {
       const span = documentRef.createElement("span");
+      span.setAttribute("style", richTextUtils.sanitizeRichTextSpanStyle(
+        `color:${marker.getAttribute("color") || ""};font-family:${marker.getAttribute("face") || ""};${marker.getAttribute("style") || ""}`
+      ));
       span.style.fontSize = `${safeSize}px`;
       while (marker.firstChild) span.appendChild(marker.firstChild);
       marker.parentNode?.replaceChild(span, marker);

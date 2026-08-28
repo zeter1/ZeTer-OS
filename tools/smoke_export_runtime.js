@@ -411,6 +411,7 @@ function smokeTableCsvRuntime() {
       }]
     }]
   });
+  assert.strictEqual(fittedTable.pages[0].columns.length, 1, "A one-column table must not expand back to six columns");
   assert.strictEqual(fittedTable.pages[0].managedFiles[0].displayWidth, 180);
   assert.strictEqual(fittedTable.pages[0].managedFiles[0].offsetX, 44);
   assert.strictEqual(fittedTable.pages[0].managedFiles[0].offsetY, 9);

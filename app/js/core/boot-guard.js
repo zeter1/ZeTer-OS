@@ -84,7 +84,7 @@
     const title = boot.querySelector("h1");
     const status = boot.querySelector(".boot-card > p:not(.boot-error-detail)");
     if (title) title.textContent = "Не удалось прочитать данные ZeTer OS";
-    if (status) status.textContent = "Автосохранение заблокировано — существующий файл не будет заменён";
+    if (status) status.textContent = "Автосохранение заблокировано — существующие данные не будут заменены";
 
     let detail = boot.querySelector(".boot-error-detail");
     if (!detail) {
@@ -119,7 +119,7 @@
     };
     addAction("Повторить чтение", details.onRetry, true);
     addAction("Открыть папку data", details.onOpenData);
-    addAction("Открыть журналы", details.onOpenLogs);
+    addAction("Логи проблем", details.onOpenLogs);
     addAction("Безопасно закрыть", details.onClose);
     boot.querySelector(".boot-card")?.appendChild(actions);
     sendNativeReport(payload);
@@ -154,7 +154,8 @@
   }
 
   function handleWindowError(event) {
-    reportFailure({
+    const report = completed ? details => sendNativeReport(normalizeFailure(details)) : reportFailure;
+    report({
       kind: "runtime_error",
       message: event.message,
       source: event.filename,
@@ -166,7 +167,8 @@
 
   function handleUnhandledRejection(event) {
     const reason = event.reason;
-    reportFailure({
+    const report = completed ? details => sendNativeReport(normalizeFailure(details)) : reportFailure;
+    report({
       kind: "unhandled_rejection",
       message: reason?.message || reason,
       stack: reason?.stack || "",
@@ -182,8 +184,7 @@
     completed = true;
     pendingNativeReport = null;
     if (timeoutId !== null) window.clearTimeout(timeoutId);
-    window.removeEventListener("error", handleWindowError);
-    window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    sendNativeReport({ kind: "frontend_ready" });
   }
 
   window.addEventListener("error", handleWindowError);

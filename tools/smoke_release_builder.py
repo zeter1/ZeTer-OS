@@ -23,9 +23,12 @@ def write_fixture(path: Path, content: str | bytes) -> None:
 
 def make_project(root: Path) -> None:
     write_fixture(root / "README_PYTHON.md", "# ZeTer OS\n")
+    write_fixture(root / "problem_logs.py", "OWNER = 'zeter-os-problem-logs'\n")
     write_fixture(root / "requirements.txt", "pywebview>=5.0\n")
     write_fixture(root / "run_zeter_os.py", "print('ZeTer OS')\n")
     write_fixture(root / "start_zeter_os.cmd", b"@echo off\r\npython run_zeter_os.py\r\n")
+    write_fixture(root / "Логи проблем" / "README_FOR_CODEX.md", "# CODEX read order\n")
+    write_fixture(root / "Логи проблем" / "latest_run.json", '{"private":"runtime"}\n')
     write_fixture(root / "app" / "index.html", "<!doctype html><title>ZeTer OS</title>\n")
     write_fixture(root / "app" / "manifest.json", '{"name":"ZeTer OS"}\n')
     write_fixture(root / "app" / "service-worker.js", 'const ZETER_CACHE = "zeter-os-9.87";\n')
@@ -71,6 +74,9 @@ def main() -> None:
         names = archive_names(first.archive_path)
         assert f"{ARCHIVE_ROOT}/app/assets/значок теста.txt" in names
         assert f"{ARCHIVE_ROOT}/run_zeter_os.py" in names
+        assert f"{ARCHIVE_ROOT}/problem_logs.py" in names
+        assert f"{ARCHIVE_ROOT}/Логи проблем/README_FOR_CODEX.md" in names
+        assert f"{ARCHIVE_ROOT}/Логи проблем/latest_run.json" not in names
         lowered = {name.casefold() for name in names}
         for marker in ("/data/", "/.git/", "/.codex/", "/.agents/", "/__pycache__/", "/tests/"):
             assert all(marker not in f"/{name}" for name in lowered)

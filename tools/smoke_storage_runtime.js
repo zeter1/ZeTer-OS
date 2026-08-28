@@ -12,7 +12,7 @@ vm.runInContext(source, context, { filename: "app/js/core/storage-utils.js" });
 const storage = context.window.ZETER_STORAGE_UTILS;
 assert.match(appSource, /writesAllowed:\s*\(\)\s*=>\s*storageRuntime\.writesAllowed/, "app save queue must use the storage write gate");
 assert.match(appSource, /showStorageRecovery[\s\S]*onRetry:\s*loadStorageAndInitialize/, "native boot failure must expose a retry that rereads storage");
-assert.match(appSource, /open_logs_folder[\s\S]*close_app/, "native recovery must expose logs and safe close actions");
+assert.match(appSource, /open_problem_logs_folder[\s\S]*close_app/, "native recovery must expose logs and safe close actions");
 
 async function smokePrimaryRecords() {
   const runtime = storage.createStorageRuntimeState();
@@ -119,7 +119,8 @@ function smokeLocalStoragePaths() {
   }), true);
   assert.strictEqual(runtime.mode, "localStorage fallback");
   assert.strictEqual(runtime.fallback, true);
-  assert.strictEqual(JSON.parse(fake.getItem("state")).fs.one.id, "one");
+  assert.strictEqual(JSON.parse(fake.getItem("state")).state.fs.one.id, "one");
+  assert.strictEqual(storage.removeLegacyFullStateFromLocalStorage({ storage: fake, storageKey: "state", primaryUpdatedAt: 1 }), false, "newer emergency copy must survive older publication");
   assert.strictEqual(storage.removeLegacyFullStateFromLocalStorage({ storage: fake, storageKey: "state" }), true);
   assert.strictEqual(fake.getItem("state"), null);
 
@@ -311,6 +312,30 @@ async function smokeStorageStateRuntime() {
   assert.strictEqual(loadedRuntime.writesAllowed, true);
   assert.strictEqual(loadedRuntime.lastSavedAt, 77);
   assert.strictEqual(loadedRuntime.stateBytes, 88);
+
+  const staleLegacyController = storage.createStorageStateRuntimeController({
+    readPrimaryRecord: async () => ({ state: { source: "primary" }, updatedAt: 77, stateBytes: 88 }),
+    readLegacyState: () => ({ source: "old-legacy-without-timestamp" }),
+    migrateState: value => value
+  });
+  assert.strictEqual((await staleLegacyController.loadState()).source, "primary", "old legacy state must not replace an existing primary record");
+
+  let recoveredEmergencySaves = 0;
+  const newerEmergencyController = storage.createStorageStateRuntimeController({
+    readPrimaryRecord: async () => ({ state: { source: "primary" }, updatedAt: 77, stateBytes: 88 }),
+    readLegacyState: () => ({ storageMode: "localStorage-emergency", updatedAt: 78, state: { source: "newer-emergency" } }),
+    migrateState: value => value,
+    queuePrimarySave: () => { recoveredEmergencySaves++; return Promise.resolve(); }
+  });
+  assert.strictEqual((await newerEmergencyController.loadState()).source, "newer-emergency", "newer emergency state must win and be republished");
+  assert.strictEqual(recoveredEmergencySaves, 1);
+
+  const olderEmergencyController = storage.createStorageStateRuntimeController({
+    readPrimaryRecord: async () => ({ state: { source: "primary" }, updatedAt: 77, stateBytes: 88 }),
+    readLegacyState: () => ({ storageMode: "localStorage-emergency", updatedAt: 76, state: { source: "older-emergency" } }),
+    migrateState: value => value
+  });
+  assert.strictEqual((await olderEmergencyController.loadState()).source, "primary", "older emergency state must not replace a newer primary record");
 
   const failedInitialRuntime = storage.createStorageRuntimeState();
   const initialWarnings = [];

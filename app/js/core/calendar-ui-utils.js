@@ -8,7 +8,7 @@
   if (!dataNormalizers) throw new Error("ZeTer OS calendar UI utils require data normalizers.");
   if (!calendarUtils) throw new Error("ZeTer OS calendar UI utils require calendar utils.");
 
-  const { escapeHtml, parseISO, dateISO, pad, uid } = coreUtils;
+  const { escapeHtml, parseISO, dateISO, todayISO: localTodayISO, pad, uid } = coreUtils;
   const {
     normalizeCalendarCategory,
     normalizeCalendarRepeat,
@@ -83,7 +83,9 @@
     const maxEvents = 2;
     const chips = events.slice(0, maxEvents).map(event => calendarEventChipHTML(event)).join("");
     const more = events.length > maxEvents ? `<span class="event-chip">+${events.length - maxEvents}</span>` : "";
-    const addButton = `<button type="button" class="calendar-add-event" data-add-event="${safeAttr(options.date || "")}">Добавить событие</button>`;
+    const isPastDate = options.date < (options.todayISOValue || localTodayISO());
+    const disabled = isPastDate ? ' disabled title="Нельзя добавлять события на прошедшие даты"' : "";
+    const addButton = `<button type="button" class="calendar-add-event" data-add-event="${safeAttr(options.date || "")}"${disabled}>Добавить событие</button>`;
     return `<span class="day-number">${escapeHtml(dayNumber)}</span>${chips}${more}${addButton}`;
   }
 
@@ -120,7 +122,7 @@
       cell.tabIndex = 0;
       cell.setAttribute("role", "button");
       cell.setAttribute("aria-label", day.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }));
-      cell.innerHTML = calendarMonthDayHTML(day.getDate(), eventsForDate(iso), { date: iso });
+      cell.innerHTML = calendarMonthDayHTML(day.getDate(), eventsForDate(iso), { date: iso, todayISOValue });
       wrap.appendChild(cell);
     }
 
@@ -351,6 +353,9 @@
     if (calendar.editing && !events.some(event => event.id === calendar.editing)) {
       return { saved: false, reason: "missing-event", calendar };
     }
+    if (!calendar.editing && data.date < localTodayISO()) {
+      return { saved: false, reason: "past-date", calendar };
+    }
     const event = upsertCalendarEvent(events, data, calendar.editing);
     const nextCalendar = { ...calendar, selected: event.date, date: event.date, editing: null };
     clearCalendarEventForm(root, nextCalendar.selected);
@@ -417,6 +422,11 @@
       }
       if (action.type === "add-event") {
         const date = action.date || getCalendar().selected;
+        if (date < localTodayISO()) {
+          toast("Дата уже прошла", "Новое событие можно добавить только на сегодня или будущую дату.");
+          draw();
+          return;
+        }
         setCalendar({ ...getCalendar(), selected: date, date });
         draw();
         openEventEditor({ mode: "create", date });
@@ -489,6 +499,7 @@
       }
     } else {
       clearCalendarEventForm(root, selectedDate);
+      root.querySelector("[data-ev-date]").min = localTodayISO();
     }
 
     const saveEvent = () => {
@@ -498,6 +509,11 @@
       if (!result.saved) {
         if (result.reason === "missing-event") {
           toast("Событие не найдено", "Оно было удалено в другом окне.");
+        } else if (result.reason === "past-date") {
+          toast("Дата уже прошла", "Новое событие можно добавить только на сегодня или будущую дату.");
+          const dateField = root.querySelector("[data-ev-date]");
+          dateField.min = localTodayISO();
+          dateField.focus();
         } else {
           toast("Нужен заголовок", "Введите название события");
           root.querySelector("[data-ev-title]")?.focus();
