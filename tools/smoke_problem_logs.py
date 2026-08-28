@@ -237,6 +237,45 @@ def smoke_day_rollover(fixed: datetime) -> None:
 def main() -> None:
     assert SESSION_LIMIT == 2 * 1024 * 1024
     assert ROOT_LIMIT == 32 * 1024 * 1024
+    with tempfile.TemporaryDirectory(prefix="zeter-path-alias-") as alias_temp:
+        long_root = Path(alias_temp) / "Long Windows User"
+        child = long_root / "data" / "file.json"
+        child.parent.mkdir(parents=True)
+        child.write_text("{}", encoding="utf-8")
+        short_root = long_root.with_name("LONGWI~1")
+        realpath = problem_logs.os.path.realpath
+
+        def expand_short_alias(value: object) -> str:
+            if problem_logs.os.path.normcase(str(value)) == problem_logs.os.path.normcase(str(short_root)):
+                return str(long_root)
+            return realpath(value)
+
+        with patch("problem_logs.os.path.realpath", side_effect=expand_short_alias):
+            assert problem_logs.plain_path(short_root, child), "Windows short/long aliases must share containment"
+            short_child = short_root / "data" / "file.json"
+            assert problem_logs.plain_path(long_root, short_child), "Path-side short alias must share containment"
+            assert not problem_logs.plain_path(short_root, Path(alias_temp) / "outside.json")
+        assert problem_logs.plain_path(Path(str(long_root).upper()), child), "Windows case-only paths must match"
+        assert not problem_logs.plain_path(long_root, long_root.with_name(long_root.name + "Sibling") / "file.json")
+        assert not problem_logs.plain_path(long_root, Path("Z:/outside.json"))
+
+        original_lstat = Path.lstat
+
+        def flagged_lstat(flagged: Path, *, reparse: bool):
+            def inspect(value: Path):
+                if value == flagged:
+                    mode = problem_logs.stat.S_IFDIR if reparse else problem_logs.stat.S_IFLNK
+                    return type("PathInfo", (), {"st_mode": mode, "st_file_attributes": 0x400 if reparse else 0})()
+                return original_lstat(value)
+            return inspect
+
+        for flagged in (long_root, child.parent):
+            with patch.object(Path, "lstat", autospec=True, side_effect=flagged_lstat(flagged, reparse=False)):
+                assert not problem_logs.plain_path(long_root, child)
+            with patch.object(Path, "lstat", autospec=True, side_effect=flagged_lstat(flagged, reparse=True)):
+                assert not problem_logs.plain_path(long_root, child)
+        with patch("problem_logs.os.path.realpath", side_effect=OSError("simulated canonicalization failure")):
+            assert not problem_logs.plain_path(long_root, child)
     fixed = datetime(2030, 5, 20, 12, 0, tzinfo=timezone.utc)
 
     with tempfile.TemporaryDirectory(prefix="zeter-problem-logs-") as temp:

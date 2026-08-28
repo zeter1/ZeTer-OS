@@ -69,19 +69,22 @@ def plain_path(root: Path, path: Path) -> bool:
     """No symlink/reparse component, including the root; never resolve through a link."""
     root, path = root.absolute(), path.absolute()
     try:
-        path.relative_to(root)
-        current = path
-        while True:
-            try:
-                info = current.lstat()
-                if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
-                    return False
-            except FileNotFoundError:
-                pass
-            if current == root:
-                break
-            current = current.parent
-        return True
+        for candidate in (root, path):
+            current = candidate
+            while True:
+                try:
+                    info = current.lstat()
+                    if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                        return False
+                except FileNotFoundError:
+                    pass
+                parent = current.parent
+                if parent == current:
+                    break
+                current = parent
+        root_key = os.path.normcase(os.path.abspath(os.path.realpath(root)))
+        path_key = os.path.normcase(os.path.abspath(os.path.realpath(path)))
+        return os.path.commonpath((root_key, path_key)) == root_key
     except (ValueError, OSError):
         return False
 
