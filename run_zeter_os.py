@@ -310,6 +310,21 @@ def read_json_file(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def unlink_transiently_locked_file(path: Path) -> None:
+    """Remove one owned file, retrying only transient Windows lock errors."""
+    retry_delays = (0.02, 0.05, 0.1)
+    for attempt in range(len(retry_delays) + 1):
+        try:
+            path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            if getattr(exc, "winerror", None) not in {5, 32, 33} or attempt >= len(retry_delays):
+                raise
+            time.sleep(retry_delays[attempt])
+
+
 def copy_if_exists(src: Path, dst: Path) -> bool:
     if not src.exists():
         return False
@@ -2590,7 +2605,7 @@ class NativeStorageApi:
                 expected = {"owner": "zeter-item-asset-pending-v1", "digest": digest_match[1] if digest_match else ""}
                 if read_json_file(marker) != expected or not digest_match:
                     raise ValueError("Неизвестный маркер изображения сохранён.")
-                marker.unlink()
+                unlink_transiently_locked_file(marker)
             except (ValueError, OSError) as exc:
                 self._problem(exc, "payload_cleanup", "partial")
 

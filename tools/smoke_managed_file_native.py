@@ -94,6 +94,26 @@ def configure_temp_data(root: Path) -> None:
 
 
 def main() -> None:
+    class TransientlyLockedFile:
+        def __init__(self) -> None:
+            self.attempts = 0
+
+        def unlink(self) -> None:
+            self.attempts += 1
+            if self.attempts < 3:
+                error = PermissionError("simulated Windows sharing violation")
+                error.winerror = 32
+                raise error
+
+    transient_file = TransientlyLockedFile()
+    original_sleep = zeter.time.sleep
+    zeter.time.sleep = lambda _seconds: None
+    try:
+        zeter.unlink_transiently_locked_file(transient_file)
+    finally:
+        zeter.time.sleep = original_sleep
+    assert transient_file.attempts == 3, transient_file.attempts
+
     with tempfile.TemporaryDirectory(prefix="zeter-managed-file-") as temp:
         temp_root = Path(temp)
         source_root = temp_root / "Исходный компьютер" / "ZeTer OS source"
