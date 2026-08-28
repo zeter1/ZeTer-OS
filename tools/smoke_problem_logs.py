@@ -250,11 +250,12 @@ def main() -> None:
                 return str(long_root)
             return realpath(value)
 
-        with patch("problem_logs.os.path.realpath", side_effect=expand_short_alias):
-            assert problem_logs.plain_path(short_root, child), "Windows short/long aliases must share containment"
-            short_child = short_root / "data" / "file.json"
-            assert problem_logs.plain_path(long_root, short_child), "Path-side short alias must share containment"
-            assert not problem_logs.plain_path(short_root, Path(alias_temp) / "outside.json")
+        with patch.object(Path, "lstat", side_effect=FileNotFoundError):
+            with patch("problem_logs.os.path.realpath", side_effect=expand_short_alias):
+                assert problem_logs.plain_path(short_root, child), "Windows short/long aliases must share containment"
+                short_child = short_root / "data" / "file.json"
+                assert problem_logs.plain_path(long_root, short_child), "Path-side short alias must share containment"
+                assert not problem_logs.plain_path(short_root, Path(alias_temp) / "outside.json")
         assert problem_logs.plain_path(Path(str(long_root).upper()), child), "Windows case-only paths must match"
         assert not problem_logs.plain_path(long_root, long_root.with_name(long_root.name + "Sibling") / "file.json")
         assert not problem_logs.plain_path(long_root, Path("Z:/outside.json"))
