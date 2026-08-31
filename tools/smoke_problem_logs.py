@@ -247,12 +247,11 @@ def main() -> None:
 
         def expand_short_alias(value: object) -> str:
             candidate = Path(value)
-            try:
-                relative = candidate.relative_to(short_root)
-            except ValueError:
-                pass
-            else:
-                return str(long_root / relative)
+            parts = list(candidate.parts)
+            for index, part in enumerate(parts):
+                if part.casefold() == short_root.name.casefold():
+                    parts[index] = long_root.name
+                    return str(Path(*parts))
             return realpath(value)
 
         with patch.object(Path, "lstat", side_effect=FileNotFoundError):
