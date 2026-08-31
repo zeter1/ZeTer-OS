@@ -246,8 +246,13 @@ def main() -> None:
         realpath = problem_logs.os.path.realpath
 
         def expand_short_alias(value: object) -> str:
-            if problem_logs.os.path.normcase(str(value)) == problem_logs.os.path.normcase(str(short_root)):
-                return str(long_root)
+            candidate = Path(value)
+            try:
+                relative = candidate.relative_to(short_root)
+            except ValueError:
+                pass
+            else:
+                return str(long_root / relative)
             return realpath(value)
 
         with patch.object(Path, "lstat", side_effect=FileNotFoundError):
