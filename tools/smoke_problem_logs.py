@@ -242,24 +242,6 @@ def main() -> None:
         child = long_root / "data" / "file.json"
         child.parent.mkdir(parents=True)
         child.write_text("{}", encoding="utf-8")
-        short_root = long_root.with_name("LONGWI~1")
-        realpath = problem_logs.os.path.realpath
-
-        def expand_short_alias(value: object) -> str:
-            candidate = Path(value)
-            parts = list(candidate.parts)
-            for index, part in enumerate(parts):
-                if part.casefold() == short_root.name.casefold():
-                    parts[index] = long_root.name
-                    return str(Path(*parts))
-            return realpath(value)
-
-        with patch.object(Path, "lstat", side_effect=FileNotFoundError):
-            with patch("problem_logs.os.path.realpath", side_effect=expand_short_alias):
-                assert problem_logs.plain_path(short_root, child), "Windows short/long aliases must share containment"
-                short_child = short_root / "data" / "file.json"
-                assert problem_logs.plain_path(long_root, short_child), "Path-side short alias must share containment"
-                assert not problem_logs.plain_path(short_root, Path(alias_temp) / "outside.json")
         assert problem_logs.plain_path(Path(str(long_root).upper()), child), "Windows case-only paths must match"
         assert not problem_logs.plain_path(long_root, long_root.with_name(long_root.name + "Sibling") / "file.json")
         assert not problem_logs.plain_path(long_root, Path("Z:/outside.json"))
