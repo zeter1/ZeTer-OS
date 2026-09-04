@@ -12,6 +12,8 @@
     taskedit: Object.freeze({ name: "Редактирование задачи", icon: "📝", w: 680, h: 520, pinned: false, hidden: true, render: "taskEditor", title: "taskEditor" }),
     calendar: Object.freeze({ name: "Календарь", icon: "📅", w: 1180, h: 680, pinned: true, render: "calendar" }),
     calendaredit: Object.freeze({ name: "Добавление события", icon: "📅", w: 680, h: 580, pinned: false, hidden: true, render: "calendarEventEditor", title: "calendarEventEditor" }),
+    automations: Object.freeze({ name: "Автоматизации", icon: "⚡", w: 920, h: 640, pinned: false, render: "automations" }),
+    automationedit: Object.freeze({ name: "Новая автоматизация", icon: "⚡", w: 940, h: 720, pinned: false, hidden: true, render: "automationEditor", title: "automationEditor" }),
     shortcutedit: Object.freeze({ name: "Создание ярлыка", icon: "🔗", w: 680, h: 500, pinned: false, hidden: true, render: "shortcutEditor", title: "shortcutEditor" }),
     itemsettings: Object.freeze({ name: "Настройка объекта", icon: "⚙️", w: 720, h: 640, pinned: false, hidden: true, render: "itemSettings", title: "itemSettings" }),
     calculator: Object.freeze({ name: "Калькулятор", icon: "🧮", w: 390, h: 540, pinned: true, render: "calculator" }),

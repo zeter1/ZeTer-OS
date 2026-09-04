@@ -87,6 +87,18 @@
       taskbarPinnedApps: [...DEFAULT_TASKBAR_PINNED_APPS],
       searchSettings: { filters: [...SEARCH_FILTER_IDS] },
       fs,
+      automations: [],
+      automationCategories: [],
+      automationRuntime: {
+        paused: false,
+        baselineSeeded: false,
+        knownFileIds: [],
+        queue: [],
+        history: [],
+        checkpoints: [],
+        rateLog: []
+      },
+      objectLinks: [],
       tasks: [
         {
           id: uid("task"),

@@ -55,6 +55,8 @@ function loadCore(name) {
   "item-customization-utils.js",
   "data-normalizers.js",
   "window-session-utils.js",
+  "automation-utils.js",
+  "object-link-utils.js",
   "workspace-utils.js",
   "state-maintenance-utils.js"
 ].forEach(loadCore);
@@ -77,6 +79,7 @@ const appDefinitions = {
   taskedit: { hidden: true },
   calendar: {},
   calendaredit: { hidden: true },
+  automations: {},
   shortcutedit: { hidden: true },
   itemsettings: { hidden: true },
   calculator: {},
@@ -194,6 +197,37 @@ assert.equal(defaults.systemSettings.notifications.calendar, true);
 assert.equal(defaults.systemSettings.hotkeys.search, "Ctrl+Space");
 assert.equal(defaults.desktops[0].data.events.length, defaults.events.length);
 assert.equal(defaults.desktops[0].data.tasks.length, defaults.tasks.length);
+assert.deepEqual(plain(defaults.desktops[0].data.automations), []);
+assert.deepEqual(plain(defaults.desktops[0].data.objectLinks), []);
+
+const legacyAutomationAliases = migrate({
+  settings: {},
+  fs: {
+    note1: { id: "note1", type: "note", name: "План", parent: "desktop" }
+  },
+  currentDesktop: "desktop",
+  desktops: [{
+    id: "desktop",
+    name: "Основной",
+    data: { tasks: [], taskProjects: [], activeTaskProjectId: null }
+  }],
+  tasks: [],
+  events: [{ id: "event1", title: "Встреча", date: "2026-08-31", start: "10:00" }],
+  notifications: [],
+  automations: [{
+    id: "weekly1",
+    name: "План недели",
+    type: "weekly",
+    weekday: 1,
+    time: "09:00",
+    action: { type: "notify", title: "План", text: "Открыть план" }
+  }],
+  objectLinks: [{ id: "link1", a: { kind: "fs", id: "note1" }, b: { kind: "event", id: "event1" } }]
+});
+assert.equal(legacyAutomationAliases.desktops[0].data.automations[0].id, "weekly1");
+assert.equal(legacyAutomationAliases.desktops[0].data.objectLinks[0].id, "link1");
+assert.equal(legacyAutomationAliases.automations[0].id, "weekly1");
+assert.equal(legacyAutomationAliases.objectLinks[0].id, "link1");
 
 const staleLegacyAliases = migrate({
   settings: {},
@@ -202,15 +236,27 @@ const staleLegacyAliases = migrate({
   desktops: [{
     id: "desktop",
     name: "Основной",
-    data: { tasks: [], taskProjects: [], activeTaskProjectId: null, events: [], notifications: [] }
+    data: {
+      tasks: [],
+      taskProjects: [],
+      activeTaskProjectId: null,
+      events: [],
+      notifications: [],
+      automations: [],
+      objectLinks: []
+    }
   }],
   tasks: [{ id: "old-task", title: "Удалённая задача" }],
   events: [{ id: "old-event", title: "Удалённое событие", date: "2026-07-18" }],
-  notifications: [{ id: "old-notification", title: "Старое уведомление" }]
+  notifications: [{ id: "old-notification", title: "Старое уведомление" }],
+  automations: [{ id: "old-automation", type: "weekly", weekday: 1, time: "09:00", action: { type: "notify" } }],
+  objectLinks: [{ id: "old-link", a: { kind: "fs", id: "missing-a" }, b: { kind: "fs", id: "missing-b" } }]
 });
 assert.deepEqual(plain(staleLegacyAliases.tasks), []);
 assert.deepEqual(plain(staleLegacyAliases.events), []);
 assert.deepEqual(plain(staleLegacyAliases.notifications), []);
+assert.deepEqual(plain(staleLegacyAliases.automations), []);
+assert.deepEqual(plain(staleLegacyAliases.objectLinks), []);
 
 const sparseLegacy = migrate({
   futurePayload: { preserved: true },
@@ -331,6 +377,15 @@ async function smokePersistedDeletion() {
   assert.equal(notifications.at(-1).title, "Удаление не сохранено");
   assert.match(notifications.at(-1).detail, /оставлен на месте/);
 }
+
+const categoryWorkspace = sandbox.ZETER_WORKSPACE_UTILS.workspaceDefaults({ automationCategories: [{ id: "screen", name: "Запись экрана" }], automations: [{ id: "rule", type: "startup", categoryId: "screen" }] });
+const restoredCategoryWorkspace = sandbox.ZETER_WORKSPACE_UTILS.normalizeWorkspaceData(JSON.parse(JSON.stringify(categoryWorkspace)));
+assert.equal(restoredCategoryWorkspace.automationCategories[0].name, "Запись экрана");
+assert.equal(restoredCategoryWorkspace.automations[0].categoryId, "screen");
+const legacyCategoryState = { desktops: [{ id: "desktop" }, { id: "other" }], automationCategories: [{ id: "legacy", name: "Старая группа" }], fs: {} };
+sandbox.ZETER_WORKSPACE_UTILS.ensureDesktopRecords(legacyCategoryState);
+assert.equal(legacyCategoryState.desktops[0].data.automationCategories[0].id, "legacy");
+assert.equal(legacyCategoryState.desktops[1].data.automationCategories.length, 0, "categories must not leak to another workspace");
 
 smokePersistedDeletion().then(() => {
   console.log(`state migration smoke: ok (${fs.existsSync(MIGRATION_PATH) ? "core" : "app baseline"})`);

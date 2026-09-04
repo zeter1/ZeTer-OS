@@ -11,6 +11,12 @@ const smokeFiles = [
   "smoke_explorer_navigation.js",
   "smoke_system_settings.js",
   "smoke_calendar_runtime.js",
+  "smoke_automation_object_links.js",
+  "smoke_automation_v2_core.js",
+  "smoke_automation_v2_ui.js",
+  "smoke_feature7_ui.js",
+  "smoke_notification_feature7_core.js",
+  "smoke_automation_import_validation.js",
   "smoke_state_migration.js",
   "smoke_storage_runtime.js",
   "smoke_monitor_runtime.js",
@@ -21,6 +27,7 @@ const smokeFiles = [
   "smoke_managed_file_runtime.js",
   "smoke_shortcut_runtime.js",
   "smoke_item_customization.js",
+  "smoke_persistence_ack.js",
   "smoke_help_content.js",
 ];
 

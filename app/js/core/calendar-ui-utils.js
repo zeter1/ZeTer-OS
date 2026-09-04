@@ -57,6 +57,7 @@
           <div class="two"><select data-ev-category><option value="work">Работа</option><option value="personal">Личное</option><option value="health">Здоровье</option><option value="important">Важное</option></select><select data-ev-repeat><option value="none">Без повтора</option><option value="daily">Каждый день</option><option value="weekly">Каждую неделю</option><option value="monthly">Каждый месяц</option></select></div>
           <select data-ev-reminder><option value="0">Без напоминания</option><option value="5">За 5 минут</option><option value="15" selected>За 15 минут</option><option value="60">За час</option><option value="1440">За день</option></select>
           <textarea data-ev-desc placeholder="Описание"></textarea>
+          <div class="calendar-event-object-links-host" data-calendar-event-object-links-host hidden aria-hidden="true"></div>
           <div class="calendar-event-editor-actions">
             <button type="button" data-cancel-event-editor>Отмена</button>
             <button type="button" class="app-btn primary" data-save-event>Добавить</button>
@@ -67,6 +68,28 @@
 
   function calendarEventEditorMissingHTML() {
     return `<section class="form-card calendar-event-editor-card"><h3>Событие не найдено</h3><p class="muted">Оно могло быть удалено в другом окне.</p><button type="button" data-cancel-event-editor>Закрыть</button></section>`;
+  }
+
+  function mountCalendarObjectLinksPanel(root, panel, options = {}) {
+    const host = root?.querySelector?.("[data-calendar-event-object-links-host]");
+    if (!host) return false;
+    host.innerHTML = "";
+    if (panel) {
+      host.appendChild(panel);
+      host.hidden = false;
+      host.setAttribute?.("aria-hidden", "false");
+      return true;
+    }
+    const message = String(options.message || "").trim();
+    if (message) {
+      host.innerHTML = `<section class="object-links-panel object-links-panel-unavailable"><div class="object-links-heading"><h4>Связи</h4></div><p class="muted">${escapeHtml(message)}</p></section>`;
+      host.hidden = false;
+      host.setAttribute?.("aria-hidden", "false");
+      return true;
+    }
+    host.hidden = true;
+    host.setAttribute?.("aria-hidden", "true");
+    return false;
   }
 
   function calendarWeekdayHeaderHTML(name) {
@@ -479,7 +502,8 @@
       refreshOpenCalendars = () => {},
       closeWindow = () => {},
       toast = () => {},
-      todayISO = () => ""
+      todayISO = () => "",
+      objectLinksPanelFor = null
     } = integration;
     const root = document.createElement("div");
     root.className = "calendar-event-editor-app";
@@ -500,6 +524,13 @@
     } else {
       clearCalendarEventForm(root, selectedDate);
       root.querySelector("[data-ev-date]").min = localTodayISO();
+    }
+    if (typeof objectLinksPanelFor === "function") {
+      if (editingId) {
+        mountCalendarObjectLinksPanel(root, objectLinksPanelFor({ kind: "event", id: editingId }));
+      } else {
+        mountCalendarObjectLinksPanel(root, null, { message: "Сохраните событие, чтобы добавить связи." });
+      }
     }
 
     const saveEvent = () => {
@@ -550,6 +581,7 @@
     calendarShellHTML,
     calendarEventEditorHTML,
     calendarEventEditorMissingHTML,
+    mountCalendarObjectLinksPanel,
     calendarWeekdayHeaderHTML,
     calendarEventChipHTML,
     calendarMonthDayHTML,

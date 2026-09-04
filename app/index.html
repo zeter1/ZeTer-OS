@@ -74,7 +74,12 @@
         <button data-notification-filter="all" class="active">Все</button>
         <button data-notification-filter="tasks">Задачи</button>
         <button data-notification-filter="calendar">Календарь</button>
+        <button data-notification-filter="automations">Автоматизации</button>
         <button data-notification-filter="system">Система</button>
+      </div>
+      <div class="notification-bulk-actions">
+        <button type="button" data-mark-all-notifications-read>Отметить всё прочитанным</button>
+        <button type="button" data-clear-read-notifications>Очистить прочитанные</button>
       </div>
       <div id="notification-list" class="notification-list"></div>
       <div class="panel-head calendar-mini-head"><h2 id="mini-date-title">Сегодня</h2><button data-app="calendar">Календарь</button></div>
@@ -170,6 +175,10 @@
   <script src="js/core/file-template-utils.js"></script>
   <script src="js/core/rich-text-utils.js"></script>
   <script src="js/core/markdown-utils.js"></script>
+  <script src="js/core/automation-utils.js"></script>
+  <script src="js/core/automation-ui-utils.js"></script>
+  <script src="js/core/object-link-utils.js"></script>
+  <script src="js/core/object-link-ui-utils.js"></script>
   <script src="js/core/editor-ui-utils.js"></script>
   <script src="js/core/data-normalizers.js"></script>
   <script src="js/core/workspace-utils.js"></script>

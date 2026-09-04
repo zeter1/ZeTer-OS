@@ -270,6 +270,13 @@
 .notification-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
 .notification-filters button { border-radius: 999px; padding: 7px 10px; background: rgba(255,255,255,.09); border: 1px solid var(--stroke); color: var(--text); font-size: 12px; }
 .notification-filters button:hover, .notification-filters button.active { background: rgba(122,168,255,.22); border-color: rgba(160,190,255,.62); }
+.notification-bulk-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 4px; }
+.notification-bulk-actions button { min-height: 34px; border: 1px solid var(--stroke); border-radius: 11px; padding: 7px 10px; background: rgba(255,255,255,.08); color: var(--text); font-size: 12px; }
+.notification-bulk-actions button:hover:not(:disabled), .notification-bulk-actions button:focus-visible { background: rgba(255,255,255,.15); border-color: var(--stroke-strong); }
+.notification-bulk-actions [data-clear-read-notifications] { color: #ffdbe1; border-color: rgba(255,95,121,.3); background: rgba(255,95,121,.09); }
+.notification-bulk-actions button:disabled { opacity: .46; cursor: default; }
+.notification.openable { padding-bottom: 34px; }
+.notification.openable::after { content: "Открыть"; position: absolute; left: 12px; bottom: 9px; color: var(--accent); font-size: 11px; font-weight: 700; }
 
 .file-grid[data-view-mode="list"], .file-grid[data-view-mode="table"] { display: grid; grid-template-columns: 1fr; align-content: start; }
 .file-grid[data-view-mode="list"] .file-card, .file-grid[data-view-mode="table"] .file-card { min-height: 62px; grid-template-columns: 42px 1fr auto; align-items: center; }
@@ -313,4 +320,3 @@
   width: auto;
 }
 .file-grid[data-view-mode="large"].explorer-free-grid .explorer-file-icon { width: 180px; min-height: 156px; }
-

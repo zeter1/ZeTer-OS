@@ -280,6 +280,36 @@
     htmlPlainText
   } = richTextUtils;
 
+  const automationUtils = window.ZETER_AUTOMATION_UTILS;
+  if (!automationUtils) throw new Error("ZeTer OS automation utils are not loaded.");
+  const {
+    normalizeAutomations,
+    normalizeAutomationCategories,
+    changeAutomationCategory,
+    automationCategoryScope,
+    normalizeAutomationRuntime,
+    AUTOMATION_TEMPLATES,
+    createAutomationRuntimeController
+  } = automationUtils;
+
+  const automationUiUtils = window.ZETER_AUTOMATION_UI_UTILS;
+  if (!automationUiUtils) throw new Error("ZeTer OS automation UI utils are not loaded.");
+  const {
+    createAutomationApp
+  } = automationUiUtils;
+
+  const objectLinkUtils = window.ZETER_OBJECT_LINK_UTILS;
+  if (!objectLinkUtils) throw new Error("ZeTer OS object link utils are not loaded.");
+  const {
+    normalizeObjectLinks
+  } = objectLinkUtils;
+
+  const objectLinkUiUtils = window.ZETER_OBJECT_LINK_UI_UTILS;
+  if (!objectLinkUiUtils) throw new Error("ZeTer OS object link UI utils are not loaded.");
+  const {
+    createObjectLinksPanel
+  } = objectLinkUiUtils;
+
   const editorUiUtils = window.ZETER_EDITOR_UI_UTILS;
   if (!editorUiUtils) throw new Error("ZeTer OS editor UI utils are not loaded.");
   const {
@@ -424,6 +454,7 @@
     descendantIds: descendantIdsInFs,
     applyFsItemPosition,
     itemDescription: itemDescriptionFromFs,
+    createFsItemRecord,
     createFsItemController
   } = fsItemUtils;
 
@@ -571,7 +602,7 @@
     getState: () => state,
     getDesktopRoot,
     createItem,
-    saveState,
+    saveState: saveStateWithNoteAutomation,
     renderFileSurfaces: renderAllFileSurfaces,
     refreshWindowTitle,
     debounce,
@@ -587,6 +618,7 @@
     toast,
     openExternalLink: target => openExternalTarget(target),
     copyText: copyTextToClipboard,
+    objectLinksPanelFor,
     documentRef: document,
     itemInWorkspace,
     getWindowRecord: winId => ui.windows.get(winId),
@@ -726,6 +758,8 @@
       taskEditor: renderTaskEditorApp,
       calendar: renderCalendarApp,
       calendarEventEditor: renderCalendarEventEditorApp,
+      automations: renderAutomationsApp,
+      automationEditor: renderAutomationEditorApp,
       shortcutEditor: renderShortcutEditorApp,
       itemSettings: renderItemSettingsApp,
       calculator: renderCalculatorApp,
@@ -743,6 +777,7 @@
       taskWindow: params => taskWindowTitleFromParams(params),
       taskEditor: params => params?.mode === "create" ? "Добавление задачи" : "Редактирование задачи",
       calendarEventEditor: params => params?.mode === "edit" ? "Редактирование события" : "Добавление события",
+      automationEditor: params => params?.mode === "edit" ? "Редактирование автоматизации" : "Новая автоматизация",
       shortcutEditor: () => "Создание ярлыка",
       itemSettings: params => itemSettingsTitle(state.fs?.[params?.itemId])
     }
@@ -842,7 +877,7 @@
     getUi: () => ui,
     getApps: () => apps,
     windowBodyEl,
-    saveState,
+    saveState: saveStateWithTaskAutomation,
     renderAllFileSurfaces,
     renderStart,
     refreshWindowTitle,
@@ -1611,9 +1646,30 @@
   function deskTaskProjects() { return workspaceRuntimeController.deskTaskProjects(); }
   function deskEvents() { return workspaceRuntimeController.deskEvents(); }
   function deskNotifications() { return workspaceRuntimeController.deskNotifications(); }
+  function deskAutomations() {
+    const workspace = currentWorkspace();
+    workspace.automations = normalizeAutomations(workspace.automations);
+    return workspace.automations;
+  }
+  function deskObjectLinks() {
+    const workspace = currentWorkspace();
+    workspace.objectLinks = normalizeObjectLinks(workspace.objectLinks);
+    return workspace.objectLinks;
+  }
   function setDeskTasks(tasks) { return workspaceRuntimeController.setDeskTasks(tasks); }
   function setDeskEvents(events) { return workspaceRuntimeController.setDeskEvents(events); }
   function setDeskNotifications(notifications) { return workspaceRuntimeController.setDeskNotifications(notifications); }
+  function setDeskAutomations(automations) {
+    const workspace = currentWorkspace();
+    workspace.automations = normalizeAutomations(automations);
+    scheduleAutomationCheck();
+    return workspace.automations;
+  }
+  function setDeskObjectLinks(objectLinks) {
+    const workspace = currentWorkspace();
+    workspace.objectLinks = normalizeObjectLinks(objectLinks);
+    return workspace.objectLinks;
+  }
   function deskOpenWindows() { return workspaceRuntimeController.deskOpenWindows(); }
   function sanitizeWorkspaceWindowSessions() { return workspaceRuntimeController.sanitizeWorkspaceWindowSessions(); }
   function sanitizeExplorerSpaces() { return workspaceRuntimeController.sanitizeExplorerSpaces(); }
@@ -1634,7 +1690,12 @@
   function desktopAvatarHTML(id, active = false) { return workspaceRuntimeController.desktopAvatarHTML(id, active); }
 
   function createVirtualDesktop() {
-    return virtualDesktopController.create();
+    const desktopId = virtualDesktopController.create();
+    if (desktopId) {
+      seedAutomationEventBaselines();
+      scheduleAutomationCheck();
+    }
+    return desktopId;
   }
 
   function installableAppEntries() {
@@ -1660,11 +1721,22 @@
   }
 
   function switchVirtualDesktop(id) {
-    return virtualDesktopController.switchTo(id);
+    const previousDesktopId = getDesktopRoot();
+    const switched = virtualDesktopController.switchTo(id);
+    if (switched && getDesktopRoot() !== previousDesktopId) {
+      seedAutomationEventBaselines();
+      scheduleAutomationCheck();
+    }
+    return switched;
   }
 
   function deleteVirtualDesktop(id) {
-    return virtualDesktopController.remove(id);
+    const removed = virtualDesktopController.remove(id);
+    if (removed) {
+      seedAutomationEventBaselines();
+      scheduleAutomationCheck();
+    }
+    return removed;
   }
 
   function clearDesktopSelection(options = {}) {
@@ -1865,7 +1937,11 @@
   }
 
   function folderNameExists(parent, name, excludeId = null) { return fsItemController.folderNameExists(parent, name, excludeId); }
-  function createItem(type, name, parent = getDesktopRoot(), x = 40, y = 40, extra = {}) { return fsItemController.createItem(type, name, parent, x, y, extra); }
+  function createItem(type, name, parent = getDesktopRoot(), x = 40, y = 40, extra = {}) {
+    const id = fsItemController.createItem(type, name, parent, x, y, extra);
+    if (id && type === "note") enqueueExternalAutomationEvent("note_created", state.fs?.[id]);
+    return id;
+  }
   function createFolderInFolder(parent = getDesktopRoot(), options = {}) { return fsItemController.createFolder(parent, options); }
   function uniqueName(name, parent, excludeId = null) { return fsItemController.uniqueName(name, parent, excludeId); }
 
@@ -1994,6 +2070,195 @@
   function createTableInFolder(parent = getDesktopRoot(), options = {}) { return fsItemController.createTable(parent, options); }
   function createTaskListInFolder(parent = getDesktopRoot(), options = {}) { return fsItemController.createTaskList(parent, options); }
 
+  const OBJECT_LINKABLE_FS_TYPES = new Set(["note", "text", "markdown", "table", "managedFile", "image", "paint"]);
+  const OBJECT_LINK_FS_TYPE_LABELS = Object.freeze({
+    note: "Заметка",
+    text: "Документ",
+    markdown: "Markdown",
+    table: "Таблица",
+    managedFile: "Файл",
+    image: "Изображение",
+    paint: "Рисунок"
+  });
+
+  function objectLinkPresentation(endpoint = {}) {
+    if (endpoint.kind === "event") {
+      const event = deskEvents().find(item => item.id === endpoint.id);
+      return event ? { label: event.title || "Событие", typeLabel: "Событие" } : null;
+    }
+    const item = state.fs?.[endpoint.id];
+    if (!item || !OBJECT_LINKABLE_FS_TYPES.has(item.type) || !itemInWorkspace(item, getDesktopRoot())) return null;
+    return { label: item.name || "Объект", typeLabel: OBJECT_LINK_FS_TYPE_LABELS[item.type] || "Файл" };
+  }
+
+  function objectLinkCandidates() {
+    const files = workspaceItems(getDesktopRoot())
+      .filter(item => OBJECT_LINKABLE_FS_TYPES.has(item.type))
+      .map(item => ({
+        endpoint: { kind: "fs", id: item.id },
+        label: item.name || "Объект",
+        typeLabel: OBJECT_LINK_FS_TYPE_LABELS[item.type] || "Файл"
+      }));
+    const events = deskEvents().map(event => ({
+      endpoint: { kind: "event", id: event.id },
+      label: `${event.title || "Событие"}${event.date ? ` · ${formatDate(event.date)}` : ""}`,
+      typeLabel: "Событие"
+    }));
+    return [...files, ...events];
+  }
+
+  function openLinkedObject(endpoint = {}) {
+    if (endpoint.kind === "fs") {
+      const item = state.fs?.[endpoint.id];
+      if (item && itemInWorkspace(item, getDesktopRoot())) {
+        openItem(item.id);
+        return true;
+      }
+    } else if (endpoint.kind === "event" && deskEvents().some(event => event.id === endpoint.id)) {
+      openApp("calendaredit", { mode: "edit", eventId: endpoint.id });
+      return true;
+    }
+    toast("Связанный объект не найден", "Он мог быть удалён или перемещён на другой рабочий стол.");
+    return false;
+  }
+
+  function addObjectLink(left, right) {
+    return persistAutomationMutation(() => {
+      const current = deskObjectLinks();
+      const next = normalizeObjectLinks([...current, {
+        id: uid("object_link"),
+        a: left,
+        b: right,
+        createdAt: Date.now()
+      }]);
+      if (next.length === current.length) return false;
+      setDeskObjectLinks(next);
+      return true;
+    });
+  }
+
+  function removeObjectLink(linkId = "") {
+    return persistAutomationMutation(() => {
+      const current = deskObjectLinks();
+      const next = current.filter(link => link.id !== linkId);
+      if (next.length === current.length) return false;
+      setDeskObjectLinks(next);
+      return true;
+    });
+  }
+
+  function objectLinksPanelFor(endpoint) {
+    return createObjectLinksPanel({
+      document,
+      endpoint,
+      getLinks: deskObjectLinks,
+      getCandidates: objectLinkCandidates,
+      resolveEndpoint: objectLinkPresentation,
+      openLinkedObject,
+      addLink: addObjectLink,
+      removeLink: removeObjectLink
+    });
+  }
+
+  function automationFolderOptions() {
+    const root = getDesktopRoot();
+    return [
+      { id: root, label: `Рабочий стол «${desktopName(root)}»`, isDesktop: true },
+      ...workspaceItems(root)
+        .filter(item => item.type === "folder" && !item.systemRole && !item.deletedAt)
+        .map(item => ({ id: item.id, label: `Папка «${item.name || "Без названия"}»` }))
+    ];
+  }
+
+  function automationEventOptions() {
+    return deskEvents().map(event => ({
+      id: event.id,
+      label: `${event.title || "Событие"}${event.date ? ` · ${formatDate(event.date)}` : ""}`
+    }));
+  }
+
+  function automationFileFolderName(file) {
+    const parentId = file?.parent || "";
+    if (!parentId) return "";
+    if (parentId === getDesktopRoot()) return desktopName(parentId);
+    return state.fs?.[parentId]?.name || "";
+  }
+
+  function returnToAutomations(winId, categoryId = "*") {
+    closeWindow(winId);
+    const existing = [...ui.windows.values()].find(record => record.appId === "automations" && record.desktopId === getDesktopRoot());
+    if (!existing) return openApp("automations", { categoryId });
+    existing.params.categoryId = categoryId;
+    refreshWindow(existing.winId);
+    existing.el.classList.remove("minimized");
+    focusWindow(existing.winId);
+    persistOpenWindowsForCurrentDesktop();
+  }
+
+  function openAutomationEditor(draft) {
+    const editing = deskAutomations().some(rule => rule.id === draft.id);
+    const existing = editing && [...ui.windows.values()].find(record => record.appId === "automationedit" && record.params?.automationId === draft.id && record.desktopId === getDesktopRoot());
+    if (existing) {
+      existing.el.classList.remove("minimized");
+      focusWindow(existing.winId);
+      return;
+    }
+    return openApp("automationedit", editing
+      ? { mode: "edit", automationId: draft.id }
+      : { mode: "create", draft });
+  }
+
+  function renderAutomationEditorApp(params = {}, winId) {
+    return renderAutomationsApp(params, winId, true);
+  }
+
+  function renderAutomationsApp(params = {}, winId, editorOnly = false) {
+    const workspaceId = getDesktopRoot();
+    const initialDraft = params.mode === "edit" ? deskAutomations().find(rule => rule.id === params.automationId) : params.draft;
+    return createAutomationApp({
+      document,
+      editorOnly,
+      initialDraft,
+      initialError: editorOnly && params.mode === "edit" && !initialDraft ? "Автоматизация удалена. Вернись к списку и выбери другое правило." : "",
+      openEditor: openAutomationEditor,
+      closeEditor: () => returnToAutomations(winId),
+      onSaved: rule => returnToAutomations(winId, rule.categoryId || ""),
+      saveDraft: editorOnly ? draft => commitAutomationDraft(draft, { workspaceId, editingId: params.mode === "edit" ? params.automationId : "" }) : null,
+      getAutomations: deskAutomations,
+      setAutomations: setDeskAutomations,
+      saveState,
+      commitAutomations: commitAutomationList,
+      getRuntime: automationRuntimeForUi,
+      getCategories: () => normalizeAutomationCategories(currentWorkspace().automationCategories),
+      getCategoryFilter: () => params.categoryId ?? "*",
+      setCategoryFilter: categoryId => { params.categoryId = categoryId; },
+      mutateCategory: change => persistAutomationMutation(() => {
+        if (getDesktopRoot() !== workspaceId) throw new Error("Рабочий стол изменился. Открой категории заново.");
+        return changeAutomationCategory(currentWorkspace(), change);
+      }),
+      previewAutomation: previewAutomationForUi,
+      runAutomation: runAutomationManually,
+      setGlobalPaused: setAutomationsGloballyPaused,
+      clearHistory: clearAutomationHistory,
+      templates: AUTOMATION_TEMPLATES,
+      getSampleContext: automationSampleContext,
+      getFileOptions: automationFileOptions,
+      openSourceFolder: openAutomationSourceFolder,
+      openSampleFile: openAutomationSampleFile,
+      confirmUser: confirm,
+      toast,
+      uid,
+      getEventOptions: automationEventOptions,
+      getFolderOptions: automationFolderOptions,
+      resolveLabel: (kind, id) => {
+        if (kind === "event") return deskEvents().find(event => event.id === id)?.title || "";
+        if (kind === "folder") return automationFolderOptions().find(folder => folder.id === id)?.label || "";
+        if (id === getDesktopRoot()) return desktopName(id);
+        return state.fs?.[id]?.name || "";
+      }
+    });
+  }
+
   function renderTasksApp(params = {}, winId) { return taskAppRuntimeController.renderTasksApp(params, winId); }
   function refreshOpenTaskBoards(excludeWinId = "") { taskAppRuntimeController.refreshOpenTaskBoards(excludeWinId); }
   function renderTaskEditorApp(params = {}, winId) { return taskAppRuntimeController.renderTaskEditorApp(params, winId); }
@@ -2010,7 +2275,7 @@
       setCalendar: calendar => { ui.calendar = calendar; },
       getEvents: deskEvents,
       setEvents: setDeskEvents,
-      saveState,
+      saveState: saveStateWithCalendarAutomation,
       renderNotifications,
       toast,
       confirmUser: confirm,
@@ -2027,12 +2292,13 @@
       setCalendar: calendar => { ui.calendar = calendar; },
       getEvents: deskEvents,
       setEvents: setDeskEvents,
-      saveState,
+      saveState: saveStateWithCalendarAutomation,
       renderNotifications,
       refreshOpenCalendars,
       closeWindow,
       toast,
-      todayISO
+      todayISO,
+      objectLinksPanelFor
     });
   }
   function renderShortcutEditorApp(params = {}, winId = "") {
@@ -2249,7 +2515,6 @@
   });
 
   function updateNotificationBadge() { return notificationCenterController.updateBadge(); }
-  function markNotificationsRead() { return notificationCenterController.markRead(); }
   function renderNotifications() { return notificationCenterController.render(); }
   function notificationDecision(options = {}) {
     return notificationDeliveryDecision(systemSettings(), notificationFilterKind(options), new Date());
@@ -2258,6 +2523,549 @@
   function addNotification(title, text, options = {}) {
     if (!notificationDecision(options).store) return null;
     return notificationCenterController.addNotification(title, text, options);
+  }
+
+  function automationStateForCurrentWorkspace() {
+    const root = getDesktopRoot();
+    const fs = {};
+    workspaceItems(root).forEach(item => { fs[item.id] = item; });
+    return { fs, desktops: [{ id: root }] };
+  }
+
+  function automationUniqueName(name, parentId, excludeId = "") {
+    const cleanName = String(name || "Файл");
+    const occupied = new Set(Object.values(state.fs || {})
+      .filter(item => item && item.id !== excludeId && !item.deletedAt && item.parent === parentId)
+      .map(item => String(item.name || "").toLocaleLowerCase("ru-RU")));
+    if (!occupied.has(cleanName.toLocaleLowerCase("ru-RU"))) return cleanName;
+    const dot = cleanName.lastIndexOf(".");
+    const base = dot > 0 ? cleanName.slice(0, dot) : cleanName;
+    const extension = dot > 0 ? cleanName.slice(dot) : "";
+    let index = 2;
+    while (occupied.has(`${base} (${index})${extension}`.toLocaleLowerCase("ru-RU"))) index += 1;
+    return `${base} (${index})${extension}`;
+  }
+
+  function refreshAutomationSurfaces(options = {}) {
+    if (options.files !== false) renderAllFileSurfaces();
+    renderNotifications();
+    ui.windows.forEach((record, winId) => {
+      if (options.automations !== false && record.appId === "automations") refreshWindow(winId);
+    });
+  }
+
+  function restoreAutomationSnapshot(snapshot, automations, runtime) {
+    Object.keys(state).forEach(key => delete state[key]);
+    Object.assign(state, snapshot);
+    const workspace = currentWorkspace();
+    workspace.automations = normalizeAutomations(automations);
+    workspace.automationRuntime = cloneForBackup(runtime);
+    refreshAutomationSurfaces();
+  }
+
+  const automationRuntimeController = createAutomationRuntimeController({
+    getState: automationStateForCurrentWorkspace,
+    getWorkspace: currentWorkspace,
+    now: Date.now,
+    resolveFileFolderName: automationFileFolderName,
+    notify: (title, text, meta = {}) => {
+      const run = meta.run || {};
+      const options = {
+        source: `automation:${meta.automationId || "unknown"}`,
+        save: false
+      };
+      if (["event_before", "event_relative", "event_created"].includes(run.type) && (run.eventId || run.triggerId)) {
+        options.linkedObjectKind = "event";
+        options.linkedObjectId = run.eventId || run.triggerId;
+        options.linkedEventDate = run.eventDate || "";
+      } else if (run.type === "file_added" && run.fileId) {
+        options.linkedObjectKind = "fs";
+        options.linkedObjectId = run.fileId;
+      } else if (["note_created", "note_changed"].includes(run.type) && run.triggerId) {
+        options.linkedObjectKind = "fs";
+        options.linkedObjectId = run.triggerId;
+      } else if (["task_completed", "task_overdue"].includes(run.type) && run.triggerId) {
+        options.action = "open-task";
+        options.taskId = run.triggerId;
+        options.taskDesktopId = getDesktopRoot();
+      }
+      addNotification(title, text, options);
+      return true;
+    },
+    createNote: ({ name, content, parentId }, meta = {}) => {
+      const root = getDesktopRoot();
+      const folder = state.fs?.[parentId];
+      const parent = parentId === root || (folder?.type === "folder" && itemInWorkspace(folder, root)) ? parentId : root;
+      const result = createFsItemRecord(state.fs, "note", name || "Новая заметка", parent, {
+        x: 60,
+        y: 60,
+        uid,
+        uniqueName: automationUniqueName,
+        positionForItem: draft => isDesktopRoot(parent)
+          ? findFreeDesktopPosition(parent, 60, 60, draft.id)
+          : findFreeFolderPosition(parent, 60, 60, draft.id),
+        extra: {
+          content: String(content || ""),
+          richContent: plainToRichHtml(String(content || ""))
+        }
+      });
+      if (!result.item || !result.keyId) return false;
+      state.fs[result.keyId] = result.item;
+      const origin = meta.origin || {};
+      enqueueExternalAutomationEvent("note_created", result.item, {
+        originAutomationId: meta.automationId,
+        chainId: origin.chainId || `automation:${meta.automationId || "unknown"}:${meta.run?.runKey || result.keyId}`,
+        chainDepth: Math.max(0, Number(origin.depth) || 0) + 1,
+        chainAutomationIds: [...(Array.isArray(origin.automationIds) ? origin.automationIds : []), meta.automationId].filter(Boolean)
+      });
+      return { kind: "fs", id: result.keyId };
+    },
+    moveFile: (fileId, targetFolderId, meta = {}) => {
+      const root = getDesktopRoot();
+      const item = state.fs?.[fileId];
+      const target = state.fs?.[targetFolderId];
+      if (!item || !itemInWorkspace(item, root)) return false;
+      if (targetFolderId !== root && (target?.type !== "folder" || !itemInWorkspace(target, root))) return false;
+      if (!canMoveExplorerItemIntoFolder(state.fs, fileId, targetFolderId, { isDesktopRoot })) return false;
+      const collision = Object.values(state.fs || {}).find(candidate => (
+        candidate &&
+        candidate.id !== item.id &&
+        !candidate.deletedAt &&
+        candidate.parent === targetFolderId &&
+        String(candidate.name || "").toLocaleLowerCase("ru-RU") === String(item.name || "").toLocaleLowerCase("ru-RU")
+      ));
+      if (collision && meta.collisionPolicy === "skip") return { status: "skipped", kind: "fs", id: fileId };
+      if (collision && meta.collisionPolicy === "replace") {
+        if (meta.replaceAcknowledged !== true || moveItemsToTrash([collision.id]) < 1) return false;
+      }
+      if (collision && meta.collisionPolicy === "rename") {
+        item.name = automationUniqueName(item.name, targetFolderId, item.id);
+      }
+      const position = isDesktopRoot(targetFolderId)
+        ? findFreeDesktopPosition(targetFolderId, 60, 60, item.id)
+        : findFreeFolderPosition(targetFolderId, 60, 60, item.id);
+      item.parent = targetFolderId;
+      item.x = position.x;
+      item.y = position.y;
+      item.updatedAt = Date.now();
+      return { kind: "fs", id: fileId };
+    },
+    linkObjects: (left, right, meta = {}) => {
+      if (![left?.kind, right?.kind].every(kind => kind === "fs" || kind === "event")) return false;
+      const current = deskObjectLinks();
+      const next = normalizeObjectLinks([...current, {
+        id: uid("object_link"),
+        a: left,
+        b: right,
+        label: meta.label,
+        createdAt: Date.now()
+      }]);
+      if (next.length === current.length) return { kind: right.kind, id: right.id };
+      setDeskObjectLinks(next);
+      return { kind: right.kind, id: right.id };
+    }
+  });
+
+  const automationSeededWorkspaces = new Set();
+  const automationTaskBaseline = new Map();
+  const automationNoteBaseline = new Map();
+  const automationEventBaseline = new Map();
+  const automationStartupKey = `boot_${Date.now().toString(36)}`;
+  let automationStartupQueued = false;
+
+  function automationTaskRecords() {
+    const root = getDesktopRoot();
+    const workspace = currentWorkspace();
+    const taskLists = workspaceItems(root).filter(item => item?.type === "tasklist");
+    return [
+      ...(Array.isArray(workspace.tasks) ? workspace.tasks : []),
+      ...taskLists.flatMap(item => Array.isArray(item.tasks) ? item.tasks : [])
+    ].filter(task => task?.id);
+  }
+
+  function automationNoteRecords() {
+    return workspaceItems(getDesktopRoot()).filter(item => item?.type === "note" && item.id);
+  }
+
+  function automationEventRecords() {
+    return (Array.isArray(currentWorkspace().events) ? currentWorkspace().events : []).filter(event => event?.id);
+  }
+
+  function automationBaselineKey(id) {
+    return `${getDesktopRoot()}:${id}`;
+  }
+
+  function replaceAutomationBaseline(target, records, projector) {
+    const prefix = `${getDesktopRoot()}:`;
+    [...target.keys()].filter(key => key.startsWith(prefix)).forEach(key => target.delete(key));
+    records.forEach(record => target.set(automationBaselineKey(record.id), projector(record)));
+  }
+
+  function seedAutomationEventBaselines() {
+    const root = getDesktopRoot();
+    replaceAutomationBaseline(automationTaskBaseline, automationTaskRecords(), task => ({
+      status: task.status || "todo",
+      updatedAt: Number(task.updatedAt) || 0,
+      due: String(task.due || "")
+    }));
+    replaceAutomationBaseline(automationNoteBaseline, automationNoteRecords(), note => ({
+      updatedAt: Number(note.updatedAt) || 0,
+      name: String(note.name || ""),
+      content: String(note.content || "")
+    }));
+    replaceAutomationBaseline(automationEventBaseline, automationEventRecords(), event => ({
+      createdAt: Number(event.createdAt) || 0,
+      updatedAt: Number(event.updatedAt) || 0
+    }));
+    automationSeededWorkspaces.add(root);
+    return true;
+  }
+
+  function ensureAutomationEventBaselines() {
+    if (!automationSeededWorkspaces.has(getDesktopRoot())) seedAutomationEventBaselines();
+  }
+
+  function enqueueExternalAutomationEvent(type, object, metadata = {}) {
+    if (!object?.id) return [];
+    const event = {
+      type,
+      eventKey: String(metadata.eventKey || object.updatedAt || object.createdAt || Date.now()),
+      at: Date.now(),
+      originAutomationId: metadata.originAutomationId,
+      chainId: metadata.chainId,
+      chainDepth: metadata.chainDepth,
+      chainAutomationIds: metadata.chainAutomationIds
+    };
+    if (type.startsWith("task_")) event.task = object;
+    if (type.startsWith("note_")) event.note = object;
+    if (type === "event_created") event.event = object;
+    const queued = automationRuntimeController.enqueueEvent(event);
+    if (queued.length) scheduleAutomationCheck();
+    return queued;
+  }
+
+  function taskAutomationEventsSinceBaseline(tasks) {
+    ensureAutomationEventBaselines();
+    return tasks.flatMap(task => {
+      const previous = automationTaskBaseline.get(automationBaselineKey(task.id));
+      if (previous && previous.status !== "done" && task.status === "done") {
+        return [{
+          type: "task_completed",
+          task,
+          eventKey: `completed:${task.updatedAt || Date.now()}`
+        }];
+      }
+      return [];
+    });
+  }
+
+  function noteAutomationEventsSinceBaseline(notes) {
+    ensureAutomationEventBaselines();
+    return notes.flatMap(note => {
+      const previous = automationNoteBaseline.get(automationBaselineKey(note.id));
+      if (!previous) return [];
+      const changed = previous.updatedAt !== (Number(note.updatedAt) || 0) || previous.name !== String(note.name || "") || previous.content !== String(note.content || "");
+      return changed ? [{ type: "note_changed", note, eventKey: `changed:${note.updatedAt || Date.now()}` }] : [];
+    });
+  }
+
+  function calendarAutomationEventsSinceBaseline(events) {
+    ensureAutomationEventBaselines();
+    return events.flatMap(event => automationEventBaseline.has(automationBaselineKey(event.id))
+      ? []
+      : [{ type: "event_created", event, eventKey: `created:${event.createdAt || Date.now()}` }]);
+  }
+
+  function saveStateWithAutomationEvents(saveOptions, events, commitBaseline) {
+    const promise = queueAutomationMutation(async () => {
+      const workspace = currentWorkspace();
+      const runtimeBefore = cloneForBackup(workspace.automationRuntime);
+      events.forEach(event => automationRuntimeController.enqueueEvent(event));
+      try {
+        const result = await Promise.resolve(saveState(saveOptions));
+        commitBaseline();
+        if (events.length) scheduleAutomationCheck();
+        return result;
+      } catch (error) {
+        currentWorkspace().automationRuntime = runtimeBefore;
+        throw error;
+      }
+    });
+    promise.catch(() => {});
+    return promise;
+  }
+
+  function saveStateWithTaskAutomation(saveOptions = {}) {
+    const tasks = automationTaskRecords();
+    const events = taskAutomationEventsSinceBaseline(tasks);
+    return saveStateWithAutomationEvents(saveOptions, events, () => {
+      replaceAutomationBaseline(automationTaskBaseline, tasks, task => ({
+        status: task.status || "todo",
+        updatedAt: Number(task.updatedAt) || 0,
+        due: String(task.due || "")
+      }));
+    });
+  }
+
+  function saveStateWithNoteAutomation(saveOptions = {}) {
+    const notes = automationNoteRecords();
+    const events = noteAutomationEventsSinceBaseline(notes);
+    return saveStateWithAutomationEvents(saveOptions, events, () => {
+      replaceAutomationBaseline(automationNoteBaseline, notes, note => ({
+        updatedAt: Number(note.updatedAt) || 0,
+        name: String(note.name || ""),
+        content: String(note.content || "")
+      }));
+    });
+  }
+
+  function saveStateWithCalendarAutomation(saveOptions = {}) {
+    const eventsNow = automationEventRecords();
+    const events = calendarAutomationEventsSinceBaseline(eventsNow);
+    return saveStateWithAutomationEvents(saveOptions, events, () => {
+      replaceAutomationBaseline(automationEventBaseline, eventsNow, event => ({
+        createdAt: Number(event.createdAt) || 0,
+        updatedAt: Number(event.updatedAt) || 0
+      }));
+    });
+  }
+
+  function enqueueOverdueTaskAutomationEvents() {
+    const today = todayISO();
+    automationTaskRecords().forEach(task => {
+      const due = String(task.due || "");
+      if (!task.indefinite && task.status !== "done" && /^\d{4}-\d{2}-\d{2}$/.test(due) && due < today) {
+        automationRuntimeController.enqueueEvent({
+          type: "task_overdue",
+          task,
+          eventKey: `overdue:${due}`,
+          at: Date.now()
+        });
+      }
+    });
+  }
+
+  let automationMutationChain = Promise.resolve();
+
+  function queueAutomationMutation(operation) {
+    const run = automationMutationChain
+      .catch(() => {})
+      .then(() => operation());
+    automationMutationChain = run.catch(() => {});
+    return run;
+  }
+
+  function restoreAutomationExactSnapshot(snapshot) {
+    Object.keys(state).forEach(key => delete state[key]);
+    Object.assign(state, snapshot);
+    // The initiating UI must survive to show its rejected-save error and draft.
+    refreshAutomationSurfaces({ automations: false });
+  }
+
+  function persistAutomationMutation(operation) {
+    return queueAutomationMutation(async () => {
+      const snapshot = cloneForBackup(state);
+      try {
+        const result = await operation();
+        await Promise.resolve(saveState());
+        refreshAutomationSurfaces();
+        return result;
+      } catch (error) {
+        restoreAutomationExactSnapshot(snapshot);
+        throw error;
+      }
+    });
+  }
+
+  function automationRuntimeForUi() {
+    const workspace = currentWorkspace();
+    workspace.automationRuntime = normalizeAutomationRuntime(workspace.automationRuntime);
+    return workspace.automationRuntime;
+  }
+
+  function automationFileOptions(value = {}) {
+    const folders = automationFolderOptions();
+    return workspaceItems(getDesktopRoot())
+      .filter(item => item && !["folder", "app"].includes(item.type) && !item.deletedAt && !item.systemRole && (!value.folderId || item.parent === value.folderId))
+      .map(item => ({
+        id: item.id, type: item.type, parentId: item.parent,
+        folderLabel: folders.find(folder => folder.id === item.parent)?.label || automationFileFolderName(item),
+        label: `${item.type === "note" ? "Заметка" : "Файл"}: ${item.name || "Без названия"} — ${folders.find(folder => folder.id === item.parent)?.label || automationFileFolderName(item)}`
+      }));
+  }
+
+  function openAutomationSourceFolder(folderId = "", fileId = "") {
+    const file = fileId ? automationSampleContext({ type: "file_added", folderId }, { fileId }).file : null;
+    if (fileId && !file) return toast("Объект недоступен", "Обнови список и выбери файл заново: он мог быть удалён или перемещён.");
+    const targetId = file?.parent || folderId || getDesktopRoot();
+    if (!automationFolderOptions().some(folder => folder.id === targetId)) return toast("Папка недоступна", "Обнови список и выбери папку заново.");
+    return openApp("folder", { folderId: targetId });
+  }
+
+  function openAutomationSampleFile(folderId = "", fileId = "") {
+    const file = automationSampleContext({ type: "file_added", folderId }, { fileId }).file;
+    if (!file) return toast("Объект недоступен", "Обнови список и выбери файл заново: он мог быть удалён или перемещён.");
+    return openItem(file.id);
+  }
+
+  function automationSampleContext(value = {}, selection = {}) {
+    const automation = normalizeAutomations([value])[0] || value;
+    const workspace = currentWorkspace();
+    const root = getDesktopRoot();
+    const files = workspaceItems(root).filter(item => item && !["folder", "app"].includes(item.type) && !item.deletedAt && !item.systemRole);
+    const notes = files.filter(item => item.type === "note");
+    const events = Array.isArray(workspace.events) ? workspace.events : [];
+    const tasks = automationTaskRecords();
+    const selectedFileId = selection.fileId ?? selection.file?.id;
+    const file = files.find(item => (!automation.folderId || item.parent === automation.folderId) && (selectedFileId === undefined || item.id === selectedFileId)) || null;
+    if (automation.type === "file_added") return { file, fileId: file?.id || "", fileFolderName: automationFileFolderName(file) };
+    const event = events.find(item => item.id === automation.eventId) || events[0] || null;
+    return {
+      file,
+      fileFolderName: automationFileFolderName(file),
+      event,
+      task: tasks[0] || null,
+      note: notes[0] || null,
+      eventDate: event?.date || ""
+    };
+  }
+
+  function previewAutomationForUi(value, context = {}) {
+    return automationRuntimeController.preview(value, automationSampleContext(value, context));
+  }
+
+  function commitAutomationList(next) {
+    return persistAutomationMutation(() => {
+      const categories = normalizeAutomationCategories(currentWorkspace().automationCategories);
+      if (next.some(rule => rule.categoryId && !categories.some(category => category.id === rule.categoryId))) throw new Error("Категория удалена. Выбери другую категорию или «Без категории».");
+      return setDeskAutomations(next);
+    });
+  }
+
+  function commitAutomationDraft(draft, { workspaceId, editingId = "" } = {}) {
+    return persistAutomationMutation(() => {
+      if (getDesktopRoot() !== workspaceId) throw new Error("Рабочий стол изменился. Открой редактор заново.");
+      const all = deskAutomations();
+      const current = all.find(rule => rule.id === (editingId || draft.id));
+      if (editingId && !current) throw new Error("Автоматизация уже удалена. Изменения не сохранены.");
+      if (!editingId && current) throw new Error("Правило с таким ID уже сохранено. Открой его из списка для редактирования.");
+      const rule = normalizeAutomations([{ ...draft, id: editingId || draft.id,
+        lastRunKey: current?.lastRunKey || "", lastError: current?.lastError || "", pausedReason: current?.pausedReason || ""
+      }])[0];
+      if (!rule) throw new Error("Правило не прошло проверку.");
+      const categories = normalizeAutomationCategories(currentWorkspace().automationCategories);
+      if (rule.categoryId && !categories.some(category => category.id === rule.categoryId)) throw new Error("Категория удалена. Выбери другую категорию или «Без категории».");
+      const next = current ? all.map(item => item.id === current.id ? rule : item) : [...all, rule];
+      const saved = setDeskAutomations(next);
+      if (!saved.some(item => item.id === rule.id)) throw new Error("Достигнут предел количества автоматизаций. Новое правило не сохранено.");
+      return rule;
+    });
+  }
+
+  function setAutomationsGloballyPaused(paused) {
+    return persistAutomationMutation(() => automationRuntimeController.setGlobalPaused(paused));
+  }
+
+  function clearAutomationHistory(categoryId = "*") {
+    return persistAutomationMutation(() => {
+      if (categoryId === "*") return automationRuntimeController.clearHistory();
+      const workspace = currentWorkspace();
+      const ids = new Set(automationCategoryScope(workspace, categoryId).history.map(entry => entry.id));
+      workspace.automationRuntime.history = workspace.automationRuntime.history.filter(entry => !ids.has(entry.id));
+      return true;
+    });
+  }
+
+  function runAutomationManually(automationId, context = {}) {
+    const workspaceId = getDesktopRoot();
+    return persistAutomationMutation(() => {
+      if (getDesktopRoot() !== workspaceId) throw new Error("Рабочий стол изменился. Открой проверку правила заново.");
+      const automation = deskAutomations().find(item => item.id === automationId);
+      if (!automation) throw new Error("Автоматизация не найдена.");
+      const sample = automationSampleContext(automation, context);
+      if (automation.type === "file_added" && (!context.fileId || !sample.file)) {
+        throw new Error("Выбери файл для проверки заново: он мог быть удалён или перемещён в другую папку.");
+      }
+      return automationRuntimeController.manualRun(automation, sample);
+    });
+  }
+
+  let automationCheckTimer = null;
+  let automationCheckInFlight = false;
+
+  async function runAutomationCheck() {
+    if (automationCheckInFlight) return 0;
+    automationCheckInFlight = true;
+    try {
+      return await queueAutomationMutation(async () => {
+        const workspace = currentWorkspace();
+        const automationsBefore = cloneForBackup(workspace.automations);
+        const runtimeBefore = cloneForBackup(workspace.automationRuntime);
+        enqueueOverdueTaskAutomationEvents();
+        const pending = automationRuntimeController.collectDueRuns();
+        const runtimeChanged = JSON.stringify(runtimeBefore) !== JSON.stringify(currentWorkspace().automationRuntime);
+        if (!pending.length) {
+          if (!runtimeChanged) return 0;
+          try {
+            await Promise.resolve(saveState());
+          } catch (saveError) {
+            currentWorkspace().automations = normalizeAutomations(automationsBefore);
+            currentWorkspace().automationRuntime = cloneForBackup(runtimeBefore);
+            refreshAutomationSurfaces({ files: false });
+            console.error("[ZeTer OS automation save]", saveError);
+            toast("Автоматизация не сохранена", "Очередь не изменена. Проверь хранилище ZeTer OS.");
+          }
+          return 0;
+        }
+
+        const stateBeforeExecution = cloneForBackup(state);
+        let executed = 0;
+        let executionError = null;
+        try {
+          executed = await automationRuntimeController.executeDueRuns();
+        } catch (error) {
+          executionError = error;
+        }
+        try {
+          await Promise.resolve(saveState());
+        } catch (saveError) {
+          restoreAutomationSnapshot(stateBeforeExecution, automationsBefore, runtimeBefore);
+          console.error("[ZeTer OS automation save]", saveError);
+          toast("Автоматизация не сохранена", "Изменения запуска отменены. Проверь хранилище ZeTer OS.");
+          return 0;
+        }
+        refreshAutomationSurfaces();
+        if (executionError) {
+          console.error("[ZeTer OS automation]", executionError);
+          toast("Автоматизация выполнена частично", "Состояние запуска сохранено; правило будет повторено с места ошибки.");
+          return 0;
+        }
+        return executed;
+      });
+    } catch (error) {
+      console.error("[ZeTer OS automation]", error);
+      toast("Автоматизация не выполнена", error?.message || "Проверь правило и связанные объекты.");
+      return 0;
+    } finally {
+      automationCheckInFlight = false;
+    }
+  }
+
+  function scheduleAutomationCheck() {
+    setTimeout(() => { void runAutomationCheck(); }, 0);
+    return true;
+  }
+
+  function startAutomationWatcher() {
+    seedAutomationEventBaselines();
+    if (!automationStartupQueued) {
+      automationStartupQueued = true;
+      automationRuntimeController.enqueueEvent({ type: "startup", startupKey: automationStartupKey, at: Date.now() });
+    }
+    scheduleAutomationCheck();
+    if (automationCheckTimer !== null) clearInterval(automationCheckTimer);
+    automationCheckTimer = setInterval(() => { void runAutomationCheck(); }, TASK_REMINDER_CHECK_MS);
+    return automationCheckTimer;
   }
 
   const taskNotificationController = createTaskNotificationController({
@@ -2272,6 +3080,15 @@
       closeFloating();
       openApp("calendar");
       return true;
+    },
+    openLinkedObject: (endpoint, notification = {}) => {
+      const desktopId = notification.desktopId || getDesktopRoot();
+      if (desktopId !== getDesktopRoot() && state.desktops.some(desktop => desktop.id === desktopId)) switchVirtualDesktop(desktopId);
+      if (endpoint.kind === "event" && endpoint.eventDate) {
+        ui.calendar = { ...ui.calendar, date: endpoint.eventDate, selected: endpoint.eventDate, editing: endpoint.id };
+      }
+      closeFloating();
+      return openLinkedObject(endpoint);
     },
     toast
   });
@@ -2332,7 +3149,9 @@
   }
   function startTaskReminderWatcher() {
     taskReminderWatcher.start();
-    return calendarReminderWatcher.start();
+    const calendarTimer = calendarReminderWatcher.start();
+    startAutomationWatcher();
+    return calendarTimer;
   }
 
   function systemPulse() { return notificationCenterController.systemPulse(); }
@@ -2370,7 +3189,6 @@
     undoLastAction,
     openItem,
     deleteItems,
-    markNotificationsRead,
     renderNotifications,
     keepWindowsInBounds,
     normalizeVisualSettings,

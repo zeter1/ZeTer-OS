@@ -79,6 +79,32 @@
     return true;
   }
 
+  function taskStoreSnapshot(store, currentWorkspace = () => ({})) {
+    const target = store?.item || currentWorkspace();
+    return {
+      tasks: structuredClone(target.tasks || []),
+      taskProjects: structuredClone(target.taskProjects || []),
+      activeTaskProjectId: target.activeTaskProjectId,
+      updatedAt: target.updatedAt
+    };
+  }
+
+  function restoreTaskStoreSnapshot(store, snapshot, currentWorkspace = () => ({})) {
+    if (!store || !snapshot) return;
+    const target = store.item || currentWorkspace();
+    target.tasks = snapshot.tasks;
+    target.taskProjects = snapshot.taskProjects;
+    target.activeTaskProjectId = snapshot.activeTaskProjectId;
+    if (store.item) target.updatedAt = snapshot.updatedAt;
+  }
+
+  const taskStoreSaveLocks = new WeakSet();
+
+  function taskStoreSaveTarget(store, currentWorkspace = () => ({})) {
+    const target = store?.item || currentWorkspace();
+    return target && typeof target === "object" ? target : null;
+  }
+
   function createTaskTargetNavigator(integration = {}) {
     const {
       getCurrentDesktopId = () => "",
@@ -210,12 +236,38 @@
       return projects().find(project => project.id === store.activeProjectId()) || projects()[0];
     };
     const projectTasks = () => allTasks().filter(task => task.projectId === activeProject().id);
-    const saveTasks = () => {
+    const saveTasks = async (snapshot, onSaved = () => {}) => {
+      const saveTarget = taskStoreSaveTarget(store, currentWorkspace);
+      if (saveTarget && taskStoreSaveLocks.has(saveTarget)) {
+        restoreTaskStoreSnapshot(store, snapshot, currentWorkspace);
+        renderAllFileSurfaces();
+        renderStart($("#start-search-input")?.value || "");
+        if (isTaskList) refreshWindowTitle(winId, taskWindowTitleFromParams({ itemId: store.item.id }));
+        draw();
+        toast("Сохранение выполняется", "Дождитесь завершения предыдущего изменения.");
+        return false;
+      }
+      if (saveTarget) taskStoreSaveLocks.add(saveTarget);
       store.touch();
-      saveState();
-      renderAllFileSurfaces();
-      renderStart($("#start-search-input")?.value || "");
-      if (isTaskList) refreshWindowTitle(winId, taskWindowTitleFromParams({ itemId: store.item.id }));
+      try {
+        await Promise.resolve(saveState());
+        renderAllFileSurfaces();
+        renderStart($("#start-search-input")?.value || "");
+        if (isTaskList) refreshWindowTitle(winId, taskWindowTitleFromParams({ itemId: store.item.id }));
+        draw();
+        onSaved();
+        return true;
+      } catch (error) {
+        restoreTaskStoreSnapshot(store, snapshot, currentWorkspace);
+        renderAllFileSurfaces();
+        renderStart($("#start-search-input")?.value || "");
+        if (isTaskList) refreshWindowTitle(winId, taskWindowTitleFromParams({ itemId: store.item.id }));
+        draw();
+        toast("Изменения не сохранены", error?.message || "Не удалось записать данные.");
+        return false;
+      } finally {
+        if (saveTarget) taskStoreSaveLocks.delete(saveTarget);
+      }
     };
 
     let draw = () => {};
@@ -241,15 +293,17 @@
       card.addEventListener("change", event => {
         if (event.target.matches("[data-priority-select]")) {
           const nextPriority = event.target.value;
+          const snapshot = taskStoreSnapshot(store, currentWorkspace);
           if (updateTaskPriority(task, nextPriority)) {
-            saveTasks();
-            draw();
-            toast("Приоритет изменён", `${task.title} → ${priorityName(nextPriority)}`);
+            void saveTasks(snapshot, () => toast("Приоритет изменён", `${task.title} → ${priorityName(nextPriority)}`));
           } else draw();
           return;
         }
         const subId = event.target.dataset.sub;
-        if (subId && updateTaskChecklistItem(task, subId, event.target.checked)) { saveTasks(); draw(); }
+        if (subId) {
+          const snapshot = taskStoreSnapshot(store, currentWorkspace);
+          if (updateTaskChecklistItem(task, subId, event.target.checked)) void saveTasks(snapshot);
+        }
       });
       card.addEventListener("focusout", event => {
         if (!event.target.matches("[data-priority-select]")) return;
@@ -269,7 +323,11 @@
           return;
         }
         if (action.type === "delete") {
-          if (confirmUser("Удалить задачу?")) { store.setTasks(allTasks().filter(item => item.id !== task.id)); saveTasks(); draw(); }
+          if (confirmUser("Удалить задачу?")) {
+            const snapshot = taskStoreSnapshot(store, currentWorkspace);
+            store.setTasks(allTasks().filter(item => item.id !== task.id));
+            void saveTasks(snapshot);
+          }
           return;
         }
         if (action.type === "edit") {
@@ -277,9 +335,13 @@
           return;
         }
         if (action.type === "pin") {
-          toggleTaskPinned(task); saveTasks(); draw(); toast(task.pinned ? "Задача закреплена" : "Задача откреплена", task.title); return;
+          const snapshot = taskStoreSnapshot(store, currentWorkspace);
+          toggleTaskPinned(task);
+          void saveTasks(snapshot, () => toast(task.pinned ? "Задача закреплена" : "Задача откреплена", task.title));
+          return;
         }
         if (action.type === "toggle-indefinite") {
+          const snapshot = taskStoreSnapshot(store, currentWorkspace);
           if (task.indefinite) {
             const due = promptUser("Дата выполнения задачи:", task.due || todayISO());
             if (due === null) return;
@@ -287,7 +349,8 @@
             if (!normalizedDue) return toast("Срок не сохранён", "Введите дату в формате ГГГГ-ММ-ДД.");
             setTaskIndefinite(task, false, normalizedDue);
           } else setTaskIndefinite(task, true);
-          saveTasks(); draw(); toast(task.indefinite ? "Задача стала бессрочной" : "Срок задачи возвращён", task.title); return;
+          void saveTasks(snapshot, () => toast(task.indefinite ? "Задача стала бессрочной" : "Срок задачи возвращён", task.title));
+          return;
         }
         if (action.type === "toggle-reminder-editor") {
           const editor = $("[data-reminder-editor]", card);
@@ -302,12 +365,21 @@
           const repeatDays = normalizeTaskReminderRepeatDays($("[data-reminder-repeat]", card)?.value || 0);
           if (!value || !time) return toast("Уведомление не сохранено", "Выберите дату и время.");
           if (time <= Date.now()) return toast("Уведомление не сохранено", "Поставьте будущее время.");
-          setTaskReminder(task, value, repeatDays); saveTasks(); draw(); scheduleTaskReminderCheck();
-          toast("Уведомление поставлено", `${task.title} · ${taskReminderLabel(value)}${repeatDays ? ` · ${taskReminderRepeatLabel(repeatDays)}` : ""}`);
+          const snapshot = taskStoreSnapshot(store, currentWorkspace);
+          setTaskReminder(task, value, repeatDays);
+          void saveTasks(snapshot, () => {
+            scheduleTaskReminderCheck();
+            toast("Уведомление поставлено", `${task.title} · ${taskReminderLabel(value)}${repeatDays ? ` · ${taskReminderRepeatLabel(repeatDays)}` : ""}`);
+          });
           return;
         }
         if (action.type === "remove-reminder") {
-          clearTaskReminder(task); saveTasks(); draw(); toast("Уведомление убрано", task.title);
+          const snapshot = taskStoreSnapshot(store, currentWorkspace);
+          clearTaskReminder(task);
+          void saveTasks(snapshot, () => {
+            scheduleTaskReminderCheck();
+            toast("Уведомление убрано", task.title);
+          });
         }
       });
       return card;
@@ -343,7 +415,10 @@
           column.classList.remove("drop-hover");
           const task = allTasks().find(item => item.id === event.dataTransfer.getData("task/id"));
           if (task && task.projectId === activeProject().id) {
-            task.status = status; task.updatedAt = Date.now(); saveTasks(); draw(); toast("Статус изменён", `${task.title} → ${name}`);
+            const snapshot = taskStoreSnapshot(store, currentWorkspace);
+            task.status = status;
+            task.updatedAt = Date.now();
+            void saveTasks(snapshot, () => toast("Статус изменён", `${task.title} → ${name}`));
           }
         });
         board.appendChild(column);
@@ -353,7 +428,12 @@
     root.addEventListener("click", event => {
       const action = taskBoardClickAction(event.target);
       if (!action) return;
-      if (action.type === "select-project") { store.setActiveProjectId(action.projectId); saveTasks(); draw(); return; }
+      if (action.type === "select-project") {
+        const snapshot = taskStoreSnapshot(store, currentWorkspace);
+        store.setActiveProjectId(action.projectId);
+        void saveTasks(snapshot);
+        return;
+      }
       if (action.type === "open-create") {
         const project = activeProject();
         openApp("taskedit", { mode: "create", projectId: project.id, ...(isTaskList ? { itemId: store.item.id } : {}) });
@@ -363,23 +443,34 @@
         const name = promptUser("Название проекта:", "Новый проект");
         if (name === null) return;
         const clean = name.trim() || "Новый проект";
+        const snapshot = taskStoreSnapshot(store, currentWorkspace);
         const project = makeTaskProject(clean);
-        projects().push(project); store.setActiveProjectId(project.id); saveTasks(); draw(); toast("Проект создан", clean); return;
+        projects().push(project);
+        store.setActiveProjectId(project.id);
+        void saveTasks(snapshot, () => toast("Проект создан", clean));
+        return;
       }
       if (action.type === "rename-project") {
         const project = activeProject();
         const name = promptUser("Новое название проекта:", project.name);
         if (name === null) return;
-        project.name = name.trim() || project.name; project.updatedAt = Date.now(); saveTasks(); draw(); return;
+        const snapshot = taskStoreSnapshot(store, currentWorkspace);
+        project.name = name.trim() || project.name;
+        project.updatedAt = Date.now();
+        void saveTasks(snapshot);
+        return;
       }
       if (action.type === "delete-project") {
         const project = activeProject();
         const plan = taskProjectDeletionPlan(projects(), allTasks(), project.id);
         if (!plan) return toast("Нельзя удалить", "В списке должен остаться хотя бы один проект.");
         if (!confirmUser(`Удалить проект «${project.name}» и ${plan.count} задач?`)) return;
+        const snapshot = taskStoreSnapshot(store, currentWorkspace);
         if (store.item) { store.item.taskProjects = plan.nextProjects; store.item.activeTaskProjectId = plan.nextActive.id; }
         else { currentWorkspace().taskProjects = plan.nextProjects; currentWorkspace().activeTaskProjectId = plan.nextActive.id; }
-        store.setTasks(plan.nextTasks); saveTasks(); draw(); return;
+        store.setTasks(plan.nextTasks);
+        void saveTasks(snapshot);
+        return;
       }
       if (action.type === "export-tasks") {
         downloadFile(`zeter_tasks_${store.title}.json`, JSON.stringify({ tasks: allTasks(), taskProjects: projects(), activeTaskProjectId: store.activeProjectId() }, null, 2), "application/json");
@@ -413,8 +504,34 @@
     const store = taskEditorStoreFromParams(params, storeOptions);
     const isCreate = params?.mode === "create";
     const closeEditor = () => closeWindow(winId);
-    const saveStoreAfterTaskChange = () => {
-      store.touch(); saveState(); renderAllFileSurfaces(); renderStart($("#start-search-input")?.value || ""); refreshOpenTaskBoards(winId);
+    const saveStoreAfterTaskChange = async snapshot => {
+      const saveTarget = taskStoreSaveTarget(store, currentWorkspace);
+      if (saveTarget && taskStoreSaveLocks.has(saveTarget)) {
+        restoreTaskStoreSnapshot(store, snapshot, currentWorkspace);
+        renderAllFileSurfaces();
+        renderStart($("#start-search-input")?.value || "");
+        refreshOpenTaskBoards(winId);
+        toast("Сохранение выполняется", "Дождитесь завершения предыдущего изменения.");
+        return false;
+      }
+      if (saveTarget) taskStoreSaveLocks.add(saveTarget);
+      store.touch();
+      try {
+        await Promise.resolve(saveState());
+        renderAllFileSurfaces();
+        renderStart($("#start-search-input")?.value || "");
+        refreshOpenTaskBoards(winId);
+        return true;
+      } catch (error) {
+        restoreTaskStoreSnapshot(store, snapshot, currentWorkspace);
+        renderAllFileSurfaces();
+        renderStart($("#start-search-input")?.value || "");
+        refreshOpenTaskBoards(winId);
+        toast("Задача не сохранена", error?.message || "Не удалось записать данные.");
+        return false;
+      } finally {
+        if (saveTarget) taskStoreSaveLocks.delete(saveTarget);
+      }
     };
     if (isCreate) {
       if (!store) {
@@ -427,11 +544,20 @@
       const projects = store.projects();
       const fallbackProject = projects.find(project => project.id === params.projectId) || projects.find(project => project.id === store.activeProjectId()) || projects[0];
       root.innerHTML = taskCreateEditorHTML(taskProjectOptionsHTML(projects, fallbackProject.id), todayISO());
-      const saveNewTask = () => {
+      let saveInFlight = false;
+      const saveNewTask = async () => {
+        if (saveInFlight) return;
         const form = taskCreateFormData(root, fallbackProject.id);
         if (!form.title) { toast("Нужен заголовок", "Введите название задачи."); $("[data-task-title]", root)?.focus(); return; }
+        const snapshot = taskStoreSnapshot(store, currentWorkspace);
         store.tasks().push(makeTask(form, { fallbackProjectId: fallbackProject.id }));
-        store.setActiveProjectId(form.projectId); saveStoreAfterTaskChange(); toast("Задача добавлена", form.title); closeEditor();
+        store.setActiveProjectId(form.projectId);
+        saveInFlight = true;
+        const saved = await saveStoreAfterTaskChange(snapshot);
+        saveInFlight = false;
+        if (!saved) return;
+        toast("Задача добавлена", form.title);
+        closeEditor();
       };
       root.addEventListener("click", event => {
         const action = taskEditorClickAction(event.target);
@@ -456,10 +582,21 @@
       return root;
     }
     root.innerHTML = taskEditEditorHTML(task);
-    const saveTask = () => {
+    let saveInFlight = false;
+    const saveTask = async () => {
+      if (saveInFlight) return;
       const form = taskEditFormData(root);
       if (!form.title) { toast("Нужен заголовок", "Введите название задачи."); $("[data-task-title]", root)?.focus(); return; }
-      updateTaskTitleDescription(task, form); saveStoreAfterTaskChange(); toast("Задача сохранена", form.title); closeEditor();
+      const currentTask = store.tasks().find(item => item.id === params.taskId);
+      if (!currentTask) { toast("Задача не сохранена", "Задача была удалена из списка."); return; }
+      const snapshot = taskStoreSnapshot(store, currentWorkspace);
+      updateTaskTitleDescription(currentTask, form);
+      saveInFlight = true;
+      const saved = await saveStoreAfterTaskChange(snapshot);
+      saveInFlight = false;
+      if (!saved) return;
+      toast("Задача сохранена", form.title);
+      closeEditor();
     };
     root.addEventListener("click", event => {
       const action = taskEditorClickAction(event.target);
@@ -578,6 +715,8 @@
   window.ZETER_TASK_APP_UI_UTILS = Object.freeze({
     taskProjectDeletionPlan,
     applyTaskBoardFilterAction,
+    taskStoreSnapshot,
+    restoreTaskStoreSnapshot,
     createTaskTargetNavigator,
     createTaskBoardApp,
     createTaskEditorApp,

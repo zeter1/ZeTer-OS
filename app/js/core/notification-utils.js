@@ -3,6 +3,7 @@
 
   const TASK_SOURCE_PREFIX = "task:";
   const CALENDAR_SOURCE_PREFIX = "calendar:";
+  const AUTOMATION_SOURCE_PREFIX = "automation:";
   const NOTIFICATION_OPTION_FIELDS = Object.freeze([
     "action",
     "taskId",
@@ -15,20 +16,19 @@
     "taskStoreTitle",
     "taskDesktopId",
     "calendarEventId",
-    "calendarDate"
+    "calendarDate",
+    "linkedObjectKind",
+    "linkedObjectId",
+    "linkedEventDate"
   ]);
 
   function notificationSource(notification = {}) {
     return String(notification.source || "");
   }
 
-  function notificationCanOpen(notification = {}) {
-    const source = notificationSource(notification);
-    return notification.action === "open-task" || notification.action === "open-calendar" || source.startsWith(TASK_SOURCE_PREFIX) || source.startsWith(CALENDAR_SOURCE_PREFIX);
-  }
-
   function notificationFilterKind(notification = {}) {
     const source = notificationSource(notification);
+    if (source.startsWith(AUTOMATION_SOURCE_PREFIX)) return "automations";
     if (notification.action === "open-task" || source.startsWith(TASK_SOURCE_PREFIX)) return "tasks";
     if (source.startsWith(CALENDAR_SOURCE_PREFIX)) return "calendar";
     return "system";
@@ -43,6 +43,47 @@
     if (notification.taskId) return String(notification.taskId);
     const match = notificationSource(notification).match(/^task:(.+)$/);
     return match ? match[1] : "";
+  }
+
+  function notificationLinkedObject(notification = {}) {
+    const linkedObjectKind = String(notification.linkedObjectKind || "").trim();
+    const linkedObjectId = String(notification.linkedObjectId || "").trim();
+    if (linkedObjectKind && linkedObjectId) {
+      return {
+        kind: linkedObjectKind,
+        id: linkedObjectId,
+        eventDate: String(notification.linkedEventDate || "").trim()
+      };
+    }
+
+    const source = notificationSource(notification);
+    if (notification.action === "open-task" || source.startsWith(TASK_SOURCE_PREFIX)) {
+      const taskId = taskIdFromNotification(notification);
+      if (taskId) return { kind: "task", id: taskId, eventDate: "" };
+    }
+
+    if (notification.action === "open-calendar" || source.startsWith(CALENDAR_SOURCE_PREFIX)) {
+      const sourceMatch = source.match(/^calendar:([^:]+)(?::(.+))?$/);
+      const eventId = String(notification.calendarEventId || sourceMatch?.[1] || "").trim();
+      if (eventId) {
+        return {
+          kind: "calendar",
+          id: eventId,
+          eventDate: String(notification.calendarDate || sourceMatch?.[2] || "").trim()
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function notificationCanOpen(notification = {}) {
+    const source = notificationSource(notification);
+    return Boolean(notificationLinkedObject(notification))
+      || notification.action === "open-task"
+      || notification.action === "open-calendar"
+      || source.startsWith(TASK_SOURCE_PREFIX)
+      || source.startsWith(CALENDAR_SOURCE_PREFIX);
   }
 
   function applyNotificationOptions(notification = {}, options = {}) {
@@ -404,6 +445,7 @@
     notificationFilterKind,
     notificationMatchesFilter,
     taskIdFromNotification,
+    notificationLinkedObject,
     taskReminderNotificationDetails,
     collectTaskReminderStores,
     collectDueTaskReminderNotifications,

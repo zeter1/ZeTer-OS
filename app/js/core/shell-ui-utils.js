@@ -259,7 +259,6 @@
     const undoLastAction = typeof options.undoLastAction === "function" ? options.undoLastAction : () => {};
     const openItem = typeof options.openItem === "function" ? options.openItem : () => {};
     const deleteItems = typeof options.deleteItems === "function" ? options.deleteItems : () => {};
-    const markNotificationsRead = typeof options.markNotificationsRead === "function" ? options.markNotificationsRead : () => {};
     const renderNotifications = typeof options.renderNotifications === "function" ? options.renderNotifications : () => {};
     const keepWindowsInBounds = typeof options.keepWindowsInBounds === "function" ? options.keepWindowsInBounds : () => {};
     const normalizeVisualSettings = typeof options.normalizeVisualSettings === "function" ? options.normalizeVisualSettings : settings => settings;
@@ -419,7 +418,6 @@
       const target = which === "quick" ? quick : notifications;
       const willOpen = target.classList.contains("hidden");
       closeFloating();
-      if (which === "notifications" && willOpen) markNotificationsRead();
       if (which === "notifications") renderNotifications();
       target.classList.toggle("hidden", !willOpen);
     }

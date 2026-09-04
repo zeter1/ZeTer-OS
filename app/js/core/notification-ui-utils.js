@@ -10,6 +10,7 @@
   const {
     createNotificationRecord,
     notificationCanOpen,
+    notificationLinkedObject,
     notificationMatchesFilter,
     taskIdFromNotification
   } = notificationUtils;
@@ -39,6 +40,8 @@
   function notificationCenterAction(target) {
     const deleteButton = target?.closest?.("[data-delete-notification]");
     if (deleteButton) return { type: "delete", id: deleteButton.dataset.deleteNotification || "" };
+    if (target?.closest?.("[data-mark-all-notifications-read]")) return { type: "mark-all-read" };
+    if (target?.closest?.("[data-clear-read-notifications]")) return { type: "clear-read" };
     const filterButton = target?.closest?.("[data-notification-filter]");
     if (filterButton) return { type: "filter", filter: filterButton.dataset.notificationFilter || "all" };
     const card = target?.closest?.("[data-notification-id]");
@@ -72,12 +75,19 @@
     const agenda = options.agenda || null;
     const agendaTitle = options.agendaTitle || null;
     const filter = options.filter || "all";
+    const notifications = Array.isArray(options.notifications) ? options.notifications : [];
 
     filterButtons.forEach(button => {
       button.classList.toggle("active", button.dataset.notificationFilter === filter);
     });
+    if (options.markAllReadButton) {
+      options.markAllReadButton.disabled = !notifications.some(notification => !notification.read);
+    }
+    if (options.clearReadButton) {
+      options.clearReadButton.disabled = !notifications.some(notification => notification.read);
+    }
     if (list) {
-      list.innerHTML = notificationListHTML(options.notifications || [], {
+      list.innerHTML = notificationListHTML(notifications, {
         filter,
         matchesFilter: options.matchesFilter,
         canOpen: options.canOpen
@@ -126,6 +136,16 @@
       return changed;
     }
 
+    function clearRead() {
+      const notifications = getNotifications();
+      const next = notifications.filter(notification => !notification.read);
+      if (next.length === notifications.length) return false;
+      setNotifications(next);
+      saveState();
+      render();
+      return true;
+    }
+
     function render() {
       const list = document.querySelector("#notification-list");
       if (!list) return;
@@ -133,6 +153,8 @@
       renderNotificationCenterView({
         list,
         filterButtons: document.querySelectorAll("[data-notification-filter]"),
+        markAllReadButton: document.querySelector("[data-mark-all-notifications-read]"),
+        clearReadButton: document.querySelector("[data-clear-read-notifications]"),
         agenda: document.querySelector("#mini-agenda"),
         agendaTitle: document.querySelector("#mini-date-title"),
         filter: getFilter() || "all",
@@ -177,7 +199,7 @@
       if (soon && random() > 0.7) render();
     }
 
-    return Object.freeze({ updateBadge, markRead, render, deleteNotification, addNotification, selectFilter, systemPulse });
+    return Object.freeze({ updateBadge, markRead, clearRead, render, deleteNotification, addNotification, selectFilter, systemPulse });
   }
 
   function bindNotificationCenter(options = {}) {
@@ -199,6 +221,10 @@
     notificationCenter?.addEventListener("click", event => {
       const action = notificationCenterAction(event.target);
       if (action?.type === "filter") controller.selectFilter(action.filter);
+      if (action?.type === "mark-all-read") {
+        if (controller.markRead()) controller.render();
+      }
+      if (action?.type === "clear-read") controller.clearRead();
     });
     notificationList.addEventListener("keydown", event => {
       const action = notificationCenterKeyAction(event);
@@ -215,6 +241,7 @@
       getCurrentDesktopId = () => "desktop",
       taskNavigator = null,
       openCalendar = () => false,
+      openLinkedObject = () => false,
       toast = () => {}
     } = integration;
 
@@ -223,22 +250,26 @@
         return Boolean(openCalendar(notification));
       }
       const taskId = taskIdFromNotification(notification);
-      if (!taskId || !notificationCanOpen(notification)) return false;
-      return Boolean(taskNavigator?.openTaskTarget?.({
-        taskId,
-        desktopId: notification.taskDesktopId || notification.desktopId || getCurrentDesktopId(),
-        taskStoreKind: notification.taskStoreKind || "",
-        taskListItemId: notification.taskStoreKind === "tasklist" || notification.taskListItemId
-          ? notification.taskListItemId
-          : "",
-        projectId: notification.taskProjectId,
-        closeBeforeOpen: true,
-        onMissing: () => toast("Список задач не найден", "Он мог быть удалён или перемещён."),
-        onOpened: ({ task, storeKind, storeTitle }) => {
-          if (storeKind === "tasklist") toast("Открыт список задач", storeTitle);
-          else toast("Открыта задача", task?.title || notification.taskTitle || "Напоминание");
-        }
-      }));
+      if (taskId && notificationCanOpen(notification)) {
+        return Boolean(taskNavigator?.openTaskTarget?.({
+          taskId,
+          desktopId: notification.taskDesktopId || notification.desktopId || getCurrentDesktopId(),
+          taskStoreKind: notification.taskStoreKind || "",
+          taskListItemId: notification.taskStoreKind === "tasklist" || notification.taskListItemId
+            ? notification.taskListItemId
+            : "",
+          projectId: notification.taskProjectId,
+          closeBeforeOpen: true,
+          onMissing: () => toast("Список задач не найден", "Он мог быть удалён или перемещён."),
+          onOpened: ({ task, storeKind, storeTitle }) => {
+            if (storeKind === "tasklist") toast("Открыт список задач", storeTitle);
+            else toast("Открыта задача", task?.title || notification.taskTitle || "Напоминание");
+          }
+        }));
+      }
+      if (!notificationCanOpen(notification)) return false;
+      const endpoint = notificationLinkedObject(notification);
+      return endpoint ? Boolean(openLinkedObject(endpoint, notification)) : false;
     }
 
     function openById(id = "") {

@@ -5,9 +5,9 @@
 <!-- BEGIN GENERATED CORE SUMMARY -->
 > Этот блок обновляется командой `python tools/update_docs.py --write`.
 
-- Core-модулей: 70.
-- Публичных глобалов: 70.
-- Статических зависимостей: 153.
+- Core-модулей: 74.
+- Публичных глобалов: 74.
+- Статических зависимостей: 159.
 - Подробный порядок: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
 <!-- END GENERATED CORE SUMMARY -->
 
@@ -99,6 +99,8 @@
 | `app/js/core/rich-text-utils.js` | `ZETER_RICH_TEXT_UTILS` | Безопасный rich-text HTML с каноническими маркерами inline-файлов и проверенным горизонтальным смещением |
 | `app/js/core/markdown-utils.js` | `ZETER_MARKDOWN_UTILS` | Markdown renderer |
 | `app/js/core/editor-ui-utils.js` | `ZETER_EDITOR_UI_UTILS` | HTML/UI и runtime-controller rich-text, Markdown и Notes: компактные файловые действия в шапке, контекстное форматирование выделения, inline-файлы в позиции текста, navigation/grid, actions, Promise-aware autosave status и save/download dispatchers |
+| `app/js/core/object-link-utils.js` | `ZETER_OBJECT_LINK_UTILS` | Нормализация, дедупликация, поиск и очистка двусторонних связей `fs`/`event` внутри рабочего стола |
+| `app/js/core/object-link-ui-utils.js` | `ZETER_OBJECT_LINK_UI_UTILS` | Компактная панель «Связи», выбор кандидата, открытие и удаление только связи без удаления объекта |
 
 ### Предметные данные и приложения
 
@@ -111,8 +113,10 @@
 | `app/js/core/task-app-ui-utils.js` | `ZETER_TASK_APP_UI_UTILS` | Runtime-controller задач: доска, редактор, обновление открытых окон и единая навигация из поиска/уведомлений |
 | `app/js/core/calendar-utils.js` | `ZETER_CALENDAR_UTILS` | Даты, повторы и операции событий |
 | `app/js/core/calendar-ui-utils.js` | `ZETER_CALENDAR_UI_UTILS` | Формы, представления и полная UI-оркестрация календаря; запрет создания событий до сегодняшней локальной даты без ограничения редактирования существующих |
+| `app/js/core/automation-utils.js` | `ZETER_AUTOMATION_UTILS` | Нормализация правил, пользовательских категорий и истории, удаление категории с отменой ожидающих запусков её правил; run-once runtime триггеров с действиями уведомления, заметки и перемещения |
+| `app/js/core/automation-ui-utils.js` | `ZETER_AUTOMATION_UI_UTILS` | Приложение и отдельное окно `automationedit` с переиспользованием редактора «Когда → Условие → Действие»; `app.js` связывает открытие, подтверждённое сохранение и возврат к списку. Выбор файла для проверки и ручного запуска, подписи места хранения и переходы к объекту/папке, объяснение переменных, список, включение, изменение и удаление |
 | `app/js/core/notification-utils.js` | `ZETER_NOTIFICATION_UTILS` | Записи уведомлений, сбор напоминаний задач/календаря и lifecycle watchers |
-| `app/js/core/notification-ui-utils.js` | `ZETER_NOTIFICATION_UI_UTILS` | Центр уведомлений, DOM-binding, мини-повестка и переходы к задаче или дню календаря |
+| `app/js/core/notification-ui-utils.js` | `ZETER_NOTIFICATION_UI_UTILS` | Центр уведомлений, фильтр автоматизаций, массовое прочтение/очистка, мини-повестка и переходы к связанным объектам |
 | `app/js/core/security-protection-utils.js` | `ZETER_SECURITY_PROTECTION_UTILS` | Политики защиты, журнал, сводки state, manifest и контрольные суммы ZIP, проверка восстановления и переносимое AES-GCM-шифрование `.zeterbak` |
 | `app/js/core/security-utils.js` | `ZETER_SECURITY_UTILS` | Снимки browser/native-хранилища, validators, полная integrity-проверка, безопасный ремонт и расчёт риска |
 | `app/js/core/security-ui-utils.js` | `ZETER_SECURITY_UI_UTILS` | Data-safety runtime-controller: security shell/actions, snapshot/integrity/fix, storage pressure/cleanup/reset, restore points с native payload-preflight и откатом state при отказе сохранения, внешний browser folder handle |
@@ -144,9 +148,9 @@
 | Рабочие столы и окна | `currentWorkspace`, `switchDesktop`, `openApp`, `refreshWindow` |
 | Проводник и файловые действия | `renderExplorer`, `navigateFolderWindow`, `bulkMoveItemsToFolder` |
 | Редакторы и Notes | `documentEditorRuntimeController`, `refreshOpenEditors` |
-| Таблицы, задачи, календарь | `tableAppRuntimeController`, `taskAppRuntimeController`, `renderCalendarApp` |
+| Таблицы, задачи, календарь, автоматизации и связи | `tableAppRuntimeController`, `taskAppRuntimeController`, `renderCalendarApp`, `renderAutomationsApp`, `objectLinksPanelFor`, `runAutomationCheck` |
 | Монитор и безопасность | `renderMonitorApp`, `securityRuntimeController` |
-| Поиск, настройки и уведомления | `renderSearchApp`, `renderGlobalSearch`, `renderSettingsApp`, `systemSettings`, `renderNotifications` |
+| Поиск, настройки и уведомления | `renderSearchApp`, `renderGlobalSearch`, `renderSettingsApp`, `systemSettings`, `renderNotifications`, `openNotification` |
 | Native import и запуск | `importNativeFiles`, `initExternalSaveFolder`, `bootZeTerOs` |
 
 ## CSS-модули

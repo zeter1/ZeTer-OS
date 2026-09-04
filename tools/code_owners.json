@@ -68,15 +68,26 @@
       "manual": "Проверить, что «Добавить событие» недоступно до сегодняшней локальной даты, а сегодня и позже открывает редактор; вручную ввести прошлую дату и проверить отказ кнопкой и Ctrl+Enter, включая окно, открытое до полуночи. Проверить просмотр, изменение и удаление старого события, рост списка выбранного дня, repeat, reminder и все views."
     },
     {
+      "id": "automations-object-links",
+      "title": "Автоматизации и связи объектов",
+      "keywords": ["automation", "object links", "when condition action", "автоматизации", "связи объектов", "когда условие действие"],
+      "js": ["app/js/core/automation-utils.js", "app/js/core/automation-ui-utils.js", "app/js/core/object-link-utils.js", "app/js/core/object-link-ui-utils.js"],
+      "app_anchors": ["renderAutomationsApp", "objectLinksPanelFor", "runAutomationCheck"],
+      "css": ["app/css/60-apps-calendar-notes-tables.css", "app/css/80-overrides.css"],
+      "state": ["workspace.automations", "workspace.automationCategories", "workspace.automationRuntime", "workspace.objectLinks", "workspace.events", "state.fs"],
+      "smokes": ["tools/smoke_automation_object_links.js", "tools/smoke_automation_v2_core.js", "tools/smoke_automation_v2_ui.js", "tools/smoke_feature7_ui.js", "tools/smoke_automation_import_validation.js", "tools/smoke_state_migration.js"],
+      "manual": "Создать правило из нескольких условий и действий, выполнить сухую проверку и ручной запуск, затем проверить историю, общую паузу, повторный запуск после перезапуска и отсутствие дублей. Для переноса файла проверить skip/rename/replace и подтверждение замены. Связать заметку с таблицей и событием, удалить только связь и убедиться, что объекты сохранены."
+    },
+    {
       "id": "notifications",
       "title": "Уведомления и переходы к объектам",
-      "keywords": ["notifications", "reminders", "badge", "уведомления", "напоминания", "центр уведомлений"],
+      "keywords": ["notifications", "reminders", "badge", "automations", "linked object", "уведомления", "напоминания", "автоматизации", "связанный объект", "центр уведомлений"],
       "js": ["app/js/core/system-settings-utils.js", "app/js/core/notification-utils.js", "app/js/core/notification-ui-utils.js", "app/js/core/task-app-ui-utils.js"],
-      "app_anchors": ["renderNotifications"],
+      "app_anchors": ["renderNotifications", "openNotification"],
       "css": ["app/css/10-shell.css", "app/css/30-app-common.css"],
       "state": ["state.systemSettings.notifications", "workspace.notifications", "workspace.tasks", "workspace.events"],
-      "smokes": ["tools/smoke_system_settings.js", "tools/smoke_state_migration.js"],
-      "manual": "Проверить filter, read/delete, badge и переход к связанной задаче."
+      "smokes": ["tools/smoke_system_settings.js", "tools/smoke_feature7_ui.js", "tools/smoke_notification_feature7_core.js", "tools/smoke_state_migration.js"],
+      "manual": "Проверить фильтры задач, календаря, автоматизаций и системы; badge, удаление, «Отметить всё прочитанным», «Очистить прочитанные» и переход к связанной задаче, событию или файлу."
     },
     {
       "id": "search",
@@ -258,12 +269,28 @@
       "hooks": ["calendar-app", "calendar-event-editor-app", "data-cal", "data-add-event", "data-save-event"]
     },
     {
+      "id": "automations-app",
+      "title": "Приложение автоматизаций",
+      "scenario": "automations-object-links",
+      "keywords": ["automation app", "automationedit", "separate editor window", "when condition action", "автоматизации", "окно редактора", "когда условие действие"],
+      "files": ["app/js/core/automation-ui-utils.js", "app/js/core/app-catalog.js", "app/js/app.js", "app/css/60-apps-calendar-notes-tables.css", "app/css/80-overrides.css"],
+      "hooks": ["automation-app", "data-create-automation", "data-pause-all", "data-automation-search", "data-automation-status-filter", "data-template-id", "data-automation-trigger", "data-condition-mode", "data-automation-action", "data-preview-automation", "data-run-automation", "data-automation-history", "data-automation-sample-file", "data-open-source-folder", "data-open-sample-file", "data-refresh-sample-files", "data-variable-help", "data-check-sample", "data-category-filter", "data-automation-category", "data-create-category", "data-rename-category", "data-delete-category", "data-delete-category-rules"]
+    },
+    {
+      "id": "object-links-panel",
+      "title": "Связи заметок, файлов, таблиц и событий",
+      "scenario": "automations-object-links",
+      "keywords": ["object links", "linked object", "связи объектов", "связанный объект"],
+      "files": ["app/js/core/object-link-ui-utils.js", "app/js/core/editor-ui-utils.js", "app/js/core/calendar-ui-utils.js", "app/css/60-apps-calendar-notes-tables.css"],
+      "hooks": ["object-links-panel", "data-object-link-candidate", "data-add-object-link", "data-remove-object-link"]
+    },
+    {
       "id": "notification-center",
       "title": "Центр уведомлений",
       "scenario": "notifications",
       "keywords": ["notification", "badge", "уведомления"],
       "files": ["app/index.html", "app/js/core/notification-ui-utils.js", "app/css/10-shell.css"],
-      "hooks": ["notification-center", "data-notification-id", "data-notification-filter"]
+      "hooks": ["notification-center", "data-notification-id", "data-notification-filter", "data-mark-all-notifications-read", "data-clear-read-notifications"]
     },
     {
       "id": "notes-editor",
@@ -376,6 +403,34 @@
         "storage": [{"path": "app/js/core/workspace-utils.js", "anchors": ["deskNotifications"]}]
       },
       "smokes": ["tools/smoke_state_migration.js"]
+    },
+    {
+      "id": "automations",
+      "title": "Автоматизации рабочего стола",
+      "state_paths": ["workspace.automations", "workspace.automationCategories", "workspace.automationRuntime"],
+      "stages": {
+        "defaults": [{"path": "app/js/core/initial-state-utils.js", "anchors": ["defaultState"]}],
+        "normalizers": [{"path": "app/js/core/automation-utils.js", "anchors": ["normalizeAutomation", "normalizeAutomations", "normalizeAutomationCategories", "normalizeAutomationRuntime"]}],
+        "migration": [{"path": "app/js/core/state-migration-utils.js", "anchors": ["migrateState"]}],
+        "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedAutomations", "validateImportedAutomationRuntime"]}],
+        "serializer": [{"path": "app/js/core/storage-utils.js", "anchors": ["buildPrimaryStateRecord"]}],
+        "storage": [{"path": "app/js/core/workspace-utils.js", "anchors": ["normalizeWorkspaceAutomations", "normalizeWorkspaceAutomationRuntime"]}]
+      },
+      "smokes": ["tools/smoke_automation_object_links.js", "tools/smoke_automation_v2_core.js", "tools/smoke_automation_import_validation.js", "tools/smoke_state_migration.js"]
+    },
+    {
+      "id": "object-links",
+      "title": "Связи объектов рабочего стола",
+      "state_paths": ["workspace.objectLinks"],
+      "stages": {
+        "defaults": [{"path": "app/js/core/initial-state-utils.js", "anchors": ["defaultState"]}],
+        "normalizers": [{"path": "app/js/core/object-link-utils.js", "anchors": ["normalizeObjectLink", "normalizeObjectLinks"]}],
+        "migration": [{"path": "app/js/core/state-migration-utils.js", "anchors": ["migrateState"]}],
+        "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedObjectLinks"]}],
+        "serializer": [{"path": "app/js/core/storage-utils.js", "anchors": ["buildPrimaryStateRecord"]}],
+        "storage": [{"path": "app/js/core/workspace-utils.js", "anchors": ["normalizeWorkspaceObjectLinks"]}]
+      },
+      "smokes": ["tools/smoke_automation_object_links.js", "tools/smoke_automation_import_validation.js", "tools/smoke_state_migration.js"]
     },
     {
       "id": "visual-settings",

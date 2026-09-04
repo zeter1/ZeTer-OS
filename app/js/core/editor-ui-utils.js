@@ -76,6 +76,7 @@
         <button type="button" data-image-resize="sw" aria-label="Изменить размер изображения от нижнего левого угла"></button>
         <button type="button" data-image-resize="se" aria-label="Изменить размер изображения от нижнего правого угла"></button>
       </div>
+      <div class="editor-object-links-host" data-editor-object-links-host hidden aria-hidden="true"></div>
       <div class="editor-status"><span data-status>Готово</span><span class="editor-status-meta"><span data-autosave>Автосохранение включено</span><span data-count>0 символов</span></span></div>`;
   }
 
@@ -426,6 +427,21 @@
     return `<input class="editor-title" value="${escapeHtml(itemName)}"><div class="toolbar"><button data-download>Скачать .md</button><span class="muted" data-status>Автосохранение включено</span></div><div class="markdown-split"><textarea class="editor-area" spellcheck="false"></textarea><div class="markdown-preview"></div></div><div class="editor-status"><span>Markdown Studio</span><span data-count></span></div>`;
   }
 
+  function mountEditorObjectLinksPanel(root, panel) {
+    const host = root?.querySelector?.("[data-editor-object-links-host]");
+    if (!host) return false;
+    host.innerHTML = "";
+    if (!panel) {
+      host.hidden = true;
+      host.setAttribute?.("aria-hidden", "true");
+      return false;
+    }
+    host.appendChild(panel);
+    host.hidden = false;
+    host.setAttribute?.("aria-hidden", "false");
+    return true;
+  }
+
   function createRichEditorUI({
     itemName = "",
     initialHtml = "",
@@ -445,11 +461,13 @@
     copyText = () => Promise.resolve(false),
     requestLink = () => null,
     managedFiles = [],
+    objectLinksPanel = null,
     documentRef = globalThis.document
   } = {}) {
     const root = documentRef.createElement("div");
     root.className = "editor rich-editor";
     root.innerHTML = richEditorHTML(itemName);
+    mountEditorObjectLinksPanel(root, objectLinksPanel);
     const title = $(".editor-title", root);
     const area = $(".rich-editor-area", root);
     const fileActions = $("[data-window-header-tools-source]", root);
@@ -1313,6 +1331,7 @@
     const openExternalLink = typeof options.openExternalLink === "function" ? options.openExternalLink : () => {};
     const copyText = typeof options.copyText === "function" ? options.copyText : () => Promise.resolve(false);
     const createRichEditor = typeof options.createRichEditor === "function" ? options.createRichEditor : createRichEditorUI;
+    const objectLinksPanelFor = typeof options.objectLinksPanelFor === "function" ? options.objectLinksPanelFor : () => null;
     const now = typeof options.now === "function" ? options.now : Date.now;
     const documentRef = options.documentRef || globalThis.document;
     const itemInWorkspace = typeof options.itemInWorkspace === "function" ? options.itemInWorkspace : () => false;
@@ -1383,6 +1402,7 @@
         openExternalLink,
         copyText,
         requestLink: defaultValue => requestText("Адрес ссылки для выделенного текста:", defaultValue || "https://"),
+        objectLinksPanel: objectLinksPanelFor({ kind: "fs", id: item.id }),
         documentRef
       });
       root.dataset.managedFileItemId = item.id;
@@ -1523,6 +1543,7 @@
     notesEmptyHTML,
     notesFileCardHTML,
     markdownEditorHTML,
+    mountEditorObjectLinksPanel,
     createRichEditorUI,
     createMarkdownEditorUI,
     drawNotesGrid,

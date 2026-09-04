@@ -45,6 +45,7 @@
     const renderAllFileSurfaces = typeof options.renderAllFileSurfaces === "function" ? options.renderAllFileSurfaces : () => {};
     const refreshWindows = typeof options.refreshWindows === "function" ? options.refreshWindows : () => {};
     const toast = typeof options.toast === "function" ? options.toast : () => {};
+    let saveInFlight = false;
 
     function entries() {
       return Object.entries(getApps()).filter(([id, app]) => id !== "search" && !app.hidden);
@@ -61,26 +62,50 @@
       return shortcutIds(appId, root).length > 0;
     }
 
-    function install(appId) {
+    async function install(appId) {
       const app = getApps()[appId];
       if (!app || app.hidden || appId === "search") return false;
+      if (saveInFlight) {
+        toast("Сохранение выполняется", "Дождитесь завершения предыдущего изменения.");
+        return false;
+      }
       const root = getRootId();
       if (isInstalled(appId, root)) {
         toast("Уже установлено", app.name);
         refreshWindows();
         return false;
       }
-      addDesktopShortcut(appId, root, null, null);
-      saveState();
-      renderAllFileSurfaces();
-      refreshWindows();
-      toast("Приложение установлено", app.name);
-      return true;
+      saveInFlight = true;
+      const shortcutId = addDesktopShortcut(appId, root, null, null);
+      if (!shortcutId) {
+        saveInFlight = false;
+        return false;
+      }
+      try {
+        await Promise.resolve(saveState());
+        renderAllFileSurfaces();
+        refreshWindows();
+        toast("Приложение установлено", app.name);
+        return true;
+      } catch (error) {
+        const state = getState();
+        if (state.fs?.[shortcutId]) delete state.fs[shortcutId];
+        renderAllFileSurfaces();
+        refreshWindows();
+        toast("Приложение не установлено", error?.message || "Не удалось сохранить изменения.");
+        return false;
+      } finally {
+        saveInFlight = false;
+      }
     }
 
-    function uninstall(appId) {
+    async function uninstall(appId) {
       const app = getApps()[appId];
       if (!app || app.hidden || appId === "search") return false;
+      if (saveInFlight) {
+        toast("Сохранение выполняется", "Дождитесь завершения предыдущего изменения.");
+        return false;
+      }
       const state = getState();
       const root = getRootId();
       const ids = shortcutIds(appId, root);
@@ -89,12 +114,24 @@
         refreshWindows();
         return false;
       }
+      saveInFlight = true;
+      const removed = ids.map(id => [id, state.fs[id]]);
       ids.forEach(id => delete state.fs[id]);
-      saveState();
-      renderAllFileSurfaces();
-      refreshWindows();
-      toast("Приложение удалено", app.name);
-      return true;
+      try {
+        await Promise.resolve(saveState());
+        renderAllFileSurfaces();
+        refreshWindows();
+        toast("Приложение удалено", app.name);
+        return true;
+      } catch (error) {
+        removed.forEach(([id, item]) => { state.fs[id] = item; });
+        renderAllFileSurfaces();
+        refreshWindows();
+        toast("Приложение не удалено", error?.message || "Не удалось сохранить изменения.");
+        return false;
+      } finally {
+        saveInFlight = false;
+      }
     }
 
     return Object.freeze({ entries, shortcutIds, isInstalled, install, uninstall });

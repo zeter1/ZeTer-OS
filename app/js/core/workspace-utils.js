@@ -28,6 +28,43 @@
   const DEFAULT_DESKTOP_ID = "desktop";
   const DEFAULT_DESKTOP_NAME = "\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0439";
 
+  function normalizeWorkspaceAutomations(value) {
+    const automationUtils = window.ZETER_AUTOMATION_UTILS;
+    return automationUtils?.normalizeAutomations
+      ? automationUtils.normalizeAutomations(value)
+      : (Array.isArray(value) ? value : []);
+  }
+
+  function normalizeWorkspaceAutomationCategories(value) {
+    return window.ZETER_AUTOMATION_UTILS?.normalizeAutomationCategories?.(value) || [];
+  }
+
+  function normalizeWorkspaceAutomationRuntime(value) {
+    const automationUtils = window.ZETER_AUTOMATION_UTILS;
+    return automationUtils?.normalizeAutomationRuntime
+      ? automationUtils.normalizeAutomationRuntime(value)
+      : (value && typeof value === "object" && !Array.isArray(value) ? value : {
+        paused: false,
+        baselineSeeded: false,
+        knownFileIds: [],
+        queue: [],
+        history: [],
+        checkpoints: [],
+        rateLog: []
+      });
+  }
+
+  function normalizeWorkspaceObjectLinks(value, state = null, workspace = null) {
+    const objectLinkUtils = window.ZETER_OBJECT_LINK_UTILS;
+    let links = objectLinkUtils?.normalizeObjectLinks
+      ? objectLinkUtils.normalizeObjectLinks(value)
+      : (Array.isArray(value) ? value : []);
+    if (state && objectLinkUtils?.pruneBrokenObjectLinks) {
+      links = objectLinkUtils.pruneBrokenObjectLinks(links, state, workspace || {});
+    }
+    return links;
+  }
+
   function workspaceDefaults(seed = {}) {
     const source = seed && typeof seed === "object" ? seed : {};
     return {
@@ -37,6 +74,10 @@
       activeTaskProjectId: source.activeTaskProjectId || null,
       events: normalizeCalendarEvents(source.events),
       notifications: normalizeNotifications(source.notifications),
+      automations: normalizeWorkspaceAutomations(source.automations),
+      automationCategories: normalizeWorkspaceAutomationCategories(source.automationCategories),
+      automationRuntime: normalizeWorkspaceAutomationRuntime(source.automationRuntime),
+      objectLinks: normalizeWorkspaceObjectLinks(source.objectLinks),
       expandedExplorerFolders: Array.isArray(source.expandedExplorerFolders) ? source.expandedExplorerFolders : [],
       openWindows: Array.isArray(source.openWindows) ? source.openWindows.slice(0, OPEN_WINDOWS_MAX) : [],
       noteStickies: Array.isArray(source.noteStickies) ? source.noteStickies : [],
@@ -61,6 +102,14 @@
     normalizeTaskStore(workspace);
     workspace.events = normalizeCalendarEvents(Array.isArray(workspace.events) ? workspace.events : (Array.isArray(legacy.events) ? legacy.events : []));
     workspace.notifications = normalizeNotifications(Array.isArray(workspace.notifications) ? workspace.notifications : (Array.isArray(legacy.notifications) ? legacy.notifications : []));
+    workspace.automations = normalizeWorkspaceAutomations(Array.isArray(workspace.automations) ? workspace.automations : legacy.automations);
+    workspace.automationCategories = normalizeWorkspaceAutomationCategories(workspace.automationCategories ?? legacy.automationCategories);
+    workspace.automationRuntime = normalizeWorkspaceAutomationRuntime(workspace.automationRuntime || legacy.automationRuntime);
+    workspace.objectLinks = normalizeWorkspaceObjectLinks(
+      Array.isArray(workspace.objectLinks) ? workspace.objectLinks : legacy.objectLinks,
+      options.state,
+      workspace
+    );
     workspace.expandedExplorerFolders = Array.isArray(workspace.expandedExplorerFolders) ? workspace.expandedExplorerFolders : [];
     workspace.openWindows = Array.isArray(workspace.openWindows) ? workspace.openWindows.slice(0, OPEN_WINDOWS_MAX) : [];
     workspace.noteStickies = Array.isArray(workspace.noteStickies) ? workspace.noteStickies : [];
@@ -113,7 +162,11 @@
           taskProjects: state.taskProjects,
           activeTaskProjectId: state.activeTaskProjectId,
           events: state.events,
-          notifications: state.notifications
+          notifications: state.notifications,
+          automations: state.automations,
+          automationCategories: state.automationCategories,
+          automationRuntime: state.automationRuntime,
+          objectLinks: state.objectLinks
         }
         : {};
       desk.data = normalizeWorkspaceData(desk.data || {}, legacySeed, {
@@ -139,6 +192,10 @@
     target.activeTaskProjectId = data.activeTaskProjectId;
     target.events = data.events;
     target.notifications = data.notifications;
+    target.automations = data.automations;
+    target.automationCategories = data.automationCategories;
+    target.automationRuntime = data.automationRuntime;
+    target.objectLinks = data.objectLinks;
     return target;
   }
 
@@ -182,6 +239,10 @@
     desk.data.tasks = Array.isArray(desk.data.tasks) ? desk.data.tasks : [];
     desk.data.taskProjects = Array.isArray(desk.data.taskProjects) ? desk.data.taskProjects : [];
     desk.data.events = normalizeCalendarEvents(desk.data.events);
+    desk.data.automations = normalizeWorkspaceAutomations(desk.data.automations);
+    desk.data.automationCategories = normalizeWorkspaceAutomationCategories(desk.data.automationCategories);
+    desk.data.automationRuntime = normalizeWorkspaceAutomationRuntime(desk.data.automationRuntime);
+    desk.data.objectLinks = normalizeWorkspaceObjectLinks(desk.data.objectLinks, target, desk.data);
     return desk.data;
   }
 
@@ -209,8 +270,9 @@
     }
 
     function currentWorkspace() {
+      const state = getState();
       const desk = currentDesktopRecord();
-      desk.data = normalizeWorkspaceData(desk.data || {});
+      desk.data = normalizeWorkspaceData(desk.data || {}, {}, { state, desktopId: desk.id });
       return desk.data;
     }
 
@@ -416,6 +478,13 @@
         main.data.tasks = [...(main.data.tasks || []), ...(desktop.data.tasks || [])];
         main.data.events = [...(main.data.events || []), ...(desktop.data.events || [])];
         main.data.notifications = [...(main.data.notifications || []), ...(desktop.data.notifications || [])];
+        main.data.automations = normalizeWorkspaceAutomations([...(main.data.automations || []), ...(desktop.data.automations || [])]);
+        main.data.automationCategories = normalizeWorkspaceAutomationCategories([...(main.data.automationCategories || []), ...(desktop.data.automationCategories || [])]);
+        main.data.objectLinks = normalizeWorkspaceObjectLinks(
+          [...(main.data.objectLinks || []), ...(desktop.data.objectLinks || [])],
+          state,
+          main.data
+        );
       }
 
       state.desktops = state.desktops.filter(item => item.id !== id);

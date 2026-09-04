@@ -95,6 +95,25 @@ assert.deepEqual(calendarState, { view: "month", date: "2026-07-15", selected: "
 controller.handleTopMenuAction("monitor");
 assert.deepEqual(opened, ["calendar", "monitor"], "top monitor action must open the system monitor");
 
+elements["#notification-center"].classList.add("hidden");
+let implicitReadCalls = 0;
+let notificationRenders = 0;
+const notificationController = sandbox.window.ZETER_SHELL_UI_UTILS.createShellRuntimeController({
+  documentRef: {},
+  windowRef: sandbox.window,
+  navigatorRef: {},
+  locationRef: { protocol: "file:" },
+  globalSearchOverlay: { close() {} },
+  markNotificationsRead() { implicitReadCalls += 1; },
+  renderNotifications() { notificationRenders += 1; },
+  setInterval() { return 1; },
+  setTimeout() { return 1; }
+});
+notificationController.togglePanel("notifications");
+assert.equal(implicitReadCalls, 0, "opening the notification center must preserve unread status for the explicit bulk action");
+assert.equal(notificationRenders, 1);
+assert.equal(elements["#notification-center"].classList.contains("hidden"), false);
+
 let visualSaves = 0;
 const visualDocument = {
   body: fakeElement(),

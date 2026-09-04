@@ -1,4 +1,4 @@
-const ZETER_CACHE = "zeter-os-3.97";
+const ZETER_CACHE = "zeter-os-4.00";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -47,6 +47,10 @@ const ZETER_ASSETS = [
   "./js/core/file-template-utils.js",
   "./js/core/rich-text-utils.js",
   "./js/core/markdown-utils.js",
+  "./js/core/automation-utils.js",
+  "./js/core/automation-ui-utils.js",
+  "./js/core/object-link-utils.js",
+  "./js/core/object-link-ui-utils.js",
   "./js/core/editor-ui-utils.js",
   "./js/core/data-normalizers.js",
   "./js/core/workspace-utils.js",
