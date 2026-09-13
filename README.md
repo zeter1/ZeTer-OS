@@ -1,123 +1,148 @@
 # ZeTer OS
 
-**Hybrid desktop productivity application built with Python, pywebview, HTML, CSS and JavaScript.**
+**Гибридная настольная система для Windows на Python, pywebview, HTML, CSS и JavaScript.**
 
-ZeTer OS is a personal desktop workspace for Windows with multiple workspaces, notes, tasks, calendar data, files, tables, images, settings, backups and restore tools. The UI is implemented as a modular web frontend and is hosted inside a Python desktop shell through `pywebview`.
+**ZeTer OS** — персональное рабочее пространство для организации повседневных задач, заметок, календаря, файлов, таблиц, изображений и другой рабочей информации в одном приложении. Интерфейс реализован как модульный веб-фронтенд и запускается внутри настольной Python-оболочки через `pywebview`.
 
-## Highlights
+Проект ориентирован на локальную работу с данными, удобное восстановление, резервное копирование и понятную модульную архитектуру, которую удобно развивать вручную и с помощью AI-инструментов вроде ChatGPT и Codex.
 
-- Multiple desktop workspaces with persistent state
-- Notes, tasks, calendar, tables, files and image-oriented tools
-- Python ↔ JavaScript native bridge through pywebview
-- Local data storage in a dedicated `data/` directory
-- Windows-readable exports for important user content
-- Backups, restore points and recovery-oriented data handling
-- Per-user Windows autostart support without administrator rights
-- Portable release builder that excludes user data and development artifacts
-- Modular JavaScript core with documented ownership and dependencies
-- Automated structural validation and scenario smoke tests
+## Основные возможности
 
-## Architecture
+- несколько независимых рабочих пространств с сохранением состояния;
+- заметки, задачи, календарь, таблицы, файлы и инструменты для работы с изображениями;
+- локальное хранение пользовательских данных;
+- интеграция Python ↔ JavaScript через нативный мост `pywebview`;
+- экспорт важной пользовательской информации в привычные Windows-форматы;
+- резервные копии, точки восстановления и инструменты восстановления данных;
+- поддержка автозапуска в Windows без необходимости прав администратора;
+- сборка переносимой portable-версии;
+- модульная JavaScript-архитектура с документированными зонами ответственности;
+- автоматическая проверка структуры проекта и сценарные smoke-тесты.
+
+## Для чего создан ZeTer OS
+
+ZeTer OS задуман как единое локальное рабочее пространство, в котором можно хранить и организовывать важную информацию без необходимости постоянно переключаться между множеством отдельных приложений.
+
+Основная идея проекта — объединить в одном интерфейсе несколько повседневных инструментов и при этом сохранить локальность данных, возможность резервного копирования и удобство дальнейшего развития программы.
+
+## Архитектура проекта
 
 ```text
 ZeTer OS
-├── run_zeter_os.py          # Python desktop entry point / native bridge
-├── app/                     # HTML/CSS/JavaScript application
+├── run_zeter_os.py          # Python-точка входа и нативный мост
+├── app/                     # HTML/CSS/JavaScript-приложение
 │   ├── index.html
 │   ├── css/
 │   └── js/
-│       ├── app.js           # composition root
-│       └── core/            # feature and domain modules
-├── docs/                    # architecture, data model and maintenance docs
-├── tools/                   # validation, documentation and smoke-test tooling
-├── build_release.cmd        # portable release builder
-└── check_project.cmd        # full project verification
+│       ├── app.js           # корневая композиция приложения
+│       └── core/            # функциональные и доменные модули
+├── docs/                    # документация по архитектуре и данным
+├── tools/                   # проверки, документация и smoke-тесты
+├── build_release.cmd        # сборка portable-релиза
+└── check_project.cmd        # полная проверка проекта
 ```
 
-The frontend is intentionally split into focused core modules while `app/js/app.js` remains the composition root for application state, DOM wiring, startup, persistence, windows and native adapters.
+Фронтенд намеренно разделён на небольшие специализированные модули. Файл `app/js/app.js` остаётся центральной точкой композиции, которая связывает состояние приложения, DOM, запуск, сохранение данных, окна и нативные адаптеры.
 
-## Data and reliability
+## Данные и надёжность
 
-When launched through Python, ZeTer OS stores its working state in `data/` next to the application. This directory is intentionally excluded from Git because it contains user-specific state and generated files.
+При запуске через Python ZeTer OS хранит рабочее состояние в каталоге `data/` рядом с приложением. Эта папка не включается в Git, так как содержит пользовательские данные и создаваемые программой файлы.
 
-The application also maintains Windows-readable copies of important content, including formats such as DOCX, CSV and ICS, and supports backups and restore points. Release builds intentionally exclude `data/`, logs, Git metadata and development-only files.
+Для важных данных приложение также может формировать копии в привычных форматах, включая:
 
-## Requirements
+- `DOCX`;
+- `CSV`;
+- `ICS`.
 
-- Windows
-- Python 3
-- `pywebview >= 5.0`
-- Node.js is recommended for the full JavaScript verification suite
+Проект поддерживает резервное копирование и точки восстановления. Portable-сборки специально формируются без пользовательских данных, логов, Git-метаданных и файлов, нужных только для разработки.
 
-Install Python dependencies:
+## Системные требования
+
+- Windows;
+- Python 3;
+- `pywebview >= 5.0`;
+- Node.js рекомендуется для полного набора JavaScript-проверок.
+
+Установка Python-зависимостей:
 
 ```powershell
 py -3 -m pip install -r requirements.txt
 ```
 
-Run the application:
+## Запуск
+
+Через Python:
 
 ```powershell
 py -3 run_zeter_os.py
 ```
 
-or use:
+или через готовый командный файл:
 
 ```text
 start_zeter_os.cmd
 ```
 
-## Validation
+## Проверка проекта
 
-The repository contains its own structural checks and smoke-test suite.
+В репозитории есть собственный набор структурных проверок и smoke-тестов.
 
-Python/project checks:
+Проверка Python и структуры проекта:
 
 ```powershell
 python tools/check_project.py
 ```
 
-JavaScript scenario smoke suite:
+Сценарные JavaScript smoke-тесты:
 
 ```powershell
 node tools/run_smokes.js
 ```
 
-Full Windows verification:
+Полная проверка в Windows:
 
 ```powershell
 .\check_project.cmd --strict-node --no-pause
 ```
 
-On the source snapshot published here, the project checker reports **111 checks passed, 0 warnings and 0 failures**, and the scenario smoke suite passes successfully.
+Для опубликованного состояния проекта встроенный проверяющий инструмент сообщает **111 успешно пройденных проверок, 0 предупреждений и 0 ошибок**, а сценарный smoke-набор также завершается успешно.
 
-## Documentation
+## Документация
 
-The `docs/` directory contains detailed project documentation, including:
+Каталог `docs/` содержит подробную документацию по проекту, в том числе:
 
-- architecture and module ownership;
-- data model and state lifecycle;
-- Python/native bridge contracts;
-- frontend workflow and editing guidance;
-- testing and troubleshooting;
-- UI contracts and scenario maps.
+- архитектуру и зоны ответственности модулей;
+- модель данных и жизненный цикл состояния;
+- контракты Python/native bridge;
+- правила работы с фронтендом;
+- тестирование и диагностику проблем;
+- UI-контракты и карты сценариев.
 
-`AGENTS.md` contains repository-specific rules for AI-assisted development and verification.
+Файл `AGENTS.md` содержит отдельные правила для разработки и проверки проекта с помощью AI-инструментов.
 
-## Portable release
+## Portable-сборка
 
-A clean portable ZIP can be built with:
+Чистую переносимую ZIP-сборку можно создать командой:
 
 ```text
 build_release.cmd
 ```
 
-The release builder validates the archive, checks extraction into Windows-style paths and excludes user data and development artifacts.
+Сборщик проверяет содержимое архива, тестирует распаковку в Windows-пути и исключает пользовательские данные и служебные файлы разработки.
 
-## Project status
+## Особенности проекта
 
-This is an actively developed personal project used to explore reliable desktop application architecture, local-first data handling, Windows integration and AI-assisted software engineering.
+- локальная работа без обязательного облачного хранилища;
+- единое рабочее пространство вместо множества разрозненных инструментов;
+- модульная архитектура, рассчитанная на дальнейшее расширение;
+- отдельные механизмы резервного копирования и восстановления;
+- проверки, уменьшающие риск поломки проекта после изменений;
+- структура, удобная для разработки с ChatGPT и Codex.
 
-## License
+## Статус проекта
 
-No open-source license is currently granted. The source code is published for portfolio and code-review purposes.
+ZeTer OS — активно развиваемый персональный проект, посвящённый созданию надёжного локального desktop-приложения, работе с пользовательскими данными, интеграции с Windows и AI-assisted разработке программного обеспечения.
+
+## Лицензия
+
+В настоящий момент проект не распространяется по открытой лицензии. Исходный код опубликован в качестве портфолио и для ознакомления с реализацией проекта.
