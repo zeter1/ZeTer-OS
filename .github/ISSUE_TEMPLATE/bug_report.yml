@@ -1,0 +1,83 @@
+name: Сообщить об ошибке
+description: Сообщение о проблеме ZeTer OS
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за сообщение. Укажите, где воспроизводится проблема: в desktop-версии или веб-версии.
+        Перед публикацией данных приложения, backup-файлов или логов проверьте, что они не содержат личные заметки, задачи, файлы или другие пользовательские данные.
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Где возникла проблема
+      options:
+        - Desktop-версия (pywebview)
+        - Веб-версия
+        - В обеих версиях
+        - Не уверен
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Версия/ревизия проекта
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Окружение
+      description: Windows / браузер / версия Python, если это относится к проблеме.
+      placeholder: "например: Windows 11 24H2, Python 3.13"
+
+  - type: input
+    id: module
+    attributes:
+      label: Раздел приложения
+      placeholder: "например: заметки, календарь, файлы, таблицы"
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Что произошло
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести
+      placeholder: |
+        1. Открыть ...
+        2. Нажать ...
+        3. Ввести ...
+        4. Получить ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое поведение
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Диагностика
+      description: Приложите безопасный фрагмент лога или описание ошибки. Не публикуйте рабочее состояние/backup, если там есть личные данные.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Проверки
+      options:
+        - label: Я проверил проблему на текущей версии проекта.
+          required: true
+        - label: Я сделал резервную копию важных данных перед экспериментами с восстановлением.
+          required: false
