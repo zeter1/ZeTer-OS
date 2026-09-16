@@ -11,6 +11,7 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,6 +23,7 @@ concurrency:
 jobs:
   verify:
     runs-on: windows-latest
+    timeout-minutes: 25
     env:
       PYTHONUTF8: "1"
       PYTHONIOENCODING: "utf-8"
@@ -41,7 +43,22 @@ jobs:
           package-manager-cache: false
 
       - name: Compile Python sources
-        run: python -m compileall -q run_zeter_os.py problem_logs.py tools
+        run: python -m compileall -q run_zeter_os.py problem_logs.py tools build_support
 
       - name: Run full project verification
         run: python tools/check_project.py --strict-node
+
+      - name: Build and smoke-test native EXE
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package]'))
+        shell: cmd
+        run: build_exe.bat --ci
+
+      - name: Verify packaged native distribution
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package]'))
+        shell: pwsh
+        run: |
+          $exe = 'dist\ZeTer-OS\ZeTer-OS.exe'
+          if (-not (Test-Path $exe)) { throw 'ZeTer OS EXE was not created' }
+          if (-not (Test-Path 'dist\ZeTer-OS\app\index.html')) { throw 'Packaged app/index.html is missing' }
+          if (-not (Test-Path 'dist\ZeTer-OS\app\js\core\version.js')) { throw 'Packaged version.js is missing' }
+          Get-Item $exe | Format-List Name,Length,LastWriteTime

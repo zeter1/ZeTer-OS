@@ -1,4 +1,4 @@
-﻿# Пользовательские данные ZeTer OS
+# Пользовательские данные ZeTer OS
 /data/
 
 # Runtime-журналы проблем; инструкция для CODEX остаётся в проекте и релизе
@@ -30,6 +30,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 /.venv/
+/.build-venv/
 /venv/
 .pytest_cache/
 .mypy_cache/
@@ -51,6 +52,7 @@ pnpm-debug.log*
 /dist/
 /ZeTer OS.zip
 *.exe
+*.spec
 
 # Временная рабочая область, файлы редакторов и логи
 /work/
