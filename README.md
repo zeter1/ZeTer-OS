@@ -8,6 +8,15 @@
 
 🌐 **Веб-версия:** https://dkl.do.am/portfolio/ZeTerOS/index.html
 
+## Скачать готовую Windows-версию
+
+Готовая desktop-версия с **`ZeTer-OS.exe`** публикуется на странице [GitHub Releases](https://github.com/zeter1/ZeTer-OS/releases) в portable-архиве `ZeTer-OS-Windows-x64.zip`.
+
+Распакуйте архив целиком и запускайте `ZeTer-OS.exe`. Устанавливать Python и зависимости проекта отдельно не нужно: они входят в portable-дистрибутив. Рядом с ZIP публикуется SHA-256.
+
+> Не вынимайте один EXE из папки дистрибутива: `ZeTer-OS` использует соседние runtime-файлы и web-слой. Для desktop-интерфейса также требуется Microsoft Edge WebView2 Runtime; на современных Windows 10/11 он обычно уже установлен.
+
+
 ## Что демонстрирует проект
 
 - гибридную desktop-архитектуру Python + HTML/CSS/JavaScript;
