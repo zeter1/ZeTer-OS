@@ -6,6 +6,101 @@
 
   const { $, $$, parseISO, escapeHtml } = coreUtils;
 
+  function desktopDeletionDialogHTML(model) {
+    return `<section class="desktop-delete-dialog" data-desktop-delete-dialog role="dialog" aria-modal="true" aria-labelledby="desktop-delete-title" aria-describedby="desktop-delete-warning">
+      <header><span class="desktop-delete-eyebrow">Управление рабочими столами</span><h2 id="desktop-delete-title">Удалить «${escapeHtml(model.name)}»?</h2></header>
+      <div class="desktop-delete-body">
+        <div class="desktop-delete-warning" id="desktop-delete-warning"><b>Выбранные данные будут удалены без корзины.</b><p>Отметьте только то, что хотите безвозвратно удалить из текущего состояния ZeTer OS. Невыбранные данные останутся в архиве в папке данных. На основной рабочий стол они не переносятся.</p></div>
+        <p class="desktop-delete-scope">Существующие резервные копии сохраняются. Внешние файлы, папки Windows и сайты по сохранённым адресам остаются нетронутыми.</p>
+        <div class="desktop-delete-groups">${model.groups.map(group => `<label class="desktop-delete-group"><input type="checkbox" value="${escapeHtml(group.id)}"><span><b>${escapeHtml(group.label)}</b><small>${escapeHtml(group.detail)}</small></span><strong class="desktop-delete-count" aria-label="Количество записей">${group.count}</strong></label>`).join("")}</div>
+        <p class="desktop-delete-profile"><b>Из оболочки удаляются:</b> сам рабочий стол и его открытые окна. Сохранённые группы остаются в архиве вместе с исходными идентификаторами и настройками; автоматизация из архива не запускается. Связи с выбранными для удаления данными могут стать недоступными.</p>
+        <p class="desktop-delete-scope">В Windows архив хранится в data/Архив рабочих столов и в основном файле данных. В браузере — в его локальном хранилище. До удаления можно скачать ZIP со всеми данными этого стола, независимо от галочек.</p>
+      </div>
+      <footer><p data-desktop-delete-summary aria-live="polite">Все группы сохранятся в архиве данных.</p><p data-desktop-delete-download-status aria-live="polite"></p><p class="desktop-delete-error" data-desktop-delete-error role="alert" hidden></p><div class="desktop-delete-actions"><button type="button" class="btn" data-desktop-delete-download>Скачать все данные стола</button><button type="button" class="btn" data-desktop-delete-cancel>Отмена</button><button type="button" class="btn danger" data-desktop-delete-confirm>Удалить рабочий стол</button></div></footer>
+    </section>`;
+  }
+
+  function showDesktopDeletionDialog(model, execute, options = {}) {
+    const doc = options.document || document;
+    if (doc.querySelector("[data-desktop-delete-dialog]")) return Promise.resolve(false);
+    const overlay = doc.createElement("div");
+    overlay.className = "desktop-delete-overlay";
+    overlay.innerHTML = desktopDeletionDialogHTML(model);
+    const previousFocus = doc.activeElement;
+    doc.body.appendChild(overlay);
+    const cancel = overlay.querySelector("[data-desktop-delete-cancel]");
+    const confirm = overlay.querySelector("[data-desktop-delete-confirm]");
+    const download = overlay.querySelector("[data-desktop-delete-download]");
+    const error = overlay.querySelector("[data-desktop-delete-error]");
+    const inputs = [...overlay.querySelectorAll('input[type="checkbox"]')];
+    let busy = false;
+    return new Promise(resolve => {
+      const close = result => {
+        doc.removeEventListener("keydown", keydown, true);
+        overlay.remove();
+        if (previousFocus?.isConnected) previousFocus.focus();
+        resolve(result);
+      };
+      const keydown = event => {
+        if (event.key === "Escape") {
+          event.preventDefault(); event.stopImmediatePropagation();
+          if (!busy) close(false);
+        } else if (event.key === "Tab") {
+          const focusable = [...overlay.querySelectorAll("input, button")].filter(element => !element.disabled);
+          if (!focusable.length) { event.preventDefault(); return; }
+          const first = focusable[0], last = focusable.at(-1);
+          if (event.shiftKey && (doc.activeElement === first || !overlay.contains(doc.activeElement))) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && (doc.activeElement === last || !overlay.contains(doc.activeElement))) { event.preventDefault(); first.focus(); }
+        }
+      };
+      doc.addEventListener("keydown", keydown, true);
+      cancel.addEventListener("click", () => { if (!busy) close(false); });
+      overlay.addEventListener("click", event => { if (event.target === overlay && !busy) close(false); });
+      inputs.forEach(input => input.addEventListener("change", () => {
+        const selected = inputs.filter(element => element.checked).map(element => element.value);
+        const count = model.groups.filter(group => selected.includes(group.id)).reduce((sum, group) => sum + group.count, 0);
+        overlay.querySelector("[data-desktop-delete-summary]").textContent = selected.length ? `Удалить записей: ${count}. Остальные группы сохранить в архиве данных.` : "Все группы сохранятся в архиве данных.";
+      }));
+      download.addEventListener("click", async () => {
+        if (busy) return;
+        busy = true; error.hidden = true;
+        [...inputs, cancel, confirm, download].forEach(element => { element.disabled = true; });
+        const status = overlay.querySelector("[data-desktop-delete-download-status]");
+        status.textContent = "Подготовка архива…";
+        try {
+          const result = await options.download?.();
+          if (result?.ok !== true) throw new Error(result?.error || "Не удалось скачать архив рабочего стола.");
+          status.textContent = result.cancelled ? "Сохранение архива отменено. Рабочий стол не удалён." : result.browser ? "Архив передан в загрузки браузера. Проверьте скачанный ZIP перед удалением." : "Архив сохранён. Рабочий стол пока не удалён.";
+        } catch (failure) {
+          status.textContent = ""; error.textContent = failure?.message || String(failure); error.hidden = false;
+        } finally {
+          busy = false;
+          [...inputs, cancel, confirm, download].forEach(element => { element.disabled = false; });
+          cancel.focus();
+        }
+      });
+      confirm.addEventListener("click", async () => {
+        if (busy) return;
+        busy = true; error.hidden = true;
+        [...inputs, cancel, confirm, download].forEach(element => { element.disabled = true; });
+        confirm.textContent = "Сохранение…";
+        try {
+          const result = await execute(inputs.filter(input => input.checked).map(input => input.value));
+          if (result === true) { close(true); return; }
+          throw new Error("Удаление не подтверждено.");
+        } catch (failure) {
+          error.textContent = failure?.message || String(failure); error.hidden = false;
+        } finally {
+          busy = false;
+          [...inputs, cancel, confirm, download].forEach(element => { element.disabled = false; });
+          confirm.textContent = "Удалить рабочий стол";
+          if (overlay.isConnected) cancel.focus();
+        }
+      });
+      cancel.focus();
+    });
+  }
+
   function formatDate(iso, full = false) {
     const d = typeof iso === "string" ? parseISO(iso) : iso;
     return d.toLocaleDateString("ru-RU", full
@@ -512,6 +607,8 @@
       });
       bindDesktopSelectionBox();
       documentRef.addEventListener("keydown", event => {
+        // Modal controls retain their native Enter/Space behavior; the shell stays idle.
+        if (documentRef.querySelector?.("[data-desktop-delete-dialog]")) return;
         const targetElement = ElementCtor && event.target instanceof ElementCtor ? event.target : null;
         if (event.altKey && event.key === "Tab") { event.preventDefault(); cycleWindows(event.shiftKey); return; }
         if (event.key === "Escape") closeFloating();
@@ -593,6 +690,8 @@
     formatDate,
     updateClock,
     toast,
+    desktopDeletionDialogHTML,
+    showDesktopDeletionDialog,
     createRunningTaskbarButton,
     createPinnedTaskbarButton,
     createTaskbarController,

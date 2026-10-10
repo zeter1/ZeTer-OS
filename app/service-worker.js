@@ -1,4 +1,5 @@
-const ZETER_CACHE = "zeter-os-4.00";
+const ZETER_CACHE_REVISION = "links-10";
+const ZETER_CACHE = "zeter-os-4.0.1-links-10";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -20,6 +21,9 @@ const ZETER_ASSETS = [
   "./js/core/utils.js",
   "./js/core/system-settings-utils.js",
   "./js/core/shortcut-utils.js",
+  "./js/core/link-library-utils.js",
+  "./js/core/link-library-ui-utils.js",
+  "./css/65-link-library.css",
   "./js/core/shell-ui-utils.js",
   "./js/core/first-run-ui-utils.js",
   "./js/core/context-menu-ui-utils.js",

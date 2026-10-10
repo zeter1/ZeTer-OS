@@ -263,12 +263,16 @@
     const warn = typeof options.warn === "function" ? options.warn : () => {};
     const toast = typeof options.toast === "function" ? options.toast : () => {};
     let saveChain = Promise.resolve();
+    let transactionBarrier = null;
 
     function queue(queueOptions = {}) {
+      if (transactionBarrier && !queueOptions.transactionWrite) {
+        return transactionBarrier.then(() => queue(queueOptions));
+      }
       if (!writesAllowed()) {
         return Promise.resolve({ skipped: true, reason: "storage-not-loaded" });
       }
-      const snapshot = cloneState(getState());
+      const snapshot = cloneState(Object.prototype.hasOwnProperty.call(queueOptions, "snapshot") ? queueOptions.snapshot : getState());
       runtime.stateBytes = byteSize(JSON.stringify(snapshot));
       saveChain = saveChain
         .catch(() => {})
@@ -330,7 +334,21 @@
       return saveChain;
     }
 
-    return Object.freeze({ queue, pending: () => saveChain });
+    async function transaction(operation) {
+      if (transactionBarrier) return transactionBarrier.then(() => transaction(operation));
+      const prior = saveChain;
+      let release;
+      transactionBarrier = new Promise(resolve => { release = resolve; });
+      try {
+        await prior.catch(() => {});
+        return await operation(snapshot => queue({ snapshot, transactionWrite: true, silentStorageError: true }));
+      } finally {
+        transactionBarrier = null;
+        release();
+      }
+    }
+
+    return Object.freeze({ queue, transaction, barrier: () => transactionBarrier, pending: () => saveChain });
   }
 
   function createStorageStateRuntimeController(options = {}) {

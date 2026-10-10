@@ -5,7 +5,8 @@
   const visualUtils = window.ZETER_VISUAL_UTILS;
   const dataNormalizers = window.ZETER_DATA_NORMALIZERS;
   const windowSessionUtils = window.ZETER_WINDOW_SESSION_UTILS;
-  if (!config || !visualUtils || !dataNormalizers || !windowSessionUtils) {
+  const linkLibraryUtils = window.ZETER_LINK_LIBRARY_UTILS;
+  if (!config || !visualUtils || !dataNormalizers || !windowSessionUtils || !linkLibraryUtils) {
     throw new Error("ZeTer OS workspace utils require config, visual, data normalizer and window session modules.");
   }
 
@@ -78,6 +79,7 @@
       automationCategories: normalizeWorkspaceAutomationCategories(source.automationCategories),
       automationRuntime: normalizeWorkspaceAutomationRuntime(source.automationRuntime),
       objectLinks: normalizeWorkspaceObjectLinks(source.objectLinks),
+      library: linkLibraryUtils.normalizeLinkLibrary(source.library),
       expandedExplorerFolders: Array.isArray(source.expandedExplorerFolders) ? source.expandedExplorerFolders : [],
       openWindows: Array.isArray(source.openWindows) ? source.openWindows.slice(0, OPEN_WINDOWS_MAX) : [],
       noteStickies: Array.isArray(source.noteStickies) ? source.noteStickies : [],
@@ -110,6 +112,7 @@
       options.state,
       workspace
     );
+    workspace.library = linkLibraryUtils.normalizeLinkLibrary(workspace.library ?? legacy.library);
     workspace.expandedExplorerFolders = Array.isArray(workspace.expandedExplorerFolders) ? workspace.expandedExplorerFolders : [];
     workspace.openWindows = Array.isArray(workspace.openWindows) ? workspace.openWindows.slice(0, OPEN_WINDOWS_MAX) : [];
     workspace.noteStickies = Array.isArray(workspace.noteStickies) ? workspace.noteStickies : [];
@@ -154,6 +157,15 @@
     }
 
     state.desktops = state.desktops.map((desk, index) => normalizeDesktopRecord(desk, index));
+    // The short-lived shared format moves once to its original current desktop.
+    // Existing per-desktop data wins; retain a conflicting legacy library for recovery.
+    if (Object.hasOwn(state, "library")) {
+      const originalDesk = state.desktops.find(desk => desk.id === state.currentDesktop) || state.desktops[0];
+      originalDesk.data = originalDesk.data || {};
+      if (originalDesk.data.library == null) originalDesk.data.library = linkLibraryUtils.normalizeLinkLibrary(state.library);
+      else if (state.library != null && state.legacyLinkLibrary == null) state.legacyLinkLibrary = state.library;
+      delete state.library;
+    }
     state.desktops.forEach(desk => {
       const legacySeed = desk.id === DEFAULT_DESKTOP_ID
         ? {
@@ -381,12 +393,114 @@
     });
   }
 
+  const deletionClone = value => JSON.parse(JSON.stringify(value));
+  const deletionJSON = value => JSON.stringify(value ?? null);
+  const deletionArray = value => Array.isArray(value) ? value : [];
+
+  function desktopOwnedFileIds(state, id) {
+    const ids = new Set();
+    const explorerRoot = state.desktops?.find(desk => desk.id === id)?.data?.explorerRootId;
+    if (explorerRoot && state.fs?.[explorerRoot]) ids.add(explorerRoot);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      Object.entries(state.fs || {}).forEach(([key, item]) => {
+        if (!ids.has(key) && (item.parent === id || ids.has(item.parent))) { ids.add(key); changed = true; }
+      });
+    }
+    return ids;
+  }
+
+  function desktopDeletionSignature(state, id) {
+    return deletionJSON({
+      source: state.desktops?.find(desk => desk.id === id),
+      primary: state.desktops?.find(desk => desk.id === DEFAULT_DESKTOP_ID),
+      primaryRoot: state.fs?.[state.desktops?.find(desk => desk.id === DEFAULT_DESKTOP_ID)?.data?.explorerRootId],
+      files: [...desktopOwnedFileIds(state, id)].sort().map(key => [key, state.fs[key]])
+    });
+  }
+
+  function desktopDeletionModel(state, id) {
+    const desk = state.desktops?.find(item => item.id === id);
+    if (!desk || id === DEFAULT_DESKTOP_ID) return null;
+    const data = desk.data || {};
+    const length = value => deletionArray(value).length;
+    const runtime = data.automationRuntime || {};
+    return { id, name: desk.name, signature: desktopDeletionSignature(state, id), groups: [
+      { id: "files", label: "Виртуальные файлы, папки и документы приложений", count: desktopOwnedFileIds(state, id).size, detail: "Все вложенные объекты, ярлыки и скрытая структура Проводника. Адреса Windows и веб-сайты не удаляются." },
+      { id: "tasks", label: "Задачи и проекты", count: length(data.tasks) + length(data.taskProjects), detail: `${length(data.tasks)} задач · ${length(data.taskProjects)} проектов. Отдельные файлы со списками задач входят в группу файлов.` },
+      { id: "calendar", label: "События календаря", count: length(data.events), detail: "События и их напоминания в календаре этого рабочего стола." },
+      { id: "links", label: "Ссылки, категории и избранное", count: length(data.library?.entries) + length(data.library?.categories), detail: `${length(data.library?.entries)} ссылок · ${length(data.library?.categories)} категорий. Избранное хранится вместе со ссылкой.` },
+      { id: "automation", label: "Автоматизация и связи объектов", count: length(data.automations) + length(data.automationCategories) + length(data.objectLinks) + ["queue", "history", "checkpoints", "rateLog", "knownFileIds"].reduce((sum, key) => sum + length(runtime[key]), 0), detail: `${length(data.automations)} правил · ${length(data.automationCategories)} категорий · ${length(data.objectLinks)} связей; также очередь, история и служебные записи выполнения.` },
+      { id: "notifications", label: "Уведомления", count: length(data.notifications), detail: "Сохранённые уведомления этого рабочего стола." }
+    ] };
+  }
+
+  function desktopBackupSnapshot(state, id) {
+    const desktop = state.desktops?.find(desk => desk.id === id);
+    if (!desktop) throw new Error("Рабочий стол больше недоступен.");
+    return deletionClone({ desktop, fs: Object.fromEntries([...desktopOwnedFileIds(state, id)].map(key => [key, state.fs[key]])) });
+  }
+
+  function buildDesktopDeletionPlan(state, id, selected = [], options = {}) {
+    const before = deletionClone(state), candidate = deletionClone(state);
+    const remove = new Set(selected);
+    if ([...remove].some(key => !["files", "tasks", "calendar", "links", "automation", "notifications"].includes(key))) throw new Error("Некорректный выбор данных для удаления.");
+    const snapshot = desktopBackupSnapshot(candidate, id), data = snapshot.desktop.data;
+    const ids = desktopOwnedFileIds(candidate, id);
+    const fields = { tasks: ["tasks", "taskProjects", "activeTaskProjectId"], calendar: ["events"],
+      links: ["library"], automation: ["automations", "automationCategories", "automationRuntime", "objectLinks"], notifications: ["notifications"],
+      files: ["noteStickies", "openWindows", "expandedExplorerFolders", "explorerRootId"] };
+    remove.forEach(group => fields[group].forEach(key => { delete data[key]; }));
+    if (remove.has("files")) snapshot.fs = {};
+    const retained = desktopDeletionModel(before, id).groups.some(group => !remove.has(group.id) && group.count > 0);
+    let archive = null;
+    if (retained) {
+      const existing = new Set(deletionArray(candidate.archivedDesktops).map(entry => entry.id));
+      let archiveId = options.createId?.("archive") || `archive_${Date.now()}`;
+      while (existing.has(archiveId)) archiveId += "_2";
+      archive = { id: archiveId, archivedAt: new Date().toISOString(), ...snapshot };
+      candidate.archivedDesktops = [...deletionArray(candidate.archivedDesktops), archive];
+    }
+    // All owned objects leave the active filesystem. Only unchecked objects remain in the archive.
+    ids.forEach(key => delete candidate.fs[key]);
+    options.pruneReferences?.(candidate, ids);
+    candidate.desktops = candidate.desktops.filter(desk => desk.id !== id);
+    if (candidate.currentDesktop === id) candidate.currentDesktop = DEFAULT_DESKTOP_ID;
+    candidate.desktops.forEach(desk => {
+      desk.data.objectLinks = normalizeWorkspaceObjectLinks(desk.data.objectLinks, candidate, desk.data);
+      deletionArray(desk.data.notifications).forEach(item => {
+        if (item.taskDesktopId === id || ids.has(item.linkedObjectId) || ids.has(item.taskListItemId)) {
+          item.detachedSource = item.detachedSource || item.source; item.source = "system";
+          for (const key of ["action", "taskId", "taskProjectId", "taskListItemId", "taskDesktopId", "calendarEventId", "linkedObjectKind", "linkedObjectId"]) delete item[key];
+        }
+      });
+    });
+    syncLegacyWorkspaceAliases(candidate);
+    const dataPatches = candidate.desktops.flatMap(desk => {
+      const previous = before.desktops.find(item => item.id === desk.id)?.data || {};
+      return Object.keys(desk.data).filter(key => deletionJSON(previous[key]) !== deletionJSON(desk.data[key])).map(key => ({ id: desk.id, key, before: previous[key], after: desk.data[key] }));
+    });
+    const historyChanged = deletionJSON(before.actionHistory) !== deletionJSON(candidate.actionHistory);
+    const matches = target => deletionJSON(target.archivedDesktops) === deletionJSON(before.archivedDesktops)
+      && dataPatches.every(patch => deletionJSON(target.desktops.find(desk => desk.id === patch.id)?.data?.[patch.key]) === deletionJSON(patch.before))
+      && (!historyChanged || deletionJSON(target.actionHistory) === deletionJSON(before.actionHistory));
+    return { candidate, removedIds: ids, matches, publish(target) {
+      ids.forEach(key => delete target.fs[key]);
+      dataPatches.forEach(patch => { target.desktops.find(desk => desk.id === patch.id).data[patch.key] = patch.after; });
+      if (historyChanged) target.actionHistory = candidate.actionHistory;
+      if (archive) target.archivedDesktops = [...deletionArray(target.archivedDesktops), archive];
+      target.desktops = target.desktops.filter(desk => desk.id !== id);
+      syncLegacyWorkspaceAliases(target);
+    } };
+  }
+
   function createVirtualDesktopController(options = {}) {
     const getState = typeof options.getState === "function" ? options.getState : () => ({});
     const ensureDesktops = typeof options.ensureDesktops === "function" ? options.ensureDesktops : () => {};
     const createId = typeof options.createId === "function" ? options.createId : () => `desktop_${Date.now()}`;
     const requestName = typeof options.requestName === "function" ? options.requestName : () => "";
-    const confirmDelete = typeof options.confirmDelete === "function" ? options.confirmDelete : () => false;
+    const requestDeletion = typeof options.requestDeletion === "function" ? options.requestDeletion : async () => false;
     const addDesktopShortcut = typeof options.addDesktopShortcut === "function" ? options.addDesktopShortcut : () => null;
     const ensureWorkspaceExplorerRoot = typeof options.ensureWorkspaceExplorerRoot === "function" ? options.ensureWorkspaceExplorerRoot : () => null;
     const createWorkspaceSystemFolders = typeof options.createWorkspaceSystemFolders === "function" ? options.createWorkspaceSystemFolders : () => {};
@@ -452,54 +566,58 @@
       return true;
     }
 
-    function remove(id) {
-      const state = getState();
-      ensureDesktops();
+    async function remove(id) {
       if (id === DEFAULT_DESKTOP_ID) {
         toast("Нельзя удалить", "Основной рабочий стол нужен системе.");
         return false;
       }
-      const desktop = state.desktops.find(item => item.id === id);
-      if (!desktop) return false;
-      if (!confirmDelete(`Удалить рабочий стол «${desktop.name}»? Его файлы будут перенесены на основной рабочий стол.`)) return false;
-
-      const moved = Object.values(state.fs || {}).filter(item => item.parent === id);
-      moved.forEach((item, index) => {
-        item.parent = DEFAULT_DESKTOP_ID;
-        const position = findFreeDesktopPosition(DEFAULT_DESKTOP_ID, 80 + index * 24, 80 + index * 24, item.id);
-        item.x = position.x;
-        item.y = position.y;
-        item.updatedAt = now();
-      });
-
-      const main = state.desktops.find(item => item.id === DEFAULT_DESKTOP_ID);
-      if (main && desktop.data) {
-        main.data = main.data || workspaceDefaults();
-        main.data.tasks = [...(main.data.tasks || []), ...(desktop.data.tasks || [])];
-        main.data.events = [...(main.data.events || []), ...(desktop.data.events || [])];
-        main.data.notifications = [...(main.data.notifications || []), ...(desktop.data.notifications || [])];
-        main.data.automations = normalizeWorkspaceAutomations([...(main.data.automations || []), ...(desktop.data.automations || [])]);
-        main.data.automationCategories = normalizeWorkspaceAutomationCategories([...(main.data.automationCategories || []), ...(desktop.data.automationCategories || [])]);
-        main.data.objectLinks = normalizeWorkspaceObjectLinks(
-          [...(main.data.objectLinks || []), ...(desktop.data.objectLinks || [])],
-          state,
-          main.data
-        );
-      }
-
-      state.desktops = state.desktops.filter(item => item.id !== id);
-      if (state.currentDesktop === id) {
-        state.currentDesktop = DEFAULT_DESKTOP_ID;
-        clearRuntimeWindows();
-        restoreWindows();
-      }
-      applySettings();
-      saveState();
-      renderDesktop();
-      renderStart();
-      renderNotifications();
-      toast("Рабочий стол удалён", `Файлы перенесены: ${moved.length}`);
-      return true;
+      const model = desktopDeletionModel(getState(), id);
+      if (!model) return false;
+      const run = operation => options.queueMutation ? options.queueMutation(operation) : operation();
+      return requestDeletion(model, selected => run(async () => {
+        const state = getState();
+        if (desktopDeletionSignature(state, id) !== model.signature) {
+          throw new Error("Данные рабочего стола изменились. Отмените диалог и откройте удаление заново, чтобы проверить актуальные количества.");
+        }
+        const plan = buildDesktopDeletionPlan(state, id, selected, { createId, pruneReferences: options.pruneReferences });
+        if (typeof options.persistTransaction !== "function") throw new Error("Хранилище не поддерживает безопасное удаление рабочего стола.");
+        let runtimeError = "";
+        await options.persistTransaction(async write => {
+          const saved = await write(plan.candidate);
+          if (saved?.saved !== true) throw new Error("Хранилище не подтвердило удаление. Рабочий стол оставлен на месте.");
+          const live = getState();
+          if (live !== state || desktopDeletionSignature(live, id) !== model.signature || !plan.matches(live)) {
+            try {
+              const restored = await write(live);
+              if (restored?.saved !== true) throw new Error("Хранилище не подтвердило восстановление.");
+            } catch (error) {
+              throw new Error(`Данные изменились во время сохранения. Рабочий стол остаётся открытым, но состояние в хранилище неизвестно: ${error.message}. Сохраните резервную копию текущих данных и проверьте хранилище перед перезапуском.`);
+            }
+            throw new Error("Данные изменились во время сохранения. Удаление отменено, актуальные данные записаны. Отмените диалог и проверьте выбор заново.");
+          }
+          const removedActive = state.currentDesktop === id;
+          plan.publish(state);
+          // Reconcile runtime before deferred ordinary saves can normalize aliases.
+          if (removedActive) {
+            state.currentDesktop = DEFAULT_DESKTOP_ID;
+            try { clearRuntimeWindows(); restoreWindows(); }
+            catch (error) { runtimeError = error.message; }
+          }
+        });
+        try {
+          options.onRemovedItems?.(plan.removedIds);
+          applySettings();
+          renderDesktop();
+          renderStart();
+          renderNotifications();
+        } catch (error) {
+          runtimeError = error.message;
+        }
+        // Fresh snapshot also includes unrelated mutations made during the staged write.
+        Promise.resolve(saveState({ silentStorageError: true })).catch(error => toast("Последующее сохранение не выполнено", error.message));
+        toast("Рабочий стол удалён", runtimeError ? `Данные записаны, но интерфейс не обновился: ${runtimeError}. Перезапустите оболочку.` : "Невыбранные данные сохранены в архиве в папке данных.");
+        return true;
+      }));
     }
 
     return Object.freeze({ create, switchTo, remove });
@@ -513,6 +631,8 @@
     sanitizeWorkspaceWindowSessions,
     workspaceDataForDesktopId,
     createWorkspaceRuntimeController,
-    createVirtualDesktopController
+    createVirtualDesktopController,
+    desktopDeletionModel,
+    desktopBackupSnapshot
   };
 })();

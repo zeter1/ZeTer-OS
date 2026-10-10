@@ -416,6 +416,11 @@
       if (item.type === "tasklist") validateImportedTaskStore(item, label);
     });
 
+    if (incoming.library != null) {
+      if (!window.ZETER_LINK_LIBRARY_UTILS) throw new Error("Модуль проверки библиотеки ссылок недоступен.");
+      window.ZETER_LINK_LIBRARY_UTILS.validateLinkLibrary(incoming.library);
+    }
+    if (incoming.legacyLinkLibrary != null) window.ZETER_LINK_LIBRARY_UTILS.validateLinkLibrary(incoming.legacyLinkLibrary);
     validateImportedTaskStore(incoming, "Основные задачи");
     validateImportedEvents(incoming.events, "Календарь");
     validateImportedNotifications(incoming.notifications, "Уведомления");
@@ -434,6 +439,7 @@
     });
 
     (Array.isArray(incoming.desktops) ? incoming.desktops : []).forEach((desk, index) => {
+      if (desk?.data?.library != null) window.ZETER_LINK_LIBRARY_UTILS.validateLinkLibrary(desk.data.library);
       validateImportString(desk?.id, `Рабочий стол #${index + 1}: ID`, 220);
       validateImportSafeId(desk?.id, `Рабочий стол #${index + 1}: ID`);
       validateImportString(desk?.name, `Рабочий стол #${index + 1}: имя`, 300);
@@ -452,6 +458,30 @@
       validateImportArrayLimit(desk?.data?.noteStickies, `Рабочий стол «${desk?.name || index + 1}»: стикеры`, 1000);
     });
 
+    if (incoming.archivedDesktops != null) {
+      validateImportArrayLimit(incoming.archivedDesktops, "Архив рабочих столов", 500);
+      const archiveIds = new Set();
+      incoming.archivedDesktops.forEach((archive, index) => {
+        const label = `Архив рабочего стола #${index + 1}`;
+        if (!archive || typeof archive !== "object" || !archive.desktop || !archive.fs) throw new Error(`${label}: повреждён архив.`);
+        validateImportSafeId(archive.id, `${label}: ID`);
+        if (archiveIds.has(archive.id)) throw new Error(`${label}: повтор ID.`);
+        archiveIds.add(archive.id);
+        validateImportString(archive.archivedAt, `${label}: дата`, 80);
+        const validateArchivePaths = value => {
+          if (!value || typeof value !== "object") return;
+          Object.entries(value).forEach(([key, entry]) => {
+            if (key === "managedPath") {
+              const parts = String(entry).replace(/\\/g, "/").split("/");
+              if (typeof entry !== "string" || parts[0].toLocaleLowerCase("ru-RU") !== "файлы zeter os" || parts.length < 2 || parts.some(part => !part || part === "." || part === ".." || /[\0<>:"|?*]/.test(part))) throw new Error(`${label}: небезопасный путь вложения.`);
+            } else if (key === "assetPath" && !isItemAssetPath(entry)) throw new Error(`${label}: небезопасный путь оформления.`);
+            else if (typeof entry === "object") validateArchivePaths(entry);
+          });
+        };
+        validateArchivePaths(archive);
+        validateImportedStateForImport({ fs: archive.fs, settings: archive.desktop.data?.settings || {}, desktops: [archive.desktop] });
+      });
+    }
     return incoming;
   }
 

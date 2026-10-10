@@ -186,6 +186,10 @@
     }
 
     async function hydrateExternalAssets(incoming) {
+      for (const archive of incoming.archivedDesktops || []) {
+        const archiveReport = await hydrateExternalAssets({ fs: archive.fs, desktops: [archive.desktop], settings: archive.desktop?.data?.settings || {} });
+        if (archiveReport?.missing) throw new Error(`Не найдены ${archiveReport.missing} изображений архивного рабочего стола. Импорт отменён, чтобы сохранить полный архив.`);
+      }
       const rootHandle = await getImportAssetDirectoryHandle(incoming);
       let total = 0;
       let restored = 0;

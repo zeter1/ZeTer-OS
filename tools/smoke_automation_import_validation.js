@@ -21,7 +21,8 @@ function validateImportString(value, label, max = Number.POSITIVE_INFINITY) {
   if (value.length > max) throw new Error(`${label}: текст слишком длинный.`);
 }
 
-function validateImportSafeId(value, label) {
+function validateImportSafeId(value, label, options = {}) {
+  if (options.optional && !value) return;
   if (!SAFE_ID.test(String(value || ""))) throw new Error(`${label}: некорректный ID.`);
 }
 
@@ -71,6 +72,7 @@ vm.createContext(sandbox);
 // so category validation itself must enforce the string type.
 const importSource = fs.readFileSync(path.join(ROOT, "app", "js", "core", "import-utils.js"), "utf8");
 const stringValidatorSource = importSource.match(/^  function validateImportString\([\s\S]*?^  }/m)[0];
+sandbox.BACKUP_IMPORT_MAX_TEXT_CHARS = sandbox.ZETER_OS_CONFIG.BACKUP_IMPORT_MAX_TEXT_CHARS;
 vm.runInContext(stringValidatorSource, sandbox);
 sandbox.ZETER_IMPORT_UTILS.validateImportString = sandbox.validateImportString;
 vm.runInContext(fs.readFileSync(validatorPath, "utf8"), sandbox, { filename: validatorPath });
@@ -190,4 +192,12 @@ assert.throws(
   /недопустимое значение/
 );
 
-console.log("automation import validation smoke: ok");
+const archivedFixture = { fs: {}, settings: {}, archivedDesktops: [{ id: "archive1", archivedAt: "2026-10-10T10:00:00Z", desktop: { id: "second", name: "Сохранённый стол", data: {} }, fs: { note: { id: "note", parent: "second", type: "text", name: "Документ", content: "Kept" } } }] };
+assert.doesNotThrow(() => validator.validateImportedStateForImport(archivedFixture));
+const badArchive = structuredClone(archivedFixture);
+badArchive.archivedDesktops[0].fs.note.managedPath = "Файлы ZeTer OS/../outside.txt";
+assert.throws(() => validator.validateImportedStateForImport(badArchive), /небезопасный путь вложения/);
+const badArchiveTask = structuredClone(archivedFixture);
+badArchiveTask.archivedDesktops[0].desktop.data.tasks = "broken";
+assert.throws(() => validator.validateImportedStateForImport(badArchiveTask), /ожидался массив/);
+console.log("automation and archived desktop import validation smoke: ok");

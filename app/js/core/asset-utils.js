@@ -54,6 +54,7 @@
   }
 
   function stateHasExternalAssets(target = {}, options = {}) {
+    if ((target.archivedDesktops || []).some(archive => stateHasExternalAssets({ fs: archive.fs, desktops: [archive.desktop], settings: archive.desktop?.data?.settings }, options))) return true;
     const collectVisualSettingsHolders = typeof options.collectVisualSettingsHolders === "function"
       ? options.collectVisualSettingsHolders
       : () => [];

@@ -26,6 +26,8 @@
 
 ## Проверка и сдача
 
+- После завершённой правки обнови версию, CHANGELOG и PWA-кэш по [правилам версий](README.md#версии-и-история-изменений).
+
 - Для изменённого JS выполни `node --check` и профильный smoke; весь набор — `node tools/run_smokes.js`. Для справки запусти `node tools/smoke_help_content.js` и проверь UI.
 - Полная команда: `.\check_project.cmd --strict-node --no-pause`; допустимы только `0 warnings` и `0 failures`.
 - После core-изменения выполни `python tools/update_docs.py --write`, затем `--check`; при изменении владельца, сценария, контракта или якоря обнови manifest и `CODEMAP.md`.

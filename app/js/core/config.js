@@ -2,8 +2,9 @@
   "use strict";
 
   const STORAGE_KEY = "zeter_os_state_v3";
-  const OS_VERSION = String(window.ZETER_OS_VERSION || "3.55");
-  const OS_VERSION_NUMBER = Number(OS_VERSION.split(".").pop()) || 26;
+  const OS_VERSION = String(window.ZETER_OS_VERSION || "unknown");
+  // Версия формата данных не зависит от номера выпуска приложения.
+  const OS_VERSION_NUMBER = 26;
   const DAY_MS = 24 * 60 * 60 * 1000;
 
   Object.defineProperty(window, "ZETER_OS_CONFIG", {

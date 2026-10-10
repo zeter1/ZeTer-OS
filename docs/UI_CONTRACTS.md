@@ -4,6 +4,7 @@
 
 | UI-область | Сценарий | DOM/data hooks | Владельцы |
 |---|---|---|---|
+| **Приложение Ссылки**<br>`link-library-app` | `link-library` | `link-library-app`<br>`data-link-action`<br>`data-link-form`<br>`data-link-filter`<br>`data-link-search`<br>`data-link-status`<br>`data-link-row`<br>`data-link-category-menu`<br>`data-category-id`<br>`data-link-result-count` | `app/js/core/link-library-ui-utils.js`<br>`app/js/core/app-catalog.js`<br>`app/js/app.js`<br>`app/css/65-link-library.css` |
 | **Shell и меню Пуск**<br>`shell-start` | `shell-boot` | `start-button`<br>`data-app`<br>`start-menu` | `app/index.html`<br>`app/js/core/shell-ui-utils.js`<br>`app/js/core/start-ui-utils.js`<br>`app/css/10-shell.css` |
 | **Окна и системные кнопки**<br>`windows` | `desktop-windows` | `data-win`<br>`data-window-header-tools`<br>`window-controls`<br>`window-body` | `app/index.html`<br>`app/js/core/window-ui-utils.js`<br>`app/css/20-windows.css` |
 | **Глобальная панель поиска**<br>`global-search` | `search` | `global-search`<br>`data-search-kind`<br>`data-search-filter` | `app/index.html`<br>`app/js/core/search-ui-utils.js`<br>`app/css/10-shell.css` |

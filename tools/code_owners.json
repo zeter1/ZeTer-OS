@@ -2,6 +2,38 @@
   "version": 1,
   "scenarios": [
     {
+      "id": "link-library",
+      "title": "Библиотеки ссылок рабочих столов",
+      "keywords": [
+        "links",
+        "link library",
+        "ссылки",
+        "категории",
+        "избранное"
+      ],
+      "js": [
+        "app/js/core/link-library-utils.js",
+        "app/js/core/link-library-ui-utils.js",
+        "app/js/core/shortcut-utils.js"
+      ],
+      "app_anchors": [
+        "renderLinkLibraryApp",
+        "linkLibraryController"
+      ],
+      "css": [
+        "app/css/65-link-library.css"
+      ],
+      "state": [
+        "workspace.library.entries[]",
+        "workspace.library.categories[]"
+      ],
+      "smokes": [
+        "tools/smoke_link_library.js",
+        "tools/smoke_state_migration.js"
+      ],
+      "manual": "Открыть Ссылки на двух рабочих столах; подтвердить независимые записи/категории/избранное; CRUD, поиск, Windows-path copy, duplicate navigation, узкое окно, сохранение и перезапуск."
+    },
+    {
       "id": "shell-boot",
       "title": "Запуск, shell, taskbar и меню Пуск",
       "keywords": ["boot", "shell", "startup", "taskbar", "пуск", "панель задач", "first run"],
@@ -16,12 +48,12 @@
       "id": "desktop-windows",
       "title": "Рабочие столы, окна и сессии",
       "keywords": ["desktop", "workspace", "window", "snap", "drag", "group drag", "multi selection", "ctrl click", "resize", "shortcut", "item settings", "рабочий стол", "окна", "групповое перетаскивание", "множественное выделение", "ctrl щелчок", "ярлык", "настройка ярлыка"],
-      "js": ["app/js/core/workspace-utils.js", "app/js/core/desktop-ui-utils.js", "app/js/core/desktop-layout-utils.js", "app/js/core/item-drag-ui-utils.js", "app/js/core/shortcut-utils.js", "app/js/core/item-customization-utils.js", "app/js/core/window-metrics-utils.js", "app/js/core/window-ui-utils.js", "app/js/core/window-session-utils.js", "app/js/core/sticky-utils.js"],
-      "app_anchors": ["currentWorkspace", "switchDesktop", "openApp", "refreshWindow"],
+      "js": ["app/js/core/workspace-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/storage-utils.js", "app/js/core/desktop-ui-utils.js", "app/js/core/desktop-layout-utils.js", "app/js/core/item-drag-ui-utils.js", "app/js/core/shortcut-utils.js", "app/js/core/item-customization-utils.js", "app/js/core/window-metrics-utils.js", "app/js/core/window-ui-utils.js", "app/js/core/window-session-utils.js", "app/js/core/sticky-utils.js"],
+      "app_anchors": ["currentWorkspace", "switchDesktop", "openApp", "refreshWindow", "downloadDesktopBackup"],
       "css": ["app/css/10-shell.css", "app/css/20-windows.css", "app/css/80-overrides.css"],
-      "state": ["state.desktops[]", "workspace.openWindows", "state.fs[*].x/y", "state.fs[*].appearance"],
-      "smokes": ["tools/smoke_desktop_group_drag.js", "tools/smoke_state_migration.js", "tools/smoke_shortcut_runtime.js", "tools/smoke_item_customization.js"],
-      "manual": "Через Ctrl+ЛКМ добавить и снять отдельные значки, проверить переход к одиночному выделению, затем перетащить всю группу за любой выбранный значок с сохранением взаимного расположения; отдельно открыть, переместить, свернуть, развернуть и восстановить окно после перезапуска."
+      "state": ["state.desktops[]", "state.archivedDesktops[]", "workspace.openWindows", "state.fs[*].x/y", "state.fs[*].appearance"],
+      "smokes": ["tools/smoke_desktop_group_drag.js", "tools/smoke_state_migration.js", "tools/smoke_desktop_backup_native.py", "tools/smoke_storage_runtime.js", "tools/smoke_shortcut_runtime.js", "tools/smoke_item_customization.js"],
+      "manual": "Через Ctrl+ЛКМ добавить и снять отдельные значки, проверить переход к одиночному выделению, затем перетащить всю группу за любой выбранный значок с сохранением взаимного расположения; отдельно открыть, переместить, свернуть, развернуть и восстановить окно после перезапуска; перед удалением дополнительного стола скачать все его данные, выбрать группы удаления, проверить сохранение остальных в архиве без переноса и сохранность основного стола."
     },
     {
       "id": "explorer-files",
@@ -213,6 +245,34 @@
   ],
   "ui_contracts": [
     {
+      "id": "link-library-app",
+      "title": "Приложение Ссылки",
+      "scenario": "link-library",
+      "keywords": [
+        "links UI",
+        "ссылки",
+        "категории"
+      ],
+      "files": [
+        "app/js/core/link-library-ui-utils.js",
+        "app/js/core/app-catalog.js",
+        "app/js/app.js",
+        "app/css/65-link-library.css"
+      ],
+      "hooks": [
+        "link-library-app",
+        "data-link-action",
+        "data-link-form",
+        "data-link-filter",
+        "data-link-search",
+        "data-link-status",
+        "data-link-row",
+        "data-link-category-menu",
+        "data-category-id",
+        "data-link-result-count"
+      ]
+    },
+    {
       "id": "shell-start",
       "title": "Shell и меню Пуск",
       "scenario": "shell-boot",
@@ -334,6 +394,73 @@
     }
   ],
   "state_lifecycle": [
+    {
+      "id": "link-library",
+      "title": "Библиотеки ссылок рабочих столов",
+      "state_paths": [
+        "workspace.library"
+      ],
+      "stages": {
+        "defaults": [
+          {
+            "path": "app/js/core/workspace-utils.js",
+            "anchors": [
+              "workspaceDefaults"
+            ]
+          }
+        ],
+        "normalizers": [
+          {
+            "path": "app/js/core/link-library-utils.js",
+            "anchors": [
+              "normalizeLinkLibrary"
+            ]
+          }
+        ],
+        "migration": [
+          {
+            "path": "app/js/core/workspace-utils.js",
+            "anchors": [
+              "ensureDesktopRecords"
+            ]
+          }
+        ],
+        "validator": [
+          {
+            "path": "app/js/core/state-import-validator.js",
+            "anchors": [
+              "validateImportedStateForImport"
+            ]
+          },
+          {
+            "path": "app/js/core/link-library-utils.js",
+            "anchors": [
+              "validateLinkLibrary"
+            ]
+          }
+        ],
+        "serializer": [
+          {
+            "path": "app/js/core/storage-utils.js",
+            "anchors": [
+              "buildPrimaryStateRecord"
+            ]
+          }
+        ],
+        "storage": [
+          {
+            "path": "app/js/core/link-library-utils.js",
+            "anchors": [
+              "createLinkLibraryController"
+            ]
+          }
+        ]
+      },
+      "smokes": [
+        "tools/smoke_link_library.js",
+        "tools/smoke_state_migration.js"
+      ]
+    },
     {
       "id": "full-state",
       "title": "Полное состояние ZeTer OS",

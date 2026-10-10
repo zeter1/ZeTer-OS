@@ -471,10 +471,53 @@ async function smokeStorageBootLifecycle() {
 }
 
 const target = process.argv[2] || "all";
+async function smokeStagedQueue() {
+  let state = { revision: 1 };
+  const writes = [];
+  let releaseFirst, releaseStage;
+  let startStage;
+  const stageStarted = new Promise(resolve => { startStage = resolve; });
+  const firstStarted = new Promise(resolve => { releaseFirst = resolve; });
+  let startFirst;
+  const started = new Promise(resolve => { startFirst = resolve; });
+  const queue = storage.createPrimaryStateSaveQueue({
+    getState: () => state, nativeStorage: true,
+    writePrimaryRecord: async snapshot => {
+      writes.push(snapshot.revision);
+      if (writes.length === 1) { startFirst(); await firstStarted; }
+      if (snapshot.revision === 9) { startStage(); await new Promise(resolve => { releaseStage = resolve; }); }
+      if (snapshot.revision === 8) throw new Error("stage refused");
+      return { updatedAt: 1 };
+    }
+  });
+  const ordinary = queue.queue();
+  await started;
+  const staged = queue.transaction(async write => {
+    await write({ revision: 9 });
+    state.revision = 10;
+  });
+  state.revision = 2;
+  const deferred = queue.queue();
+  releaseFirst();
+  await ordinary;
+  await stageStarted;
+  assert.equal(state.revision, 2, "staged snapshot must never be live before acknowledgment");
+  releaseStage();
+  await staged; await deferred;
+  assert.deepEqual(writes, [1, 9, 10], "ordinary save after transaction must capture postcommit state");
+  const failed = queue.transaction(write => write({ revision: 8 }));
+  state.revision = 11;
+  const afterFailure = queue.queue();
+  await assert.rejects(failed, /stage refused/);
+  await afterFailure;
+  assert.deepEqual(writes.slice(-2), [8, 11]);
+  console.log("staged snapshot save coordination smoke: ok");
+}
 Promise.resolve()
   .then(() => target === "primary" || target === "all" ? smokePrimaryRecords() : null)
   .then(() => target === "local" || target === "all" ? smokeLocalStoragePaths() : null)
   .then(() => target === "queue" || target === "all" ? smokePrimarySaveQueue() : null)
+  .then(() => target === "queue" || target === "all" ? smokeStagedQueue() : null)
   .then(() => target === "state" || target === "all" ? smokeStorageStateRuntime() : null)
   .then(() => target === "boot" || target === "all" ? smokeStorageBootLifecycle() : null)
   .catch(error => {

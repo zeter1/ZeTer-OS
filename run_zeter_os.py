@@ -567,6 +567,53 @@ def collect_item_asset_paths(value: Any) -> set[str]:
     return set(inspect_payload_references(value)["itemAssets"].values())
 
 
+def desktop_backup_snapshot(value: Any) -> Dict[str, Any]:
+    """Accept one standalone desktop, never an unrestricted OS state envelope."""
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict) or set(value) != {"desktop", "fs"}:
+        raise ValueError("Архив должен содержать только выбранный рабочий стол и его объекты.")
+    desktop, fs = value.get("desktop"), value.get("fs")
+    if (not isinstance(desktop, dict) or not isinstance(desktop.get("id"), str)
+            or not desktop["id"] or not isinstance(desktop.get("data"), dict)
+            or not isinstance(fs, dict)):
+        raise ValueError("Некорректные данные рабочего стола для архива.")
+    encoded = json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    if len(encoded) > MAX_STATE_FILE_BYTES:
+        raise ValueError("Данные рабочего стола превышают безопасный размер архива.")
+    return json.loads(encoded)
+
+
+def export_archived_desktops(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Project canonical archive records without deleting previous folders."""
+    entries = state.get("archivedDesktops", [])
+    if not isinstance(entries, list) or len(entries) > 10000:
+        raise ValueError("Некорректный или слишком большой список архивов рабочих столов.")
+    root = DATA_DIR / "Архив рабочих столов"
+    targets: list[tuple[Path, Dict[str, Any]]] = []
+    seen: set[str] = set()
+    for entry in entries:
+        archive_id = entry.get("id") if isinstance(entry, dict) else None
+        if (not isinstance(archive_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", archive_id)
+                or archive_id.upper() in WINDOWS_RESERVED_NAMES or archive_id.casefold() in seen):
+            raise ValueError("Некорректный или повторяющийся ID архива рабочего стола.")
+        seen.add(archive_id.casefold())
+        desktop_backup_snapshot({"desktop": entry.get("desktop"), "fs": entry.get("fs")})
+        target = root / archive_id / "desktop.json"
+        if not plain_path(DATA_DIR, target):
+            raise ValueError("Небезопасная папка архива рабочего стола.")
+        if target.exists():
+            if not target.is_file() or read_json_file(target) != entry:
+                raise ValueError("Этот ID архива уже занят другой записью; прежний архив сохранён.")
+            continue
+        targets.append((target, entry))
+    for target, entry in targets:
+        atomic_write_json(target, entry)
+        if read_json_file(target) != entry:
+            raise OSError("Копия архива рабочего стола не прошла проверку записи.")
+    return {"archiveDir": str(root), "archiveCount": len(entries)}
+
+
 def unique_child_path(path: Path, used: set[str]) -> Path:
     normalized = str(path).lower()
     if normalized not in used and not path.exists():
@@ -1763,6 +1810,45 @@ class NativeStorageApi:
                 except Exception as exc:
                     errors.append(f"backup {backup_path.name}: {exc}")
 
+        archive_root = DATA_DIR / "Архив рабочих столов"
+        try:
+            archive_root.lstat()
+            archive_exists = True
+        except FileNotFoundError:
+            archive_exists = False
+        except OSError as exc:
+            archive_exists = False
+            errors.append(f"desktop archives: {exc}")
+        if archive_exists:
+            try:
+                if not plain_path(DATA_DIR, archive_root) or not archive_root.is_dir():
+                    raise ValueError("небезопасная папка архивов рабочих столов")
+                archive_bytes = 0
+                for index, directory in enumerate(archive_root.iterdir()):
+                    if index >= 10000:
+                        raise ValueError("превышен лимит просмотра архивов рабочих столов")
+                    if not plain_path(DATA_DIR, directory):
+                        raise ValueError("небезопасный путь в папке архивов рабочих столов")
+                    if not directory.is_dir():
+                        continue
+                    archive_id = directory.name
+                    if (not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", archive_id)
+                            or archive_id.upper() in WINDOWS_RESERVED_NAMES):
+                        raise ValueError("небезопасный ID физического архива рабочего стола")
+                    archive_path = directory / "desktop.json"
+                    if not plain_path(DATA_DIR, archive_path) or not archive_path.is_file():
+                        raise ValueError("небезопасный или отсутствующий desktop.json")
+                    archive_bytes += archive_path.stat().st_size
+                    if archive_bytes > MAX_STATE_FILE_BYTES:
+                        raise ValueError("превышен лимит чтения физических архивов рабочих столов")
+                    entry = read_json_file(archive_path)
+                    if not isinstance(entry, dict) or entry.get("id") != archive_id:
+                        raise ValueError("повреждённая запись физического архива рабочего стола")
+                    desktop_backup_snapshot({"desktop": entry.get("desktop"), "fs": entry.get("fs")})
+                    add_source(f"desktop archive {archive_id}", entry)
+            except Exception as exc:
+                errors.append(f"desktop archives: {exc}")
+
         return {
             "managed": managed,
             "itemAssets": item_assets,
@@ -2487,6 +2573,97 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("save_binary_download")
+    def save_desktop_backup(self, snapshot: Any) -> Dict[str, Any]:
+        """Stream and verify a single desktop ZIP before replacing the chosen file."""
+        with self._state_save_lock:
+            temp_path: Optional[Path] = None
+            try:
+                snapshot = desktop_backup_snapshot(snapshot)
+                references = inspect_payload_references(snapshot)
+                if references["invalidManaged"] or references["invalidItemAssets"]:
+                    raise ValueError("В рабочем столе есть небезопасные пути файлов или оформления.")
+                sources: Dict[str, Path] = {}
+                total_bytes = 0
+                for category, resolver in (("managed", managed_file_path), ("itemAssets", item_asset_path)):
+                    for relative in references[category].values():
+                        source = resolver(relative, require_file=True)
+                        if not plain_path(DATA_DIR, DATA_DIR / relative):
+                            raise ValueError("Ссылка на файл архива проходит через небезопасную папку.")
+                        sources[f"data/{relative}"] = source
+                        total_bytes += source.stat().st_size
+                if len(sources) > 100000 or total_bytes > MAX_MANAGED_FILE_BYTES:
+                    raise ValueError("Архив рабочего стола превышает безопасный размер.")
+                envelope = {
+                    "app": APP_NAME, "format": "zeter-desktop-backup", "version": 1,
+                    "createdAt": datetime.now(timezone.utc).isoformat(timespec="seconds"), **snapshot,
+                }
+                desktop_json = json.dumps(envelope, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
+                file_name = self._safe_download_name(f"{snapshot['desktop'].get('name') or 'Рабочий стол'}.zip", "Рабочий стол.zip")
+                target = self._choose_download_target(file_name, "application/zip")
+                if target is None:
+                    return self._ok(cancelled=True, fileName=file_name)
+                target = target.absolute()
+                if target.resolve().is_relative_to(DATA_DIR.resolve()):
+                    raise ValueError("Сохраните скачиваемый ZIP вне служебной папки data ZeTer OS.")
+                if not plain_path(target.parent, target):
+                    raise ValueError("Небезопасный путь для сохранения архива.")
+                if shutil.disk_usage(target.parent).free < total_bytes + len(desktop_json) + total_bytes // 100 + 16 * 1024 * 1024:
+                    raise OSError("Недостаточно свободного места для архива рабочего стола.")
+                descriptor, temp_name = tempfile.mkstemp(prefix=".zeter-desktop-", suffix=".tmp", dir=target.parent)
+                temp_path = Path(temp_name)
+                os.close(descriptor)
+                expected: Dict[str, tuple[int, str]] = {}
+                readme = ("Архив одного рабочего стола ZeTer OS.\n"
+                          "desktop.json содержит его настройки, данные и объекты; data/ — копии связанных файлов и оформления.\n"
+                          "Встроенные изображения сохранены внутри JSON. Внешние цели Windows-ярлыков хранятся только как ссылки.\n"
+                          "Это не полный бэкап ОС и не файл для автоматического восстановления всей ZeTer OS.\n").encode("utf-8")
+                with zipfile.ZipFile(temp_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+                    archive.writestr("desktop.json", desktop_json)
+                    archive.writestr("README.txt", readme)
+                    for name, raw in (("desktop.json", desktop_json), ("README.txt", readme)):
+                        expected[name] = (len(raw), hashlib.sha256(raw).hexdigest())
+                    for name, source in sources.items():
+                        digest = hashlib.sha256()
+                        copied = 0
+                        source_size = source.stat().st_size
+                        with source.open("rb") as reader, archive.open(name, "w", force_zip64=True) as writer:
+                            while chunk := reader.read(MANAGED_FILE_CHUNK_BYTES):
+                                copied += len(chunk)
+                                if copied > source_size:
+                                    raise OSError("Файл рабочего стола изменился во время архивирования.")
+                                writer.write(chunk)
+                                digest.update(chunk)
+                        if copied != source_size:
+                            raise OSError("Файл рабочего стола прочитан не полностью.")
+                        expected[name] = (copied, digest.hexdigest())
+                with temp_path.open("r+b") as stream:
+                    os.fsync(stream.fileno())
+                with zipfile.ZipFile(temp_path) as archive:
+                    if set(archive.namelist()) != set(expected):
+                        raise OSError("Состав ZIP-архива не прошёл проверку.")
+                    for name, (size, expected_digest) in expected.items():
+                        digest = hashlib.sha256()
+                        read_bytes = 0
+                        with archive.open(name) as reader:
+                            while chunk := reader.read(MANAGED_FILE_CHUNK_BYTES):
+                                read_bytes += len(chunk)
+                                digest.update(chunk)
+                        if read_bytes != size or digest.hexdigest() != expected_digest:
+                            raise OSError("Содержимое ZIP-архива не прошло проверку.")
+                size = temp_path.stat().st_size
+                replace_transiently_locked_file(temp_path, target)
+                return self._ok(cancelled=False, fileName=target.name, bytes=size)
+            except Exception as exc:
+                return self._error(exc)
+            finally:
+                if temp_path is not None:
+                    try:
+                        temp_path.unlink(missing_ok=True)
+                    except OSError as exc:
+                        self._problem(exc, "save_binary_download", "partial")
+                        log(f"DESKTOP_BACKUP temporary cleanup error: {exc}")
+
+    @diagnosed("save_binary_download")
     def save_binary_download(self, payload: Any) -> Dict[str, Any]:
         """Показывает системный диалог и сохраняет переданный двоичный файл."""
         try:
@@ -2725,6 +2902,16 @@ class NativeStorageApi:
                     "readableBytes": sum(path.stat().st_size for path in READABLE_ROOT_DIR.rglob("*") if path.is_file()) if READABLE_ROOT_DIR.exists() else 0,
                 }
 
+            archive_error = ""
+            archive_info: Dict[str, Any] = {}
+            try:
+                archive_info = export_archived_desktops(state)
+            except Exception as exc:
+                self._problem(exc, "readable_export", "partial")
+                archive_error = str(exc)
+                readable_error = "; ".join(filter(None, (readable_error, f"Архив рабочих столов: {archive_error}")))
+                log(f"DESKTOP_ARCHIVE save error: {exc}")
+
             payload_gc_error = ""
             try:
                 payload_gc = self._garbage_collect_payload(state)
@@ -2762,12 +2949,15 @@ class NativeStorageApi:
                 removedBackups=removed_backups,
                 readableOk=not readable_error,
                 readableError=readable_error,
+                archiveOk=not archive_error,
+                archiveError=archive_error,
                 managedOk=payload_gc_ok,
                 managedError=payload_error_text,
                 itemAssetsOk=payload_gc_ok,
                 itemAssetsError=payload_error_text,
                 **payload_gc,
                 **readable,
+                **archive_info,
             )
         except Exception as exc:
             self._problem(exc, "primary_confirm")

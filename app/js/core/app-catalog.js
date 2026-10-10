@@ -13,6 +13,7 @@
     calendar: Object.freeze({ name: "Календарь", icon: "📅", w: 1180, h: 680, pinned: true, render: "calendar" }),
     calendaredit: Object.freeze({ name: "Добавление события", icon: "📅", w: 680, h: 580, pinned: false, hidden: true, render: "calendarEventEditor", title: "calendarEventEditor" }),
     automations: Object.freeze({ name: "Автоматизации", icon: "⚡", w: 920, h: 640, pinned: false, render: "automations" }),
+    links: Object.freeze({ name: "Ссылки", icon: "🔗", w: 980, h: 660, pinned: false, render: "links" }),
     automationedit: Object.freeze({ name: "Новая автоматизация", icon: "⚡", w: 940, h: 720, pinned: false, hidden: true, render: "automationEditor", title: "automationEditor" }),
     shortcutedit: Object.freeze({ name: "Создание ярлыка", icon: "🔗", w: 680, h: 500, pinned: false, hidden: true, render: "shortcutEditor", title: "shortcutEditor" }),
     itemsettings: Object.freeze({ name: "Настройка объекта", icon: "⚙️", w: 720, h: 640, pinned: false, hidden: true, render: "itemSettings", title: "itemSettings" }),

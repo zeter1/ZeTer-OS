@@ -48,6 +48,7 @@ BUILD_RELEASE_CMD = PROJECT_ROOT / "build_release.cmd"
 BUILD_RELEASE_TOOL = PROJECT_ROOT / "tools" / "build_release.py"
 SMOKE_RUNNER = PROJECT_ROOT / "tools" / "run_smokes.js"
 NATIVE_SMOKE = PROJECT_ROOT / "tools" / "smoke_managed_file_native.py"
+DESKTOP_BACKUP_SMOKE = PROJECT_ROOT / "tools" / "smoke_desktop_backup_native.py"
 PROBLEM_LOGS_SMOKE = PROJECT_ROOT / "tools" / "smoke_problem_logs.py"
 RELEASE_SMOKE = PROJECT_ROOT / "tools" / "smoke_release_builder.py"
 SMOKE_SCRIPTS = (
@@ -83,6 +84,8 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/utils.js",
     "js/core/system-settings-utils.js",
     "js/core/shortcut-utils.js",
+    "js/core/link-library-utils.js",
+    "js/core/link-library-ui-utils.js",
     "js/core/shell-ui-utils.js",
     "js/core/first-run-ui-utils.js",
     "js/core/context-menu-ui-utils.js",
@@ -259,6 +262,7 @@ def check_required_files() -> list[CheckResult]:
         BUILD_RELEASE_TOOL,
         SMOKE_RUNNER,
         NATIVE_SMOKE,
+        DESKTOP_BACKUP_SMOKE,
         PROBLEM_LOGS_SMOKE,
         RELEASE_SMOKE,
         *SMOKE_SCRIPTS,
@@ -1190,6 +1194,9 @@ def check_version_cache_match() -> list[CheckResult]:
     if not version or not cache:
         return [warn("version.cache", "version or service-worker cache name was not found")]
     expected = f"zeter-os-{version}"
+    revision = re.search(r"ZETER_CACHE_REVISION\s*=\s*['\"]([^'\"]+)['\"]", read_text(SERVICE_WORKER))
+    if revision:
+        expected += f"-{revision.group(1)}"
     if cache != expected:
         return [fail("version.cache", f"service worker cache is {cache!r}, expected {expected!r}")]
     return [ok("version.cache", f"service worker cache matches version {version}")]
@@ -1204,6 +1211,7 @@ def check_python_syntax() -> list[CheckResult]:
         NAVIGATION_INDEX_TOOL,
         FIND_OWNER_TOOL,
         NATIVE_SMOKE,
+        DESKTOP_BACKUP_SMOKE,
         PROBLEM_LOGS_SMOKE,
         BUILD_RELEASE_TOOL,
         RELEASE_SMOKE,
@@ -1287,15 +1295,15 @@ def check_scenario_smokes(strict_node: bool) -> list[CheckResult]:
     return [ok("javascript.smokes", summary)]
 
 
-def check_native_smoke(strict_node: bool) -> list[CheckResult]:
+def check_native_smoke(strict_node: bool, smoke: Path = NATIVE_SMOKE, key: str = "python.native_smoke") -> list[CheckResult]:
     if not strict_node:
         return []
-    if not NATIVE_SMOKE.exists():
-        return [fail("python.native_smoke", "tools/smoke_managed_file_native.py is missing")]
+    if not smoke.exists():
+        return [fail(key, f"tools/{smoke.name} is missing")]
 
     try:
         completed = subprocess.run(
-            [sys.executable, str(NATIVE_SMOKE)],
+            [sys.executable, str(smoke)],
             cwd=PROJECT_ROOT,
             text=True,
             encoding="utf-8",
@@ -1305,14 +1313,14 @@ def check_native_smoke(strict_node: bool) -> list[CheckResult]:
             timeout=60,
         )
     except subprocess.TimeoutExpired:
-        return [fail("python.native_smoke", "managed-file native smoke exceeded 60 seconds")]
+        return [fail(key, f"{smoke.name} exceeded 60 seconds")]
 
     output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
-    output = output or "managed-file native smoke failed"
+    output = output or f"{smoke.name} failed"
     if completed.returncode != 0:
-        return [fail("python.native_smoke", output)]
+        return [fail(key, output)]
     summary = output.splitlines()[-1] if output else "managed-file native smoke passed"
-    return [ok("python.native_smoke", summary)]
+    return [ok(key, summary)]
 
 
 def check_release_smoke(strict_node: bool) -> list[CheckResult]:
@@ -1401,6 +1409,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_javascript_syntax(strict_node=strict_node))
     checks.extend(check_scenario_smokes(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=DESKTOP_BACKUP_SMOKE, key="python.desktop_backup_smoke"))
     checks.extend(check_problem_logs_smoke(strict_node=strict_node))
     checks.extend(check_release_smoke(strict_node=strict_node))
     return checks

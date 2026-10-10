@@ -759,6 +759,7 @@
       calendar: renderCalendarApp,
       calendarEventEditor: renderCalendarEventEditorApp,
       automations: renderAutomationsApp,
+      links: renderLinkLibraryApp,
       automationEditor: renderAutomationEditorApp,
       shortcutEditor: renderShortcutEditorApp,
       itemSettings: renderItemSettingsApp,
@@ -1282,7 +1283,11 @@
     ensureDesktops,
     createId: uid,
     requestName: (message, defaultName) => prompt(message, defaultName),
-    confirmDelete: message => confirm(message),
+    requestDeletion: (model, execute) => shellUiUtils.showDesktopDeletionDialog(model, execute, { download: () => downloadDesktopBackup(model) }),
+    queueMutation: operation => queueAutomationMutation(operation),
+    persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+    pruneReferences: (target, ids) => pruneTargetReferencesForRemovedItems(target, ids),
+    onRemovedItems: ids => removedItemReferencesController.closeWindowsForRemovedItems(ids),
     addDesktopShortcut,
     ensureWorkspaceExplorerRoot,
     createWorkspaceSystemFolders,
@@ -1426,6 +1431,12 @@
   }
 
   function saveState(options = {}) {
+    const barrier = primaryStateSaveQueue.barrier();
+    if (barrier) {
+      const deferred = barrier.then(() => saveState(options));
+      deferred.catch(() => {});
+      return deferred;
+    }
     syncLegacyWorkspaceAliases(state);
     const savePromise = Promise.resolve(storageStateRuntimeController.saveState(options)).then(result => {
       if (result?.skipped || result?.saved === false) {
@@ -1730,8 +1741,30 @@
     return switched;
   }
 
-  function deleteVirtualDesktop(id) {
-    const removed = virtualDesktopController.remove(id);
+  async function downloadDesktopBackup(model) {
+    syncLiveEditorsBeforeExport();
+    const snapshot = workspaceUtils.desktopBackupSnapshot(state, model.id);
+    model.signature = workspaceUtils.desktopDeletionModel(state, model.id).signature;
+    // Resolve exported images in a detached snapshot; never include another desktop.
+    const hydration = await hydrateExternalAssets({ settings: snapshot.desktop.data.settings || {}, desktops: [snapshot.desktop], fs: snapshot.fs });
+    if (hydration?.missing) throw new Error(`Не удалось включить ${hydration.missing} изображений. Выберите доступную папку исходных ресурсов и повторите скачивание.`);
+    if (shouldUseNativeStorage()) return nativeStorageCall("save_desktop_backup", snapshot);
+    const hasNativePayload = value => value && typeof value === "object" && Object.entries(value).some(([key, entry]) =>
+      ((key === "managedPath" || key === "assetPath") && Boolean(entry)) || hasNativePayload(entry));
+    if (hasNativePayload(snapshot)) throw new Error("Этот стол содержит вложения из папки data. Скачайте полный архив из Windows-версии ZeTer OS, чтобы включить сами файлы.");
+    const payload = { app: "ZeTer OS", format: "zeter-desktop-backup", version: 1, createdAt: new Date().toISOString(), ...snapshot };
+    const blob = await createZipBlob([
+      { path: "desktop.json", blob: new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }) },
+      { path: "README.txt", blob: new Blob(["Архив одного рабочего стола ZeTer OS. desktop.json содержит документы, настройки, задачи, календарь, ссылки и прочие данные этого стола. Это архив данных, а не полный бэкап ОС. Внешние папки Windows и сайты по ссылкам не копируются. Изображения встроены в JSON.\n"], { type: "text/plain;charset=utf-8" }) }
+    ]);
+    const result = await downloadBlob(`ZeTer_${sanitizeExportPathPart(model.name, "Рабочий стол")}.zip`, blob);
+    return { ...result, browser: true };
+  }
+
+  async function deleteVirtualDesktop(id) {
+    let removed;
+    try { removed = await virtualDesktopController.remove(id); }
+    catch (error) { toast("Рабочий стол не удалён", error.message); return false; }
     if (removed) {
       seedAutomationEventBaselines();
       scheduleAutomationCheck();
@@ -2301,6 +2334,30 @@
       objectLinksPanelFor
     });
   }
+  function renderLinkLibraryApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const linkLibraryController = window.ZETER_LINK_LIBRARY_UTILS.createLinkLibraryController({
+      getWorkspace: () => workspaceDataForDesktopId(workspaceId),
+      createId: uid,
+      saveState,
+      queueMutation: queueAutomationMutation
+    });
+    return window.ZETER_LINK_LIBRARY_UI_UTILS.createLinkLibraryApp(params, {
+      documentRef: document,
+      controller: linkLibraryController,
+      openTarget: openShortcutTarget,
+      isNative: shouldUseNativeStorage,
+      copyText: text => navigator.clipboard.writeText(text),
+      confirm: text => confirm(text),
+      prompt: (text, value) => prompt(text, value),
+      onChange: () => {
+        [...ui.windows.entries()].forEach(([id, record]) => {
+          if (id !== winId && record.appId === "links" && record.desktopId === workspaceId) record.el.querySelector(".link-library-app")?.refreshLibrary?.();
+        });
+      }
+    });
+  }
+
   function renderShortcutEditorApp(params = {}, winId = "") {
     return createShortcutEditorApp(params, winId, {
       documentRef: document,

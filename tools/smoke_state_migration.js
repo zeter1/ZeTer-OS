@@ -47,6 +47,7 @@ function loadCore(name) {
   "utils.js",
   "system-settings-utils.js",
   "shortcut-utils.js",
+  "link-library-utils.js",
   "pinning-utils.js",
   "trash-utils.js",
   "asset-utils.js",
@@ -58,7 +59,8 @@ function loadCore(name) {
   "automation-utils.js",
   "object-link-utils.js",
   "workspace-utils.js",
-  "state-maintenance-utils.js"
+  "state-maintenance-utils.js",
+  "storage-utils.js"
 ].forEach(loadCore);
 
 sandbox.ZETER_EXPORT_UTILS = Object.freeze({ tablePageToCSV: () => "" });
@@ -188,6 +190,25 @@ const migrate = migratorUnderTest();
 const { OS_VERSION, OS_VERSION_NUMBER, TRASH_ROOT, DAY_MS } = sandbox.ZETER_OS_CONFIG;
 
 const defaults = migrate(sandbox.ZETER_INITIAL_STATE_UTILS.defaultState());
+assert.deepEqual(plain(defaults.desktops[0].data.library), { entries: [], categories: [] });
+const linkLegacy = migrate({ fs: {}, settings: {}, future: "keep" });
+assert.deepEqual(plain(linkLegacy.desktops[0].data.library), { entries: [], categories: [] });
+linkLegacy.desktops[0].data.library.entries.push({ id: "site_link", name: "Сайт", target: "https://example.org/", kind: "url", categoryId: "", description: "Текст", favorite: true });
+const linkReload = migrate(JSON.parse(JSON.stringify(linkLegacy)));
+assert.equal(linkReload.desktops[0].data.library.entries[0].name, "Сайт");
+assert.equal(linkReload.future, "keep");
+assert.ok(!Object.hasOwn(linkReload, "library"), "library must live only in workspace data");
+const globalLegacyLibrary = { entries: [{ id: "legacy_site", name: "Old", target: "https://legacy.example/" }], categories: [] };
+const globalLegacyState = migrate({ fs: {}, settings: {}, currentDesktop: "second", desktops: [{ id: "desktop", name: "Основной" }, { id: "second", name: "Второй" }], library: globalLegacyLibrary });
+assert.equal(globalLegacyState.desktops[1].data.library.entries[0].id, "legacy_site", "legacy library moves to original active desktop");
+assert.equal(globalLegacyState.desktops[0].data.library.entries.length, 0, "legacy must not be cloned to every desktop");
+globalLegacyState.currentDesktop = "desktop";
+const legacyAgain = migrate(JSON.parse(JSON.stringify(globalLegacyState)));
+assert.equal(legacyAgain.desktops[0].data.library.entries.length, 0, "switch/reload cannot re-seed legacy library");
+assert.equal(legacyAgain.desktops[1].data.library.entries[0].id, "legacy_site");
+const conflictLegacy = migrate({ fs: {}, settings: {}, library: globalLegacyLibrary, desktops: [{ id: "desktop", name: "Основной", data: { library: { entries: [], categories: [{ id: "own_category", name: "Своя" }] } } }] });
+assert.equal(conflictLegacy.desktops[0].data.library.categories[0].id, "own_category");
+assert.equal(conflictLegacy.legacyLinkLibrary.entries[0].id, "legacy_site", "conflicting old library must remain recoverable");
 assert.equal(defaults.version, OS_VERSION_NUMBER);
 assert.equal(defaults.osVersion, OS_VERSION);
 assert.equal(defaults.currentDesktop, "desktop");
@@ -387,7 +408,135 @@ sandbox.ZETER_WORKSPACE_UTILS.ensureDesktopRecords(legacyCategoryState);
 assert.equal(legacyCategoryState.desktops[0].data.automationCategories[0].id, "legacy");
 assert.equal(legacyCategoryState.desktops[1].data.automationCategories.length, 0, "categories must not leak to another workspace");
 
-smokePersistedDeletion().then(() => {
+async function smokeSelectiveDesktopDeletion() {
+  const workspace = sandbox.ZETER_WORKSPACE_UTILS;
+  const fixture = () => ({ currentDesktop: "second", marker: "initial", actionHistory: [], fs: {
+    mainRoot: { id: "mainRoot", parent: "desktop", type: "folder", name: "Основное", systemRole: "explorerRoot" },
+    hiddenRoot: { id: "hiddenRoot", parent: "second", type: "folder", name: "Скрытая структура", hiddenFromDesktop: true, systemRole: "explorerRoot" },
+    note: { id: "note", parent: "hiddenRoot", type: "text", name: "Документ", content: "Keep contents" },
+    child: { id: "child", parent: "note", type: "text", name: "Вложенное", content: "Keep child" }
+  }, desktops: [
+    { id: "desktop", name: "Основной", data: workspace.workspaceDefaults({ explorerRootId: "mainRoot", taskProjects: [{ id: "project", name: "Проект" }], library: { entries: [], categories: [{ id: "cat", name: "Категория" }] } }) },
+    { id: "second", name: "Второй <img>", data: workspace.workspaceDefaults({ explorerRootId: "hiddenRoot", tasks: [{ id: "task", title: "Сохранить задачу", projectId: "project" }], taskProjects: [{ id: "project", name: "Проект" }], events: [{ id: "event", title: "Удалить событие", date: "2030-01-01" }], library: { categories: [{ id: "cat", name: "Категория" }], entries: [{ id: "link", name: "Путь", target: "C:\\Keep\\file.txt", favorite: true, categoryId: "cat" }] } }) },
+    { id: "third", name: "Третий", data: workspace.workspaceDefaults() }
+  ] });
+  const make = (state, selected, write) => {
+    const queue = sandbox.ZETER_STORAGE_UTILS.createPrimaryStateSaveQueue({ getState: () => state, nativeStorage: true, writePrimaryRecord: write || (async () => ({ updatedAt: 1 })) });
+    return workspace.createVirtualDesktopController({ getState: () => state,
+      requestDeletion: async (model, execute) => { assert.equal(model.groups.find(group => group.id === "files").count, 3); return selected === null ? false : execute(selected); },
+      persistTransaction: operation => queue.transaction(operation),
+      pruneReferences: (target, ids) => sandbox.ZETER_STATE_MAINTENANCE_UTILS.pruneTargetReferencesForRemovedItems(target, ids),
+      saveState: () => queue.queue()
+    });
+  };
+  let state = fixture(), before = JSON.stringify(state), writes = 0;
+  assert.equal(await make(state, null, async () => { writes++; }).remove("second"), false);
+  assert.equal(JSON.stringify(state), before); assert.equal(writes, 0);
+  assert.equal(await make(state, [], async () => { writes++; }).remove("desktop"), false);
+  workspace.syncLegacyWorkspaceAliases(state);
+  const source = plain(state.desktops[1]), mainBefore = plain(state.desktops[0]);
+  const snapshot = workspace.desktopBackupSnapshot(state, "second");
+  assert.deepEqual(plain(snapshot.desktop), source);
+  assert.deepEqual(Object.keys(snapshot.fs).sort(), ["child", "hiddenRoot", "note"]);
+  snapshot.desktop.name = "Detached"; assert.equal(state.desktops[1].name, source.name);
+  let persisted;
+  await make(state, ["calendar"], async candidate => { persisted = plain(candidate); assert.equal(state.desktops.length, 3); return { updatedAt: 1 }; }).remove("second");
+  assert.deepEqual(plain(state.desktops[0]), mainBefore, "primary must never receive archived groups");
+  const archive = state.archivedDesktops[0];
+  assert.equal(archive.desktop.data.events, undefined);
+  assert.deepEqual(plain(archive.desktop.data.library), source.data.library);
+  assert.deepEqual(plain(archive.desktop.data.tasks), source.data.tasks);
+  assert.deepEqual(plain(archive.desktop.data.taskProjects), source.data.taskProjects);
+  assert.equal(archive.fs.note.content, "Keep contents"); assert.equal(archive.fs.hiddenRoot.parent, "second");
+  assert.equal(state.fs.note, undefined); assert.equal(persisted.archivedDesktops[0].fs.child.content, "Keep child");
+  const archivedBefore = JSON.stringify(state.archivedDesktops);
+  workspace.syncLegacyWorkspaceAliases(state);
+  assert.equal(JSON.stringify(state.archivedDesktops), archivedBefore, "normalization must not truncate inactive archive data");
+  state = fixture(); before = JSON.stringify(state);
+  await assert.rejects(make(state, ["files", "links"], async () => { throw new Error("refusal"); }).remove("second"), /refusal/);
+  assert.equal(JSON.stringify(state), before);
+  await make(state, ["files", "links"]).remove("second");
+  assert.deepEqual(plain(state.archivedDesktops[0].fs), {});
+  assert.equal(state.archivedDesktops[0].desktop.data.library, undefined);
+  assert.equal(state.archivedDesktops[0].desktop.data.events[0].id, "event");
+  assert.equal(state.desktops[0].data.events.length, 0);
+  state = fixture(); state.desktops[0].data.library.entries = [{ id: "duplicate", name: "Other", target: "C:\\Keep\\file.txt" }];
+  await make(state, []).remove("second");
+  assert.equal(state.desktops[0].data.library.entries[0].name, "Other");
+  assert.equal(state.archivedDesktops[0].desktop.data.library.entries[0].name, "Путь", "archives allow same target without merging");
+  state = fixture(); await make(state, ["files","tasks","calendar","links","automation","notifications"]).remove("second");
+  assert.equal(state.archivedDesktops, undefined, "explicit selection of all groups leaves no retained archive");
+  for (const compensationFails of [false, true]) {
+    state = fixture(); let count = 0;
+    const controller = make(state, [], async snapshot => {
+      count++;
+      if (count === 1) { state.desktops[1].data.library.entries[0].name = "Changed concurrently"; return { updatedAt: 1 }; }
+      assert.equal(snapshot.desktops[1].data.library.entries[0].name, "Changed concurrently", "compensation writes latest live state");
+      if (compensationFails) throw new Error("compensation denied");
+      return { updatedAt: 2 };
+    });
+    await assert.rejects(controller.remove("second"), compensationFails ? /состояние в хранилище неизвестно.*compensation denied/ : /актуальные данные записаны/);
+    assert.equal(count, 2); assert.equal(state.desktops.length, 3); assert.equal(state.desktops[1].data.library.entries[0].name, "Changed concurrently");
+  }
+  state = fixture();
+  await make(state, [], async () => { state.marker = "independent"; state.currentDesktop = "third"; state.desktops[2].data.library.entries.push({ id: "independent", name: "Третий", target: "https://third.example/" }); return { updatedAt: 1 }; }).remove("second");
+  assert.equal(state.marker, "independent"); assert.equal(state.currentDesktop, "third"); assert.equal(state.desktops[1].data.library.entries[0].id, "independent");
+  // Use the actual app save adapter: its post-barrier alias normalization must
+  // not swallow cleanup of the formerly active desktop.
+  state = fixture(); let release, began, clears = 0, restores = 0, writesCount = 0;
+  const started = new Promise(resolve => { began = resolve; });
+  const queue = sandbox.ZETER_STORAGE_UTILS.createPrimaryStateSaveQueue({ getState: () => state, nativeStorage: true,
+    writePrimaryRecord: async () => { if (++writesCount === 1) { began(); await new Promise(resolve => { release = resolve; }); } return { updatedAt: writesCount }; }
+  });
+  sandbox.state = state;
+  sandbox.primaryStateSaveQueue = queue;
+  sandbox.syncLegacyWorkspaceAliases = workspace.syncLegacyWorkspaceAliases;
+  sandbox.storageStateRuntimeController = sandbox.ZETER_STORAGE_UTILS.createStorageStateRuntimeController({ getState: () => state,
+    runtime: { writesAllowed: true }, queuePrimarySave: options => queue.queue(options) });
+  const app = fs.readFileSync(APP_PATH, "utf8");
+  vm.runInContext(app.slice(app.indexOf("  function saveState(options = {}) {"), app.indexOf("  function storedStateSizeBytes()")), sandbox);
+  const active = workspace.createVirtualDesktopController({ getState: () => state,
+    requestDeletion: (model, execute) => execute([]), persistTransaction: operation => queue.transaction(operation),
+    saveState: () => sandbox.saveState(), clearRuntimeWindows: () => { clears++; }, restoreWindows: () => { restores++; }
+  });
+  const pending = active.remove("second"); await started;
+  const ordinary = sandbox.saveState(); release(); await pending; await ordinary;
+  assert.deepEqual([clears, restores], [1, 1], "active runtime must reconcile before deferred alias normalization");
+  assert.equal(state.currentDesktop, "desktop");
+  console.log("selective desktop deletion: cancel, save refusal/retry, archive, recursive deletion, no primary transfer, concurrent compensation smoke: ok");
+}
+
+async function smokeScopedLibraryRollbackWithNormalization() {
+  const fixture = { fs: {}, currentDesktop: "second", marker: "before", desktops: [
+    { id: "desktop", name: "Основной", data: sandbox.ZETER_WORKSPACE_UTILS.workspaceDefaults() },
+    { id: "second", name: "Второй", data: sandbox.ZETER_WORKSPACE_UTILS.workspaceDefaults({ library: {
+      entries: [{ id: "persisted_link", name: "Ссылка", target: "https://preserve.example/", favorite: false }], categories: []
+    } }) }
+  ] };
+  sandbox.ZETER_WORKSPACE_UTILS.syncLegacyWorkspaceAliases(fixture);
+  const before = JSON.stringify(fixture.desktops[1].data.library);
+  const mainBefore = JSON.stringify(fixture.desktops[0].data.library);
+  let reject = true;
+  const controller = sandbox.ZETER_LINK_LIBRARY_UTILS.createLinkLibraryController({
+    getWorkspace: () => fixture.desktops[1].data,
+    createId: () => "unused",
+    saveState: async () => {
+      sandbox.ZETER_WORKSPACE_UTILS.syncLegacyWorkspaceAliases(fixture);
+      fixture.marker = "independent-change";
+      if (reject) throw new Error("normalized storage refusal");
+      return { saved: true };
+    }
+  });
+  await assert.rejects(controller.toggleFavorite("persisted_link"), /normalized storage refusal/);
+  assert.equal(JSON.stringify(fixture.desktops[1].data.library), before, "real save normalizer must not prevent scoped rollback");
+  assert.equal(JSON.stringify(fixture.desktops[0].data.library), mainBefore);
+  assert.equal(fixture.marker, "independent-change");
+  reject = false;
+  await controller.toggleFavorite("persisted_link");
+  assert.equal(fixture.desktops[1].data.library.entries[0].favorite, true, "retry after normalized refusal must save once");
+}
+
+smokeSelectiveDesktopDeletion().then(smokeScopedLibraryRollbackWithNormalization).then(smokePersistedDeletion).then(() => {
   console.log(`state migration smoke: ok (${fs.existsSync(MIGRATION_PATH) ? "core" : "app baseline"})`);
 }).catch(error => {
   console.error(error);

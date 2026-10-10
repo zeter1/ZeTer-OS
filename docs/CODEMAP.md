@@ -5,9 +5,9 @@
 <!-- BEGIN GENERATED CORE SUMMARY -->
 > Этот блок обновляется командой `python tools/update_docs.py --write`.
 
-- Core-модулей: 74.
-- Публичных глобалов: 74.
-- Статических зависимостей: 159.
+- Core-модулей: 76.
+- Публичных глобалов: 76.
+- Статических зависимостей: 165.
 - Подробный порядок: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
 <!-- END GENERATED CORE SUMMARY -->
 
@@ -73,6 +73,8 @@
 |---|---|---|
 | `app/js/core/native-storage.js` | `ZETER_NATIVE_STORAGE` | Адаптер к `window.pywebview.api` |
 | `app/js/core/shortcut-utils.js` | `ZETER_SHORTCUT_UTILS` | Нормализация Windows/URL/внутренних целей, модель и вложения ярлыков, окно создания и безопасные подписи/стандартные иконки |
+| `app/js/core/link-library-utils.js` | `ZETER_LINK_LIBRARY_UTILS` | Библиотека рабочего стола: нормализация/импорт, ключи дублей, категории, CRUD и подтверждённое сохранение с захваченным workspace и откатом только его library |
+| `app/js/core/link-library-ui-utils.js` | `ZETER_LINK_LIBRARY_UI_UTILS` | Приложение Ссылки: категории с шестерёнкой и закреплением, поиск, карточки с кликабельным адресом, форма, избранное, ошибки и явные действия |
 | `app/js/core/managed-file-utils.js` | `ZETER_MANAGED_FILE_UTILS` | Полные chunked-копии Windows-файлов в `data`, позиционируемые inline-маркеры, перенос ссылок через drag/drop, копирование через Ctrl+C/Ctrl+V, координаты и размер файлов в ячейках, открытие и lifecycle удаления |
 | `app/js/core/storage-utils.js` | `ZETER_STORAGE_UTILS` | Полный storage runtime: явные результаты native/IndexedDB load/save, запрет записи до успеха, primary records, малый localStorage snapshot, legacy/подтверждённый fallback, отклонение Promise при полном отказе, последовательная очередь, size/boot lifecycle и очистка старых browser-хранилищ |
 | `app/js/core/asset-utils.js` | `ZETER_ASSET_UTILS` | Data URL, Blob, изображения, пути, ZIP, подготовка внешних backup-assets и runtime-controller чтения, записи и очистки export-каталогов |
@@ -107,7 +109,7 @@
 | Файл | Публичный глобал | Назначение |
 |---|---|---|
 | `app/js/core/data-normalizers.js` | `ZETER_DATA_NORMALIZERS` | Задачи, календарь, уведомления и таблицы |
-| `app/js/core/workspace-utils.js` | `ZETER_WORKSPACE_UTILS` | Рабочие пространства, runtime-доступ к desktop data/profile/openWindows, sanitation окон и Explorer spaces, action-controller создания, переключения и удаления виртуальных рабочих столов |
+| `app/js/core/workspace-utils.js` | `ZETER_WORKSPACE_UTILS` | Рабочие пространства, runtime-доступ к desktop data/profile/openWindows, sanitation окон и Explorer spaces, action-controller создания, переключения и удаления виртуальных рабочих столов; desktopBackupSnapshot выделяет данные одного стола, выборочное удаление сохраняет невыбранные группы в state.archivedDesktops без переноса на основной стол |
 | `app/js/core/trash-utils.js` | `ZETER_TRASH_UTILS` | Legacy-модель отложенного удаления: normalizer, retention, move/undo/restore и permanent delete для совместимости старых state; текущий UI удаляет после подтверждения записи и откатывает state при её отказе |
 | `app/js/core/task-ui-utils.js` | `ZETER_TASK_UI_UTILS` | Store adapters, доска, карточки и формы задач |
 | `app/js/core/task-app-ui-utils.js` | `ZETER_TASK_APP_UI_UTILS` | Runtime-controller задач: доска, редактор, обновление открытых окон и единая навигация из поиска/уведомлений |
@@ -165,6 +167,7 @@
 | `app/css/45-form-controls.css` | Контрастные select и form controls |
 | `app/css/50-explorer.css` | Базовый проводник и sidebar |
 | `app/css/60-apps-calendar-notes-tables.css` | Calendar, app center, Notes и tables |
+| `app/css/65-link-library.css` | Компактная библиотека ссылок, формы, категории и адаптация к ширине окна |
 | `app/css/80-overrides.css` | Поздние shell/app overrides |
 | `app/css/85-explorer-plus.css` | Tabs, address, preview и selection |
 | `app/css/90-security.css` | Центр безопасности |

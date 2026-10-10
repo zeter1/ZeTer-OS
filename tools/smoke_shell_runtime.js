@@ -8,6 +8,7 @@ const vm = require("node:vm");
 function fakeElement() {
   const classes = new Set();
   return {
+    addEventListener() {},
     style: {},
     value: "",
     classList: {
@@ -139,3 +140,26 @@ assert.match(source, /#volume[\s\S]*?applySettings\(\);\s*saveState\(\);/, "volu
 assert.match(source, /data-quick-wall[\s\S]*?applySettings\(\);\s*saveState\(\);/, "quick wallpaper changes must save explicitly");
 
 console.log("shell tray calendar toggle smoke: ok");
+
+// Reach the registered production global keyboard handler, not a source regex.
+for (const id of ["tray", "notifications-button", "desktop", "import-file", "unlock", "desktop-items"]) elements[`#${id}`] = fakeElement();
+let modalPresent = true, globalKeydown, deletes = 0, hotkeyChecks = 0, opens = 0;
+const modalKeyboardController = sandbox.window.ZETER_SHELL_UI_UTILS.createShellRuntimeController({
+  navigatorRef: {}, locationRef: { protocol: "file:" },
+  documentRef: { querySelector: () => modalPresent ? {} : null, addEventListener(type, handler) { if (type === "keydown") globalKeydown = handler; } },
+  windowRef: { ...sandbox.window, addEventListener() {} },
+  getRuntimeUi: () => ({ selectedDesktop: "owned-note", multiSelected: new Set() }),
+  deleteItems() { deletes++; }, openItem() { opens++; },
+  hotkeyActionForEvent() { hotkeyChecks++; return "lock"; }
+});
+modalKeyboardController.bindGlobal();
+for (const key of ["Delete", "k", "Enter", " "]) {
+  let prevented = false;
+  globalKeydown({ key, ctrlKey: key === "k", target: {}, preventDefault() { prevented = true; } });
+  assert.equal(prevented, false, "modal Enter/Space native defaults must remain usable");
+}
+assert.deepEqual([deletes, opens, hotkeyChecks], [0, 0, 0], "underlying shell shortcuts must not act behind warning dialog");
+modalPresent = false;
+globalKeydown({ key: "k", target: {}, preventDefault() {} });
+assert.equal(hotkeyChecks, 1, "guard must leave ordinary shell hotkeys available after modal closes");
+console.log("desktop deletion modal keyboard isolation smoke: ok");
