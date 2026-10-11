@@ -8,6 +8,16 @@ The project combines a Python desktop shell with a modular web interface and foc
 
 🌐 **Web version:** https://dkl.do.am/portfolio/ZeTerOS/index.html
 
+## Download and run on Windows
+
+> Windows builds are marked **Prerelease**: they are preliminary builds for testing. A release build may differ from the current source.
+
+1. Open [GitHub Releases](https://github.com/zeter1/ZeTer-OS/releases) and expand **Assets** for the build you choose.
+2. Download `ZeTer-OS-Windows-x64.zip` and extract the entire archive.
+3. Run `ZeTer-OS.exe` from the extracted folder.
+
+Python and project dependencies are included. Keep the runtime files and web layer beside the EXE. **Microsoft Edge WebView2 Runtime** is required separately if it is not already installed. A SHA-256 file is published beside the ZIP.
+
 ## What the project demonstrates
 
 - hybrid Python + HTML/CSS/JavaScript desktop architecture;
@@ -39,7 +49,7 @@ To inspect the interface and main features, open:
 
 **https://dkl.do.am/portfolio/ZeTerOS/index.html**
 
-### Option 2 — local desktop version
+### Option 2 — desktop version from source
 
 1. Install Python 3 for Windows.
 2. Download the project using **Code → Download ZIP** or Git:
@@ -57,7 +67,7 @@ py -3 -m pip install -r requirements.txt
 
 Node.js 22 is recommended for the full JavaScript verification set.
 
-## Launch
+## Launch from source
 
 ```powershell
 py -3 run_zeter_os.py
