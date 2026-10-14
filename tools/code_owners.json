@@ -269,7 +269,7 @@
       "css": ["app/css/40-app-foundation.css"],
       "state": ["workspace.notifications action=open-update/source=update:version", "runtime appUpdateApplying", "data/updates (native installer transaction; user state excluded)"],
       "smokes": ["tools/smoke_update_runtime.js", "tools/smoke_app_updater.py"],
-      "manual": "На отдельной Windows-установке A→B: уведомление в центре и около О ZeTer OS → Обновить → download/save/close/replace/read-only probe/restart; отмена/ошибка save/неправильный hash/сбой swap/rollback; data и чужие файлы сохранены; в source/PWA установка недоступна."
+      "manual": "В инструкции Обновить вручную: ссылки на репозиторий/Releases; выделение → левая/правая кнопка → Копировать, Ctrl+C, новое выделение и отказ clipboard. На отдельной Windows-установке A→B: уведомление в центре и около О ZeTer OS → Обновить → download/save/close/replace/read-only probe/restart; отмена/ошибка save/неправильный hash/сбой swap/rollback; data и чужие файлы сохранены; в source/PWA установка недоступна."
     },
     {
       "id": "app-center",

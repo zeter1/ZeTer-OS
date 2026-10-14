@@ -138,7 +138,7 @@
 | `app/js/core/photo-ui-utils.js` | `ZETER_PHOTO_UI_UTILS` | Сбор изображений и UI галереи |
 | `app/js/core/settings-ui-utils.js` | `ZETER_SETTINGS_UI_UTILS` | UI профиля/обоев, storage-status, общего автозапуска Windows, уведомлений, запуска, доступности и настраиваемых горячих клавиш |
 | `app/js/core/about-ui-utils.js` | `ZETER_ABOUT_UI_UTILS` | Окно «О ZeTer OS»: описание, текущая версия, ссылки на изменения/сборки, контакты и копирование выделения через контекстное меню |
-| `app/js/core/update-ui-utils.js` | `ZETER_UPDATE_UI_UTILS` | Проверка обновлений через native bridge, предложение рядом с «О ZeTer OS», загрузка/отмена и save barrier перед запуском установщика |
+| `app/js/core/update-ui-utils.js` | `ZETER_UPDATE_UI_UTILS` | Проверка обновлений через native bridge, предложение рядом с «О ZeTer OS», загрузка/отмена и save barrier; инструкция `manualUpdateElement`, внешние ссылки и меню копирования выделенного текста |
 | `app/js/core/app-center-ui-utils.js` | `ZETER_APP_CENTER_UI_UTILS` | Карточки и UI центра приложений, поиск ярлыков и install/uninstall controller текущего рабочего стола |
 | `app/js/core/search-utils.js` | `ZETER_SEARCH_UTILS` | Агрегация, фильтры, рейтинг и snippets поиска |
 | `app/js/core/initial-state-utils.js` | `ZETER_INITIAL_STATE_UTILS` | Стартовое состояние первого запуска/сброса |

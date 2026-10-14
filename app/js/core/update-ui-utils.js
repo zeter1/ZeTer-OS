@@ -26,14 +26,41 @@
         <li><b>Запустите и проверьте новую версию.</b><p>Откройте новый <code>ZeTer-OS.exe</code>. В «О ZeTer OS» проверьте номер версии, затем рабочие столы, документы, задачи и вложения. После проверки используйте ярлык на новую папку. Если был включён автозапуск Windows, включите его заново в настройках новой версии, чтобы обновить путь.</p></li>
       </ol></section>
       <section class="setting-card"><h3>Если вы работали в браузере</h3><p>В браузерной ZeTer OS нет папки <code>data</code> рядом с EXE. Создайте ZIP-бэкап через «Центр безопасности данных», запустите новую Windows-сборку и импортируйте этот бэкап через её «Центр безопасности данных». Сначала сохраните копию уже существующих данных новой сборки, если они есть.</p></section>
-      <section class="setting-card"><h3>Если новая версия не запустилась</h3><p>Закройте новую сборку и запустите программу из сохранённой старой папки. Не удаляйте старую папку и ZIP-бэкап до проверки новой версии. Не переносите <code>data</code> из новой версии обратно в старую: формат мог измениться. Для восстановления используйте совместимую версию и проверенный бэкап.</p><p class="muted">Страница репозитория содержит описание проекта и инструкции. Готовые Windows-сборки скачиваются в разделе Releases. Прямая ссылка на Releases: https://github.com/zeter1/ZeTer-OS/releases</p></section>`;
+      <section class="setting-card"><h3>Если новая версия не запустилась</h3><p>Закройте новую сборку и запустите программу из сохранённой старой папки. Не удаляйте старую папку и ZIP-бэкап до проверки новой версии. Не переносите <code>data</code> из новой версии обратно в старую: формат мог измениться. Для восстановления используйте совместимую версию и проверенный бэкап.</p><p class="muted"><a href="https://github.com/zeter1/ZeTer-OS" target="_blank" rel="noopener noreferrer" data-manual-update-link="repository">Страница репозитория</a> содержит описание проекта и инструкции. Готовые Windows-сборки скачиваются в разделе <a href="https://github.com/zeter1/ZeTer-OS/releases" target="_blank" rel="noopener noreferrer" data-manual-update-link="releases">Releases</a>. Прямая ссылка на Releases: <a href="https://github.com/zeter1/ZeTer-OS/releases" target="_blank" rel="noopener noreferrer" data-manual-update-link="releases">https://github.com/zeter1/ZeTer-OS/releases</a></p></section>`;
   }
 
-  function manualUpdateElement({ documentRef = document, openExternalLink = async () => false } = {}) {
+  function manualUpdateElement({ documentRef = document, getSelection = () => window.getSelection(), showContext = () => {}, copyText = async () => false, toast = () => {}, openExternalLink = async () => false } = {}) {
     const root = documentRef.createElement("div");
     root.className = "about-app manual-update-app";
     root.innerHTML = manualUpdateHTML();
+    let pendingCopyText = "";
+    function localSelection() {
+      const selection = getSelection();
+      return selection && !selection.isCollapsed && root.contains(selection.anchorNode) && root.contains(selection.focusNode) ? selection : null;
+    }
+    function showCopyMenu(event, text) {
+      event.preventDefault();
+      event.stopPropagation();
+      showContext(event.clientX, event.clientY, [["📋", "Копировать", async () => {
+        const copied = await copyText(text);
+        toast(copied ? "Текст скопирован" : "Не удалось скопировать", copied ? "Выделенный текст в буфере обмена." : "Выделите текст и нажмите Ctrl+C.");
+      }]]);
+    }
+    root.addEventListener("pointerdown", event => {
+      pendingCopyText = "";
+      if (event.button !== 0 || event.target.closest?.("button")) return;
+      const selection = localSelection();
+      if (!selection) return;
+      const onSelection = Array.from(selection.getRangeAt(0).getClientRects()).some(rect =>
+        event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
+      if (!onSelection) return;
+      pendingCopyText = selection.toString();
+      if (pendingCopyText) event.preventDefault();
+    });
     root.addEventListener("click", event => {
+      const text = pendingCopyText;
+      pendingCopyText = "";
+      if (text) { showCopyMenu(event, text); return; }
       const button = event.target.closest?.("[data-manual-update-link]");
       if (!button || !root.contains(button)) return;
       const links = { releases: "https://github.com/zeter1/ZeTer-OS/releases", repository: "https://github.com/zeter1/ZeTer-OS" };
@@ -41,6 +68,10 @@
       if (!href) return;
       event.preventDefault();
       void openExternalLink(href);
+    });
+    root.addEventListener("contextmenu", event => {
+      const text = localSelection()?.toString();
+      if (text) showCopyMenu(event, text);
     });
     return root;
   }

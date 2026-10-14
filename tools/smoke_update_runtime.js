@@ -47,6 +47,50 @@ function fixture(extra = {}) {
 }
 
 async function main() {
+  const manualHTML = updates.manualUpdateHTML();
+  for (const [key, href] of [["repository", "https://github.com/zeter1/ZeTer-OS"], ["releases", "https://github.com/zeter1/ZeTer-OS/releases"]]) {
+    assert.ok(manualHTML.includes(`<a href="${href}" target="_blank" rel="noopener noreferrer" data-manual-update-link="${key}">`), "manual guide footer must contain real external links");
+  }
+  const manualHandlers = {}, manualCalls = [], textNode = {};
+  let selectedText = "  Выделенный текст\nсо второй строкой  ", copyResult = true;
+  const selection = { isCollapsed: false, anchorNode: textNode, focusNode: textNode,
+    toString: () => selectedText, getRangeAt: () => ({ getClientRects: () => [{ left: 10, right: 100, top: 10, bottom: 30 }] }) };
+  const manualRoot = { contains: node => node === textNode || node?.inside === true,
+    addEventListener: (name, handler) => { manualHandlers[name] = handler; } };
+  updates.manualUpdateElement({ documentRef: { createElement: () => manualRoot }, getSelection: () => selection,
+    showContext: (x, y, entries) => manualCalls.push({ x, y, entries }), copyText: async text => { manualCalls.push(text); return copyResult; },
+    toast: title => manualCalls.push(title), openExternalLink: href => manualCalls.push(href) });
+  const target = { closest: () => null };
+  const mouse = (extra = {}) => ({ target, button: 0, clientX: 20, clientY: 20, prevented: false,
+    preventDefault() { this.prevented = true; }, stopPropagation() {}, ...extra });
+  const press = mouse();
+  manualHandlers.pointerdown(press);
+  assert.equal(press.prevented, true, "left press inside selection must preserve it");
+  manualHandlers.click(mouse());
+  assert.equal(manualCalls[0].entries[0][1], "Копировать");
+  selectedText = "";
+  await manualCalls[0].entries[0][2]();
+  assert.equal(manualCalls[1], "  Выделенный текст\nсо второй строкой  ", "menu must copy captured text including whitespace");
+  assert.equal(manualCalls[2], "Текст скопирован");
+  selectedText = "Повторное выделение";
+  manualCalls.length = 0;
+  manualHandlers.contextmenu(mouse({ button: 2 }));
+  copyResult = false;
+  await manualCalls[0].entries[0][2]();
+  assert.equal(manualCalls[2], "Не удалось скопировать");
+  manualCalls.length = 0;
+  const outside = mouse({ clientX: 150 });
+  manualHandlers.pointerdown(outside);
+  manualHandlers.click(outside);
+  assert.equal(outside.prevented, false, "click outside selection must allow a new selection");
+  assert.equal(manualCalls.length, 0);
+  selection.focusNode = {};
+  manualHandlers.contextmenu(mouse({ button: 2 }));
+  assert.equal(manualCalls.length, 0, "selection crossing another app must not be copied");
+  const link = { inside: true, dataset: { manualUpdateLink: "releases" } };
+  manualHandlers.click(mouse({ target: { closest: () => link } }));
+  assert.equal(manualCalls[0], "https://github.com/zeter1/ZeTer-OS/releases");
+
   const actions = fixture();
   await actions.controller.start();
   for (const attribute of ["data-update-news", "data-update-manual"]) {
@@ -140,6 +184,6 @@ async function main() {
   assert.equal(notifications.notificationCanOpen({ ...centerRecord, source: "update:javascript:bad" }), false);
   assert.doesNotMatch(notificationUI.notificationCardHTML({ ...centerRecord, source: "update:javascript:bad" }), /data-update-install/);
   assert.doesNotMatch(updates.updatePanelHTML({ ...available, error: '<img src=x onerror="bad">' }), /<img/);
-  console.log("update UI: offer anchor, save barrier, cancel race, duplicate start, source boundary and notification center: ok");
+  console.log("update UI: manual links/selection/copy, offer anchor, save barrier, cancel race, duplicate start, source boundary and notification center: ok");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -2538,7 +2538,7 @@
     });
   }
   function renderManualUpdateApp(){
-    return window.ZETER_UPDATE_UI_UTILS.manualUpdateElement({ openExternalLink: openExternalTarget });
+    return window.ZETER_UPDATE_UI_UTILS.manualUpdateElement({ openExternalLink: openExternalTarget, showContext, copyText: copyTextToClipboard, toast });
   }
   function renderHelpApp(){ return helpAppElement({ openApp, osVersion: OS_VERSION }); }
   const searchController = createSearchController({

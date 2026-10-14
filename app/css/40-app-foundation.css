@@ -769,6 +769,8 @@ body.light .help-search-panel {
 .manual-update-steps li:last-child { margin-bottom: 0; }
 .manual-update-steps p { margin: 6px 0 0; }
 .manual-update-app code { padding: 2px 5px; background: rgba(255,255,255,.07); border-radius: 5px; overflow-wrap: anywhere; }
+.manual-update-app a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.manual-update-app a:hover, .manual-update-app a:focus-visible { color: var(--accent); }
 @media (max-width: 600px) { .about-app { padding: 12px; gap: 12px; } .about-app .setting-card { padding: 16px; } }
 .developer-profile { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .developer-avatar { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; border: 1px solid rgba(255,255,255,.24); background: linear-gradient(135deg, rgba(122,168,255,.48), rgba(193,121,255,.42)); color: white; font-size: 13px; font-weight: 900; letter-spacing: .04em; box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
