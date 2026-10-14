@@ -101,6 +101,7 @@ async function main() {
   actions.controller.stop();
   const success = fixture();
   await success.controller.start();
+  assert.equal([...success.timers.values()][0].delay, 6 * 60 * 60 * 1000, "automatic discovery must wait six hours");
   assert.equal(success.children.length, 1, "available update must appear as an offer");
   assert.equal(success.children[0].style.left, "510px", "offer must be anchored below the About button");
   assert.equal(success.children[0].style.top, "70px");

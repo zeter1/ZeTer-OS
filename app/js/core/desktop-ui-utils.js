@@ -34,8 +34,7 @@
     bindItemPointerDrag,
     createItemDragRuntimeController,
     showDragGhost,
-    hideDragGhost,
-    moveDragGhost
+    hideDragGhost
   } = itemDragUiUtils;
   const { createDesktopContextMenuController } = contextMenuUiUtils;
   const { ensureManagedFileInlineMarkers, plainTextWithoutManagedFiles } = managedFileUtils;
@@ -447,16 +446,14 @@
       return "folder";
     }
 
-    function desktopDragCountText(count = 0) {
-      const value = Math.max(0, Number(count) || 0);
-      const mod100 = value % 100;
-      const mod10 = value % 10;
-      const noun = mod100 >= 11 && mod100 <= 14 ? "элементов" : (mod10 === 1 ? "элемент" : (mod10 >= 2 && mod10 <= 4 ? "элемента" : "элементов"));
-      return `${value} ${noun}`;
-    }
-
     function enableDesktopItemPointerDrag(element, itemId) {
       let session = null;
+
+      function movePreview(deltaX, deltaY) {
+        if (!session?.ghost) return;
+        session.ghost.style.left = session.origin.left + deltaX + "px";
+        session.ghost.style.top = session.origin.top + deltaY + "px";
+      }
 
       function preview(deltaX, deltaY) {
         if (!session) return null;
@@ -487,6 +484,8 @@
         if (!session) return;
         session.elements.forEach(source => source.classList?.remove("group-dragging-source"));
         hideDragGhost(documentRef.querySelector?.("#drag-ghost"));
+        session.ghost?.classList.remove("desktop-drag-preview");
+        session.ghost?.replaceChildren();
         dragController.clearDropMarks();
         getRuntimeUi().drag = null;
         session = null;
@@ -495,7 +494,7 @@
       return bindItemPointerDrag(element, itemId, {
         source: "desktop",
         ignoreSelector: "input,textarea,select,[data-delete-item],[data-toggle-folder],.tree-delete,.pinned-delete,.pinned-unpin,.tree-toggle",
-        onDragStart: ({ event, dx, dy }) => {
+        onDragStart: ({ dx, dy }) => {
           const fs = getState().fs;
           const ids = desktopDragSelectionIds(fs, getRuntimeUi().multiSelected, itemId, getDesktopRoot());
           if (!ids.length) return;
@@ -512,21 +511,38 @@
               y: Number.isFinite(renderedY) ? renderedY : (current?.y || 0)
             };
           });
-          session = { ids, items, elements, plan: null, committed: false, dropKind: null };
+          const origin = element.getBoundingClientRect();
+          const ghost = documentRef.querySelector?.("#drag-ghost");
+          session = { ids, items, elements, origin, ghost, plan: null, committed: false, dropKind: null };
           getRuntimeUi().drag = { itemId, itemIds: [...ids], source: "desktop" };
+          if (ghost) {
+            showDragGhost(ghost, "");
+            ghost.classList.add("desktop-drag-preview");
+            elements.forEach(source => {
+              const rect = source.getBoundingClientRect();
+              const copy = source.cloneNode(true);
+              copy.removeAttribute("id");
+              copy.removeAttribute("data-item-id");
+              copy.removeAttribute("data-folder-target");
+              copy.querySelectorAll("[id]").forEach(child => child.removeAttribute("id"));
+              copy.classList.remove("selected", "group-dragging-source", "dragging-source", "folder-drop-hover");
+              copy.setAttribute("aria-hidden", "true");
+              copy.setAttribute("tabindex", "-1");
+              copy.style.left = rect.left - origin.left + "px";
+              copy.style.top = rect.top - origin.top + "px";
+              copy.style.width = rect.width + "px";
+              copy.style.height = rect.height + "px";
+              ghost.append(copy);
+            });
+          }
           elements.forEach(source => source.classList?.add("group-dragging-source"));
-          const item = fs[itemId];
-          showDragGhost(documentRef.querySelector?.("#drag-ghost"), dragGhostHTML({
-            icon: itemIcon(item),
-            name: ids.length > 1 ? desktopDragCountText(ids.length) : (item?.name || "")
-          }));
-          moveDragGhost(documentRef.querySelector?.("#drag-ghost"), event.clientX, event.clientY);
+          movePreview(dx, dy);
           preview(dx, dy);
         },
         onDragMove: ({ event, dx, dy }) => {
           if (!session) return;
           preview(dx, dy);
-          moveDragGhost(documentRef.querySelector?.("#drag-ghost"), event.clientX, event.clientY);
+          movePreview(dx, dy);
           if (session.ids.length > 1) {
             session.dropKind = markDesktopGroupDropTarget(event.clientX, event.clientY, session.ids);
           } else {

@@ -55,6 +55,8 @@ UPDATER_MODULE = PROJECT_ROOT / "app_updater.py"
 UPDATER_RUNNER = PROJECT_ROOT / "update_runner.py"
 UPDATER_PACKAGE_TOOL = PROJECT_ROOT / "tools" / "build_update_package.py"
 UPDATER_SMOKE = PROJECT_ROOT / "tools" / "smoke_app_updater.py"
+UPDATE_FEED_TOOL = PROJECT_ROOT / "tools" / "build_update_feed.py"
+UPDATE_FEED_SMOKE = PROJECT_ROOT / "tools" / "smoke_update_feed.py"
 SMOKE_SCRIPTS = (
     PROJECT_ROOT / "tools" / "smoke_system_settings.js",
     PROJECT_ROOT / "tools" / "smoke_state_migration.js",
@@ -267,6 +269,8 @@ def check_required_files() -> list[CheckResult]:
         UPDATER_RUNNER,
         UPDATER_PACKAGE_TOOL,
         UPDATER_SMOKE,
+        UPDATE_FEED_TOOL,
+        UPDATE_FEED_SMOKE,
         PROBLEM_LOGS_MODULE,
         PROBLEM_LOGS_README,
         MANIFEST_JSON,
@@ -1235,6 +1239,8 @@ def check_python_syntax() -> list[CheckResult]:
         UPDATER_RUNNER,
         UPDATER_PACKAGE_TOOL,
         UPDATER_SMOKE,
+        UPDATE_FEED_TOOL,
+        UPDATE_FEED_SMOKE,
         PROBLEM_LOGS_MODULE,
         Path(__file__).resolve(),
         UPDATE_DOCS_TOOL,
@@ -1441,6 +1447,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_native_smoke(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=DESKTOP_BACKUP_SMOKE, key="python.desktop_backup_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=UPDATER_SMOKE, key="python.updater_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=UPDATE_FEED_SMOKE, key="python.update_feed_smoke"))
     checks.extend(check_problem_logs_smoke(strict_node=strict_node))
     checks.extend(check_release_smoke(strict_node=strict_node))
     return checks

@@ -58,11 +58,11 @@ class FakeParent:
 
 
 class FakeClient:
-    def __init__(self, release, archive, checksum=None):
-        self.release, self.archive, self.checksum = release, archive, checksum
+    def __init__(self, candidate, archive):
+        self.candidate, self.archive = candidate, archive
         self.calls = []
-    def releases(self, cancel):
-        return self.release
+    def feed(self, cancel):
+        return self.candidate
     def fetch(self, url, limit, cancel, **kwargs):
         self.calls.append(url)
         if cancel.is_set():
@@ -72,18 +72,15 @@ class FakeClient:
             if kwargs.get("progress"):
                 kwargs["progress"](len(self.archive))
             return b""
-        return self.checksum
+        raise AssertionError("Unexpected non-package download")
 
 
-def release_asset(version, content=b"package", digest=True):
+def feed_asset(version, content=b"package"):
     name = f"ZeTer-OS-{version}-Windows-x64.zip"
-    asset = {"name": name, "size": len(content), "browser_download_url": f"https://github.com/zeter1/ZeTer-OS/releases/download/build-abcdef1/{name}"}
-    if digest:
-        asset["digest"] = "sha256:" + hashlib.sha256(content).hexdigest()
-    else:
-        checksum = name[:-4] + ".sha256.txt"
-        return {"draft": False, "prerelease": True, "tag_name": "build-abcdef1", "assets": [asset, {"name": checksum, "browser_download_url": f"https://github.com/zeter1/ZeTer-OS/releases/download/build-abcdef1/{checksum}"}]}
-    return {"draft": False, "prerelease": True, "tag_name": "build-abcdef1", "assets": [asset]}
+    return {"schema": 1, "repository": update.REPOSITORY, "platform": update.PLATFORM,
+            "version": version, "tag": "build-abcdef1", "name": name, "size": len(content),
+            "url": f"https://github.com/zeter1/ZeTer-OS/releases/download/build-abcdef1/{name}",
+            "sha256": hashlib.sha256(content).hexdigest(), "notes": ""}
 
 
 class UpdateTests(unittest.TestCase):
@@ -156,26 +153,27 @@ class UpdateTests(unittest.TestCase):
         self.assert_old()
 
     def test_selection_numeric_prerelease_build_sha_no_downgrade(self):
-        chosen = update.select_release([release_asset("3.9.99"), release_asset("4.0.11"), release_asset("4.0.9"), release_asset("4.0.12")], "4.0.10")
+        chosen = update.select_feed(feed_asset("4.0.12"), "4.0.10")
         self.assertEqual(chosen["version"], "4.0.12")
-        self.assertIsNone(update.select_release([release_asset("4.0.10"), release_asset("4.0.9")], "4.0.10"))
+        self.assertIsNone(update.select_feed(feed_asset("4.0.10"), "4.0.10"))
+        self.assertIsNone(update.select_feed(feed_asset("4.0.9"), "4.0.10"))
 
-    def test_ambiguous_and_unsigned_release_rejected(self):
-        release = release_asset("4.0.11")
+    def test_ambiguous_and_missing_digest_feed_rejected(self):
+        candidate = feed_asset("4.0.11")
         with self.assertRaises(update.UpdateError):
-            update.select_release([release, copy.deepcopy(release)], "4.0.10")
-        del release["assets"][0]["digest"]
+            update.select_feed([candidate, copy.deepcopy(candidate)], "4.0.10")
+        del candidate["sha256"]
         with self.assertRaises(update.UpdateError):
-            update.select_release([release], "4.0.10")
+            update.select_feed(candidate, "4.0.10")
 
     def test_hostile_urls(self):
         for url in ("http://github.com/a", "https://github.com.evil/a", "https://github.com:443/a", "https://user@github.com/a", "https://127.0.0.1/a", "https://api.github.com/repos/other/other/releases", "https://objects.githubusercontent.com@evil/a"):
             with self.subTest(url=url), self.assertRaises(update.UpdateError):
                 update.validate_url(url)
-        release = release_asset("4.0.11")
-        release["assets"][0]["browser_download_url"] = release["assets"][0]["browser_download_url"].replace("zeter1/ZeTer-OS", "evil/repo")
+        candidate = feed_asset("4.0.11")
+        candidate["url"] = candidate["url"].replace("zeter1/ZeTer-OS", "evil/repo")
         with self.assertRaises(update.UpdateError):
-            update.select_release([release], "4.0.10")
+            update.select_feed(candidate, "4.0.10")
 
     def test_hostile_zip_paths_and_types_no_stage_writes(self):
         entries = ["../escape", "C:/evil", "/absolute", "app\\evil", "app/file:ads", "app/con.txt", "app/space ", "data/user.json", ".git/config", "app/a\x01b", "app/dir/", "LOGIPR~1/new.dll", "DATA~1/state.bin"]
@@ -341,9 +339,8 @@ class UpdateTests(unittest.TestCase):
         self.assert_old()
         self.assertTrue(FakeParent.closed)
 
-    def test_manager_checksum_prepare_duplicate_install_cancel(self):
-        release = release_asset("4.0.11", self.archive_bytes, digest=False)
-        client = FakeClient([release], self.archive_bytes, self.checksum)
+    def test_manager_feed_prepare_duplicate_install_cancel(self):
+        client = FakeClient(feed_asset("4.0.11", self.archive_bytes), self.archive_bytes)
         armed = []
         manager = update.UpdateManager(self.root, self.root / "data", frozen=True, platform_name="win32", client=client, runner=lambda *args: armed.append(args))
         self.assertEqual(manager.check()["phase"], "available")
@@ -355,15 +352,18 @@ class UpdateTests(unittest.TestCase):
         self.assertTrue((manager.session / "cancel.json").exists())
         self.assert_old()
 
-    def test_truncated_download_bad_checksum_and_source_disabled(self):
-        for mode in ("truncated", "checksum"):
-            client = FakeClient([release_asset("4.0.11", self.archive_bytes, digest=False)], self.archive_bytes[:-5] if mode == "truncated" else self.archive_bytes, b"wrong checksum" if mode == "checksum" else self.checksum)
+    def test_truncated_download_bad_digest_and_source_disabled(self):
+        for mode in ("truncated", "digest"):
+            candidate = feed_asset("4.0.11", self.archive_bytes)
+            if mode == "digest":
+                candidate["sha256"] = "a" * 64
+            client = FakeClient(candidate, self.archive_bytes[:-5] if mode == "truncated" else self.archive_bytes)
             manager = update.UpdateManager(self.root, self.root / "data", frozen=True, platform_name="win32", client=client)
             manager.check()
             self.assertFalse(manager.prepare()["ok"])
             self.assertEqual(manager.get_status()["phase"], "error")
             self.assert_old()
-        client = FakeClient([], b"")
+        client = FakeClient({}, b"")
         source = update.UpdateManager(self.root, self.root / "data", frozen=False, platform_name="win32", client=client)
         self.assertFalse(source.get_status()["supported"])
         self.assertFalse(source.prepare()["ok"])
@@ -372,7 +372,7 @@ class UpdateTests(unittest.TestCase):
     def test_network_error_preserved_and_retry_after_no_retry(self):
         class RateClient:
             calls = 0
-            def releases(self, cancel):
+            def feed(self, cancel):
                 self.calls += 1
                 raise update.UpdateError("rate limited", retry_after=90)
         client = RateClient()
@@ -390,7 +390,7 @@ class UpdateTests(unittest.TestCase):
         self.assert_old()
 
     def test_cancel_at_helper_ready_never_arms_parent_exit(self):
-        client = FakeClient([release_asset("4.0.11", self.archive_bytes)], self.archive_bytes)
+        client = FakeClient(feed_asset("4.0.11", self.archive_bytes), self.archive_bytes)
         manager = update.UpdateManager(self.root, self.root / "data", frozen=True, platform_name="win32", client=client)
         manager.check()
         self.assertEqual(manager.prepare()["phase"], "ready")
@@ -480,7 +480,7 @@ class UpdateTests(unittest.TestCase):
 
     def test_close_failure_allows_cancel_prepare_install_retry(self):
         import run_zeter_os as launcher
-        client = FakeClient([release_asset("4.0.11", self.archive_bytes)], self.archive_bytes)
+        client = FakeClient(feed_asset("4.0.11", self.archive_bytes), self.archive_bytes)
         armed = []
         manager = update.UpdateManager(self.root, self.root / "data", frozen=True, platform_name="win32", client=client, runner=lambda *args: armed.append(args))
         manager.check()

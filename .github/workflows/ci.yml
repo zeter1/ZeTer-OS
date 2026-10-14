@@ -18,7 +18,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Finish a main release + feed together; a newer push must not cancel publication halfway.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   verify:
@@ -81,7 +82,7 @@ jobs:
 
   publish-release:
     needs: verify
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package]'))
+    if: github.repository == 'zeter1/ZeTer-OS' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package]')))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -115,13 +116,66 @@ jobs:
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA::7}"
-          tag="build-$short_sha"
+          # A retry gets a new tag. Never replace bytes referenced by an older feed.
+          tag="build-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           title="ZeTer OS — Windows-сборка $short_sha"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes-file RELEASE_NOTES_RU.md
-            gh release upload "$tag" release/ZeTer-OS-*-Windows-x64.zip release/ZeTer-OS-*-Windows-x64.sha256.txt --repo "$GITHUB_REPOSITORY" --clobber
-          else
-            gh release create "$tag" release/ZeTer-OS-*-Windows-x64.zip release/ZeTer-OS-*-Windows-x64.sha256.txt \
-              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$title" \
-              --notes-file RELEASE_NOTES_RU.md --prerelease
-          fi
+          gh release create "$tag" release/ZeTer-OS-*-Windows-x64.zip release/ZeTer-OS-*-Windows-x64.sha256.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$title" \
+            --notes-file RELEASE_NOTES_RU.md --prerelease
+
+      - name: Set up Python for update feed
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Verify public ZIP and create Pages update feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="build-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          packages=(release/ZeTer-OS-*-Windows-x64.zip)
+          test "${#packages[@]}" -eq 1
+          mkdir pages
+          cp -R app/. pages/
+          python tools/build_update_feed.py --package "${packages[0]}" --tag "$tag" \
+            --output pages/updates.json --verify-download --notes 'Подробности — в истории изменений ZeTer OS.'
+
+      - name: Upload verified Pages site and update feed
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+
+  publish-pages:
+    needs: publish-release
+    if: github.repository == 'zeter1/ZeTer-OS' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout deployment revision
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python for publication guard
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Reject stale run or published version downgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          python tools/build_update_feed.py --check-publication \
+            --revision "$GITHUB_SHA" --latest-revision "$latest_sha"
+
+      - name: Publish update feed after verified Release
+        id: deployment
+        uses: actions/deploy-pages@v4

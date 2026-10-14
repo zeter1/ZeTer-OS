@@ -88,7 +88,7 @@
     const openManualUpdate = options.openManualUpdate || (() => {});
     const setTimer = options.setTimer || setTimeout;
     const clearTimer = options.clearTimer || clearTimeout;
-    const pollMs = options.pollMs || 5 * 60 * 1000;
+    const pollMs = options.pollMs || 6 * 60 * 60 * 1000;
     let status = { supported: Boolean(options.native), phase: "idle", available: false };
     let busy = false, stopped = false, started = false, cancelRequested = false, mutationsLocked = false;
     let checkPromise = null, timer = null, progressTimer = null, offer = null;
@@ -152,7 +152,7 @@
       if (!status.supported || stopped || busy) return status;
       if (checkPromise) return checkPromise;
       checkPromise = (async () => {
-        applyStatus({ phase: "checking", error: "", message: "Проверяем GitHub Releases…" });
+        applyStatus({ phase: "checking", error: "", message: "Проверяем наличие обновлений…" });
         try {
           const next = await callNative("check_app_updates");
           if (stopped) return status;

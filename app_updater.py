@@ -28,7 +28,8 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 MANIFEST = "zeter-update.json"
 REPOSITORY = "zeter1/ZeTer-OS"
-API_URL = f"https://api.github.com/repos/{REPOSITORY}/releases"
+FEED_URL = "https://zeter1.github.io/ZeTer-OS/updates.json"
+MAX_FEED = 64 * 1024
 PLATFORM = "windows-x64"
 LAYOUT = "flat-onedir"
 EXE = "ZeTer-OS.exe"
@@ -45,9 +46,10 @@ DEVICE_RE = re.compile(r"(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\..
 
 
 class UpdateError(RuntimeError):
-    def __init__(self, message: str, retry_after: int | None = None):
+    def __init__(self, message: str, retry_after: int | None = None, *, http_status: int | None = None):
         super().__init__(message)
         self.retry_after = retry_after
+        self.http_status = http_status
 
 
 def version_tuple(version: str) -> tuple[int, int, int]:
@@ -185,17 +187,19 @@ def atomic_json(root: Path, path: Path, value: dict) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def validate_url(url: str, *, api: bool = False, initial_asset: tuple[str, str] | None = None) -> str:
+def validate_url(url: str, *, feed: bool = False, initial_asset: tuple[str, str] | None = None) -> str:
+    if not isinstance(url, str) or len(url) > 8192:
+        raise UpdateError("Некорректный URL обновления.")
     try:
         parsed = urlsplit(url)
         port = parsed.port
     except ValueError as exc:
         raise UpdateError("Некорректный URL обновления.") from exc
-    hosts = {"api.github.com"} if api else {"github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"}
+    hosts = {"zeter1.github.io"} if feed else {"github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"}
     if parsed.scheme != "https" or parsed.hostname not in hosts or parsed.username or parsed.password or port is not None or parsed.fragment or any(ord(c) < 33 for c in url):
         raise UpdateError("Небезопасный адрес обновления.")
-    if api and parsed.path != f"/repos/{REPOSITORY}/releases":
-        raise UpdateError("Неожиданный API обновления.")
+    if feed and url != FEED_URL:
+        raise UpdateError("Неожиданный адрес канала обновлений.")
     if initial_asset:
         tag, name = initial_asset
         if parsed.hostname != "github.com" or parsed.query or unquote(parsed.path) != f"/{REPOSITORY}/releases/download/{tag}/{name}":
@@ -213,18 +217,18 @@ class GitHubClient:
     def __init__(self):
         self.opener = build_opener(_NoRedirect())
 
-    def fetch(self, url: str, limit: int, cancel: threading.Event, *, api=False, progress=None, output: Path | None = None) -> bytes:
+    def fetch(self, url: str, limit: int, cancel: threading.Event, *, feed=False, progress=None, output: Path | None = None) -> bytes:
         deadline = time.monotonic() + (180 if output else 35)
-        validate_url(url, api=api)
+        validate_url(url, feed=feed)
         response = None
         for _ in range(6):
             if cancel.is_set():
                 raise UpdateError("Обновление отменено.")
-            validate_url(url, api=api)
+            validate_url(url, feed=feed)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise UpdateError("Истекло время загрузки обновления.")
-            request = Request(url, headers={"User-Agent": "ZeTer-OS-Updater", "Accept": "application/vnd.github+json" if api else "application/octet-stream", "Accept-Encoding": "identity"})
+            request = Request(url, headers={"User-Agent": "ZeTer-OS-Updater", "Accept": "application/json" if feed else "application/octet-stream", "Accept-Encoding": "identity", "Cache-Control": "no-cache"})
             try:
                 response = self.opener.open(request, timeout=min(10, remaining))
                 break
@@ -232,7 +236,9 @@ class GitHubClient:
                 if exc.code in {301, 302, 303, 307, 308}:
                     location = exc.headers.get("Location", "")
                     exc.close()
-                    validate_url(location, api=api)
+                    if feed:
+                        raise UpdateError("Неожиданное перенаправление канала обновлений.") from None
+                    validate_url(location)
                     url = location
                     continue
                 retry = exc.headers.get("Retry-After", "")
@@ -244,8 +250,17 @@ class GitHubClient:
                 if not retry.isdigit() and exc.headers.get("X-RateLimit-Remaining") == "0":
                     reset = exc.headers.get("X-RateLimit-Reset", "0")
                     retry = str(max(1, int(reset) - int(time.time()))) if reset.isdigit() else "60"
+                rate_limited = exc.code == 429 or exc.headers.get("X-RateLimit-Remaining") == "0"
                 exc.close()
-                raise UpdateError("GitHub временно недоступен (HTTP " + str(exc.code) + ").", min(int(retry), 86400) if retry.isdigit() else None) from None
+                if rate_limited:
+                    message = "Слишком много запросов к серверу обновлений. Повторите позже."
+                elif feed and exc.code == 404:
+                    message = "Канал обновлений ещё не опубликован. Можно обновить программу вручную."
+                elif exc.code in {401, 403}:
+                    message = "Сервер обновлений отклонил запрос (HTTP " + str(exc.code) + ")."
+                else:
+                    message = "Сервер обновлений временно недоступен (HTTP " + str(exc.code) + ")."
+                raise UpdateError(message, min(int(retry), 86400) if retry.isdigit() else None, http_status=exc.code) from None
             except (URLError, OSError) as exc:
                 raise UpdateError("Не удалось загрузить обновление; проверьте интернет.") from exc
         if response is None:
@@ -284,55 +299,38 @@ class GitHubClient:
                     os.fsync(stream.fileno())
         return bytes(collected)
 
-    def releases(self, cancel):
-        releases = []
-        for page in range(1, 4):
-            value = parse_json(self.fetch(API_URL + f"?per_page=100&page={page}", MAX_JSON, cancel, api=True))
-            if not isinstance(value, list):
-                raise UpdateError("Неожиданный ответ GitHub.")
-            releases.extend(value)
-            if len(value) < 100:
-                return releases
-        raise UpdateError("Слишком много релизов для безопасной проверки обновления.")
+    def feed(self, cancel):
+        return parse_json(self.fetch(FEED_URL, MAX_FEED, cancel, feed=True))
 
 
-def select_release(releases: list, current: str) -> dict | None:
-    candidates = {}
-    for release in releases:
-        if not isinstance(release, dict) or release.get("draft") is not False:
-            continue
-        tag, assets = release.get("tag_name"), release.get("assets")
-        if not isinstance(tag, str) or not tag or len(tag) > 100 or "/" in tag or "\\" in tag or not isinstance(assets, list):
-            continue
-        for asset in assets:
-            if not isinstance(asset, dict) or not isinstance(asset.get("name"), str):
-                continue
-            match = ASSET_RE.fullmatch(asset["name"])
-            if not match or version_tuple(match[1]) <= version_tuple(current):
-                continue
-            version = match[1]
-            validate_url(asset.get("browser_download_url", ""), initial_asset=(tag, asset["name"]))
-            size = asset.get("size")
-            if type(size) is not int or not 0 < size <= MAX_ARCHIVE:
-                raise UpdateError("Некорректный размер пакета на GitHub.")
-            if version in candidates:
-                raise UpdateError("Найдены неоднозначные пакеты одной версии.")
-            checksum_name = asset["name"][:-4] + ".sha256.txt"
-            checksums = [a for a in assets if isinstance(a, dict) and a.get("name") == checksum_name]
-            if len(checksums) > 1:
-                raise UpdateError("Неоднозначный файл контрольной суммы.")
-            digest = asset.get("digest")
-            if isinstance(digest, str) and digest.startswith("sha256:") and SHA_RE.fullmatch(digest[7:]):
-                sha = digest[7:]
-            else:
-                sha = None
-                if not checksums:
-                    raise UpdateError("У релиза отсутствует SHA-256 пакета.")
-            checksum = checksums[0] if checksums else None
-            if checksum:
-                validate_url(checksum.get("browser_download_url", ""), initial_asset=(tag, checksum_name))
-            candidates[version] = {"version": version, "name": asset["name"], "url": asset["browser_download_url"], "size": size, "sha256": sha, "checksum": checksum}
-    return candidates[max(candidates, key=version_tuple)] if candidates else None
+def validate_feed(value: dict) -> dict:
+    """One published package, tied to the fixed publisher and immutable Release URL."""
+    fields = {"schema", "repository", "platform", "version", "tag", "name", "url", "size", "sha256", "notes"}
+    if not isinstance(value, dict) or set(value) != fields or type(value["schema"]) is not int or value["schema"] != 1:
+        raise UpdateError("Некорректный формат канала обновлений.")
+    if value["repository"] != REPOSITORY or value["platform"] != PLATFORM:
+        raise UpdateError("Канал обновлений принадлежит другой программе или платформе.")
+    version_tuple(value["version"])
+    tag, name = value["tag"], value["name"]
+    if not isinstance(tag, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", tag) or ".." in tag or tag.endswith("."):
+        raise UpdateError("Некорректный тег обновления.")
+    if name != f"ZeTer-OS-{value['version']}-Windows-x64.zip":
+        raise UpdateError("Имя ZIP не совпадает с версией обновления.")
+    validate_url(value["url"], initial_asset=(tag, name))
+    if value["url"] != f"https://github.com/{REPOSITORY}/releases/download/{tag}/{name}":
+        raise UpdateError("Неожиданный адрес ZIP обновления.")
+    if type(value["size"]) is not int or not 0 < value["size"] <= MAX_ARCHIVE:
+        raise UpdateError("Некорректный размер пакета обновления.")
+    if not isinstance(value["sha256"], str) or not SHA_RE.fullmatch(value["sha256"]):
+        raise UpdateError("В канале обновлений отсутствует корректная SHA-256 пакета.")
+    if not isinstance(value["notes"], str) or len(value["notes"]) > 4000:
+        raise UpdateError("Некорректное описание обновления.")
+    return dict(value)
+
+
+def select_feed(value: dict, current: str) -> dict | None:
+    candidate = validate_feed(value)
+    return candidate if version_tuple(candidate["version"]) > version_tuple(current) else None
 
 
 def stage_archive(archive: Path, stage: Path, expected_version: str, cancel=None) -> dict:
@@ -567,7 +565,7 @@ class UpdateManager:
             if self.active or self.status["phase"] == "awaiting_exit":
                 return {"ok": False, **self.status, "error": "Обновление уже выполняется."}
             if time.monotonic() < self.cooldown:
-                return {"ok": False, **self.status, "error": "GitHub просит подождать перед повторной проверкой."}
+                return {"ok": False, **self.status, "error": "Сервер обновлений просит подождать перед повторной проверкой."}
             self.active = True
             self.cancelled.clear()
         try:
@@ -587,8 +585,8 @@ class UpdateManager:
 
     def check(self):
         def action():
-            self._set(phase="checking", error="", message="Проверка GitHub Releases…", progress=0)
-            candidate = select_release(self.client.releases(self.cancelled), self.status["currentVersion"])
+            self._set(phase="checking", error="", message="Проверка канала обновлений…", progress=0, retryAfterSeconds=0)
+            candidate = select_feed(self.client.feed(self.cancelled), self.status["currentVersion"])
             self.candidate = candidate
             self._set(phase="available" if candidate else "idle", available=bool(candidate), version=candidate["version"] if candidate else "", message="Доступно обновление." if candidate else "Установлена актуальная версия.")
         return self._operation(action)
@@ -609,12 +607,6 @@ class UpdateManager:
             self.session = session
             self._set(phase="downloading", progress=0, error="", message="Загрузка и проверка обновления…")
             sha = candidate["sha256"]
-            if sha is None:
-                checksum = self.client.fetch(candidate["checksum"]["browser_download_url"], 4096, self.cancelled).decode("ascii")
-                match = re.fullmatch(r"([a-fA-F0-9]{64}) [ *]" + re.escape(candidate["name"]) + r"\s*", checksum)
-                if not match:
-                    raise UpdateError("Файл контрольной суммы не соответствует пакету.")
-                sha = match[1].lower()
             archive = session / "package.zip"
             self.client.fetch(candidate["url"], candidate["size"], self.cancelled, output=archive, progress=lambda count: self._set(progress=min(90, round(count / candidate["size"] * 90))))
             if file_record(archive) != {"size": candidate["size"], "sha256": sha}:

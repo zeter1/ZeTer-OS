@@ -37,6 +37,8 @@
 .context-menu hr { border: 0; border-top: 1px solid var(--stroke); margin: 6px; }
 .drag-ghost { position: fixed; z-index: 9999; pointer-events: none; min-width: 120px; padding: 10px 12px; border-radius: 16px; background: rgba(20,25,45,.78); border: 1px solid rgba(255,255,255,.25); box-shadow: 0 20px 65px rgba(0,0,0,.38); display: flex; gap: 8px; align-items: center; }
 .drag-ghost b { font-size: 24px; }
+.drag-ghost.desktop-drag-preview { display: block; width: 0; height: 0; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.desktop-drag-preview .desktop-icon { pointer-events: none; transition: none; opacity: .95; }
 .toast-stack { position: absolute; right: 18px; bottom: 86px; display: grid; gap: 9px; z-index: 7200; }
 .toast { width: min(360px, calc(100vw - 36px)); border-radius: 18px; padding: 13px 14px; background: rgba(20,25,45,.76); border: 1px solid rgba(255,255,255,.22); box-shadow: 0 20px 70px rgba(0,0,0,.34); backdrop-filter: none; -webkit-backdrop-filter: none; animation: toast .22s ease; }
 body.light .toast { background: rgba(255,255,255,.82); }
