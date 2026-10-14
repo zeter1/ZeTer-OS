@@ -44,11 +44,19 @@ def format_result(result: dict[str, Any]) -> list[str]:
             f"  Consumers: {format_values(data.get('consumers'))}",
             f"  Smoke: {format_values(data.get('smokes'))}",
         ])
+    elif result["kind"] == "python":
+        lines.extend([
+            f"  Python: {data['path']}",
+            f"  Symbols: {format_values(data.get('symbols'))}",
+            f"  JS consumers: {format_values(data.get('js'))}",
+            f"  Docs: {format_values(data.get('docs'))}",
+            f"  Smoke: {format_values(data.get('smokes'))}",
+        ])
     return lines
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Find ZeTer OS scenario, UI, state, or core owners.")
+    parser = argparse.ArgumentParser(description="Find ZeTer OS scenario, UI, state, core or Python owners.")
     parser.add_argument("query", nargs="+", help="Words, symbol, selector, state path, or scenario name.")
     parser.add_argument("--limit", type=int, default=8, help="Maximum number of matches (default: 8).")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")

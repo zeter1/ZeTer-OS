@@ -2,11 +2,53 @@
 
 Это единственный источник команд, постоянных smoke-тестов и ручных сценариев. Начинай с узкой проверки; после структурного JS/CSS-, resource-, data-, bridge-, docs- или checker-изменения выполняй полный strict-check.
 
+## Безопасность запуска проверок
+
+Все команды ниже выполняются из корня репозитория. Перед import, startup, smoke или build прочитай entrypoint и достижимые startup-действия: имя `--help`, dry-run или test не доказывает отсутствие записи.
+
+| Граница | Что установить до выполнения |
+| :---- | :---- |
+| Python import и создание API | У launcher начальные пути вычисляются от `__file__`, а конструктор `NativeStorageApi` создаёт каталоги, backup и производные копии. Сначала перенаправь все state-пути, затем создавай API |
+| Native storage smoke | Переиспользуй `configure_temp_data(root)` и `RecordingPlatformOpener` из `tools/smoke_managed_file_native.py`; вызывай конфигурацию до конструктора. Для автозапуска/обновлений используй предусмотренные в профильном тесте doubles, без реального registry, opener или сети |
+| Browser/PWA | Используй отдельный тестовый browser context с искусственным состоянием. IndexedDB/localStorage/service worker принадлежат origin/profile; новый cwd и запущенный HTTP-сервер их не очищают и не изолируют |
+| Updater/release smokes | Они создают искусственные дистрибутивы; updater/feed используют собственные каталоги под `work/` и подменённый HTTP. Не заменяй fake client реальной загрузкой и не передавай тесту каталог работающей установки |
+| EXE build и установка | Проверь выходные пути по [BUILD_EXE.md](../BUILD_EXE.md) и [UPDATES.md](UPDATES.md). Сборка артефакта, запуск его окна и замена установленной копии — отдельные проверки |
+
+TEMP/TMP управляют только временными файлами; cwd, worktree и TEMP не перенаправляют основной state автоматически. При новом тесте проследи resolved paths до записи/cleanup и проверь, что они лежат внутри искусственной fixture. После проверки сверь ожидаемые байты/состояние, а не только код завершения. Если изоляция не установлена, продолжи чтением/статической проверкой и явно укажи непроверенную границу.
+
+При недоступной системной TEMP можно задать процессу проверки отдельный каталог под игнорируемым `work/`. Из корня, после preflight:
+
+\$env:ZETER_PYTHON \= (Get-Command python -ErrorAction Stop).Source
+
+\$env:ZETER_NODE \= (Get-Command node -ErrorAction Stop).Source
+
+\$env:PYTHONIOENCODING \= 'utf-8'
+
+\$checkTemp \= Join-Path (Get-Location) 'work/check-temp'
+
+New-Item -ItemType Directory -Force -Path \$checkTemp | Out-Null
+
+\$env:TEMP \= \$checkTemp
+
+\$env:TMP \= \$checkTemp
+
+Переменные действуют в текущем shell; если команд нет в PATH, подставь фактические пути установленных executable. Не сохраняй пути конкретного компьютера в документацию. Updater-smoke на Windows создаёт тестовый junction: запрет `mklink /J` — отдельный отказ среды, который не исчезает от смены TEMP. Сохрани первый результат, проверь точную запрещённую операцию; допустим только тот же ограниченный тест в разрешённой среде, без ослабления проверок и произвольных повторов.
+
+## Выбор проверки по изменению
+
+| Правка | Ближайшая проверка и предел результата |
+| :---- | :---- |
+| Только документация/карты | `python tools/update_docs.py --check`, `python tools/smoke_documentation.py`, полный strict-check; checker проверяет локальные файлы и Markdown-якоря, без сетевых запросов |
+| Core JS, событие или CSS | `node --check` изменённых JS, smoke сценария из `find_owner.py`; для UI — обычное/узкое окно и состояния ниже |
+| State, импорт, удаление или сохранение | Профильный smoke \+ migration/storage/import по затронутым границам; на fixtures проверить отказ → повтор и save → reload, при необходимости round-trip |
+| Python bridge или payload | Native-smoke и соответствующий JS-smoke, сверка метода/ответа с [NATIVE_BRIDGE.md](NATIVE_BRIDGE.md); mocks не доказывают настоящий диалог или устройство |
+| Updater, упаковка или канал | Профильные Python/JS-smokes, затем отдельная матрица EXE/Pages ниже; синтетический HTTP не доказывает публикацию |
+
+Успешная команда доказывает только выполненный контракт. Strict-check не открывает полноценный GUI и не устанавливает обновление на настоящую копию. В отчёте отделяй `VERIFIED` от `NOT_VERIFIED`; при первом FAIL и последующем PASS сохраняй оба результата и доказанную причину либо `UNKNOWN`.
+
 ## Единая строгая команда
 
-```powershell
-.\check_project.cmd --strict-node --no-pause
-```
+.\\check_project.cmd --strict-node --no-pause
 
 Windows-wrapper ищет Python в `ZETER_PYTHON`, `.venv`, `py`, `python` и runtime Codex. Node берётся из `ZETER_NODE`, `PATH` или runtime Codex. Указывай переменные окружения как полный путь к executable; пользовательские абсолютные пути не записывай в проект.
 
@@ -14,49 +56,97 @@ Windows-wrapper ищет Python в `ZETER_PYTHON`, `.venv`, `py`, `python` и ru
 
 ## Узкие команды
 
-```powershell
-node --check путь\к\файлу.js
-python -m py_compile путь\к\файлу.py
+node --check путь\\к\\файлу.js
+
+python -m py_compile путь\\к\\файлу.py
+
 node tools/run_smokes.js
+
 node tools/smoke_boot_guard.js
+
 node tools/smoke_shell_runtime.js
+
 node tools/smoke_about_ui.js
+
 node tools/smoke_update_runtime.js
+
 python tools/smoke_app_updater.py
+
+python tools/smoke_update_feed.py
+
 node tools/smoke_system_settings.js
+
 node tools/smoke_calendar_runtime.js
+
 node tools/smoke_automation_object_links.js
+
 node tools/smoke_automation_v2_core.js
+
 node tools/smoke_automation_v2_ui.js
+
 node tools/smoke_feature7_ui.js
+
 node tools/smoke_notification_feature7_core.js
+
 node tools/smoke_automation_import_validation.js
+
 node tools/smoke_state_migration.js
+
 node tools/smoke_storage_runtime.js
+
 node tools/smoke_security_protection.js
+
 node tools/smoke_import_runtime.js
+
 node tools/smoke_export_runtime.js
+
 node tools/smoke_managed_file_runtime.js
+
 node tools/smoke_shortcut_runtime.js
+
 node tools/smoke_link_library.js
+
+node tools/smoke_prompt_library.js
+
+node tools/smoke_business_calculations.js
+
+node tools/smoke_persistence_ack.js
+
 node tools/smoke_item_customization.js
+
 node tools/smoke_help_content.js
+
 python tools/smoke_managed_file_native.py
+
+python tools/smoke_desktop_backup_native.py
+
 python tools/smoke_problem_logs.py
+
 python tools/smoke_release_builder.py
+
+python tools/smoke_documentation.py
+
 python tools/update_docs.py --write
+
 python tools/update_docs.py --check
+
 python tools/find_owner.py "explorer preview"
+
 python tools/find_owner.py createSearchController --json
-```
 
 Если прямой `python`/`node` отсутствует, используй найденный wrapper-ом runtime. Не отмечай команду успешной, если она фактически не выполнялась.
 
 ## Постоянные smoke-тесты
 
 | Файл | Контракт |
-|---|---|
+| :---- | :---- |
+| `smoke_update_feed.py` | строгий Pages feed, версии/URL/hash/schema/types, запрет redirects/API fallback, 64 КиБ/duplicate JSON/обрыв, 404/403/429/cooldown, генерация из ZIP и gate публичного скачивания; порядок CI и target guards проверены статически |
 | `smoke_business_calculations.js` | 10 формул BizPilot, граничный ввод, add/hide/reorder, размеры/сброс/legacy/import/ZIP, независимость столов, staged snapshot и отказ записи |
+| `smoke_prompt_library.js` | проекты/категории/записи, отдельные название и точный текст, поиск/избранное, независимость столов, перенос/удаление и отказ сохранения |
+| `smoke_link_library.js` | модели и действия библиотеки ссылок, категории/избранное, безопасные цели и сохранение |
+| `smoke_persistence_ack.js` | подтверждённое сохранение и обработка отказа в связанных UI-действиях |
+| `smoke_desktop_backup_native.py` | backup рабочего стола с managed-файлами/оформлением и preflight импорта на искусственных native-данных |
+| `smoke_app_updater.py` | искусственные пакеты, границы установки, владение файлами, journal/rollback и проверки перед фиксацией; без настоящей установки и сети |
 | `smoke_boot_guard.js` | фатальная boot/runtime-ошибка, boot-timeout, продолжение безопасной runtime-диагностики после готовности и блокирующий storage-recovery с четырьмя безопасными действиями |
 | `smoke_shell_runtime.js` | часы открывают календарь на текущем месяце, повторный клик закрывает его на текущем рабочем столе и не затрагивает окна других рабочих столов; применение оформления при boot не сохраняет state, а пользовательские quick-настройки сохраняют явно |
 | `smoke_desktop_group_drag.js` | добавление и снятие отдельных значков через Ctrl+ЛКМ, обычное одиночное выделение, захват всей выбранной группы, единый pointer-delta, сохранение взаимного расположения, общие границы экрана и обход запрещённых панелей |
@@ -81,11 +171,11 @@ python tools/find_owner.py createSearchController --json
 | `smoke_problem_logs.py` | дневные папки и переход дня с активной операцией; identity и монотонные указатели; отсутствие приватных строк, включая нестандартные errno/winerror; граница 120 дней и foreign preservation; 30 запусков при полном бюджете и два процесса с дневным fallback, точные приращения, ограниченные образцы и отказ fallback → восстановление |
 | `smoke_release_builder.py` | одинаковый SHA-256 при повторной сборке, белый список runtime-файлов и инструкции `Логи проблем`, отсутствие `data`/созданных журналов/служебных и тестовых файлов, CRC, распаковка в путь с пробелами и кириллицей, сохранность предыдущего ZIP при ошибке |
 | `smoke_shortcut_runtime.js` | допустимые Windows/URL/`zeter://` цели, отказ опасным схемам и относительным путям, нормализация state, пункты контекстного меню и автопревращение вставленного URL в ссылку |
-| `smoke_item_customization.js` | нормализация цвета и переносимых `assetPath`, HTML своих значков/окон, изменение имени/цели ярлыка и пункты «Настройка папки/ярлыка» |
+| `smoke_item_customization.js` | нормализация цвета и переносимых `assetPath`, HTML своих значков/окон, изменение имени/цели ярлыка, конкурирующая подготовка/удаление картинок, отказ записи → повтор, transaction adapter и параллельная primary-запись, отклонение нечитаемого GIF |
 | `smoke_help_content.js` | полнота разделов справки, быстрый маршрут, поиск/навигационные контракты, реальные app-id, критические предупреждения и точное действие первого запуска |
 | `smoke_update_runtime.js` | ссылки и копирование инструкции; видимое предупреждение об автоперезапуске в восстановленном уведомлении и фазах обновления, отсутствие обещания в manual-only панели; предложение, save barrier, отмена и устаревший ответ |
 
-Все файлы находятся в `tools/`; `run_smokes.js` запускает их последовательно из корня проекта. Одноразовый тест не сохраняй. Постоянный риск добавляй отдельным небольшим smoke либо в существующий профильный файл.
+Все файлы находятся в `tools/`. `run_smokes.js` последовательно запускает только зарегистрированные в его `smokeFiles` JavaScript-файлы; Python-smokes запускаются отдельно checker-ом. Новый файл не подхватывается автоматически. Одноразовый тест не сохраняй; постоянный риск добавляй в профильный smoke либо в отдельный небольшой smoke с регистрацией в runner/checker.
 
 Дополнительно native-smoke проверяет исчезновение backup во время подсчёта размеров, видимость других ошибок доступа, пропуск неизменных DOCX с разными ZIP-датами, изменённые XML/изображения, extra/duplicate ZIP entries, восстановление повреждённого/неподдерживаемого target, сохранность основной записи и прежнего DOCX при отказе замены, точность контекста удаления старого файла. Problem-log smoke проверяет parent/root-корреляцию, поздний успех после sampling, `archiveOk`, slow-контекст, первоначальную identity при смене дня и drift, неполные исходники, mocked frozen hash, сохранность legacy incomplete и публикацию сводки при максимальном контексте. Эти проверки используют только искусственные данные; реальный установленный EXE ими не проверяется.
 
@@ -93,28 +183,80 @@ python tools/find_owner.py createSearchController --json
 
 Для узкого smoke используй минимальные заглушки реальных зависимостей и проверь успех, пустой/граничный ввод, ожидаемую мутацию, error/fallback и callback-порядок action flow.
 
-Strict-check запускает `smoke_managed_file_native.py`, `smoke_problem_logs.py` и `smoke_release_builder.py` отдельными Python-процессами через тот же интерпретатор, которым запущен checker. Native-smoke ограничен 60 секундами, расширенный problem-log smoke — 90 секундами, release-smoke — 30 секундами; ненулевой код завершения или timeout считается общей ошибкой проверки. Дополнительный бюджет диагностики нужен для максимального контекста, дневной смены identity и прежних многопроцессных проверок с реальными атомарными записями.
+Strict-check запускает documentation, native managed-file, desktop backup, updater, update feed, problem-log и release-builder smokes отдельными Python-процессами через тот же интерпретатор, которым запущен checker. `smoke_documentation.py` проверяет отсутствующий/повторный/кириллический Markdown-якорь, исключение заголовков из code-fence, URL-encoding, границу project root и Python-поиск через AST без исполнения модуля. Регистрация и таймауты принадлежат `tools/check_project.py`: ненулевой код завершения или timeout считается общей ошибкой проверки.
 
 ## Что проверяет strict-check
 
-- обязательные файлы, документы, Markdown-ссылки и контракт `AGENTS.md`;
-- ресурсы `index.html`, порядок/граф core и PWA cache;
-- один `window.ZETER_*` на core и ручную core-карту `CODEMAP.md`;
-- app.js-якоря `CODEMAP.md`;
-- manifest владельцев, его файлы/якоря, поисковый CLI и все generated navigation docs;
-- JavaScript ↔ `NativeStorageApi`;
-- чистую CSS-точку входа, существование/порядок CSS-карты и cache coverage;
-- Python/JavaScript syntax, включая smoke-файлы;
-- весь постоянный JavaScript scenario smoke-suite, профильный Python smoke managed-файлов и smoke сборщика релиза.
+- обязательные файлы, документы, локальные Markdown-ссылки/якоря и контракт `AGENTS.md`;  
+- ресурсы `index.html`, порядок/граф core и PWA cache;  
+- один `window.ZETER_*` на core и ручную core-карту `CODEMAP.md`;  
+- app.js-якоря `CODEMAP.md`;  
+- manifest владельцев, его файлы/якоря, поисковый CLI и все generated navigation docs;  
+- JavaScript ↔ `NativeStorageApi`;  
+- чистую CSS-точку входа, существование/порядок CSS-карты и cache coverage;  
+- Python/JavaScript syntax в границах списков/поиска `tools/check_project.py`;  
+- весь зарегистрированный JavaScript scenario smoke-suite и перечисленные выше Python smokes.
 
 ## Воспроизводимая UI-проверка
 
-1. Запиши сценарий, режим `native`/`browser`, версию и ожидаемый результат.
-2. Для native запусти `start_zeter_os.cmd`. Базовый размер окна — `1320×840`, узкий — минимальный `1024×640`.
-3. Открой изменённый сценарий с обычными данными, пустым состоянием, длинным русским текстом и большим списком.
-4. Проверь mouse, keyboard, touch-поведение при наличии, hover/focus/active/disabled, loading/error, scroll, clipping, overlap и z-index.
-5. Если данные сохраняются, закрой приложение, запусти снова и повторно открой объект.
-6. Для browser/PWA при необходимости запусти из корня `python -m http.server 8000 --directory app` и открой `http://127.0.0.1:8000/`; не используй реальные native-данные как фикстуру.
+### Подготовка отдельной native-копии
+
+Обычный запуск launcher из корня использует настоящую `data/`. Для UI-теста сначала подготовь чистую копию из текущих исходников через существующий `tools/build_release.py`. Он собирает только разрешённые runtime-файлы, проверяет состав и байты ZIP; пользовательские данные и созданные журналы не входят. Это ZIP Python-исходников, не EXE и не пакет обновления.
+
+Из корня репозитория, с уже установленным Python и зависимостями проекта:
+
+\$ErrorActionPreference \= 'Stop'
+
+\$uiRoot \= Join-Path (Get-Location).Path ('work/ui-checks/native-' \+ \[guid\]::NewGuid().ToString('N'))
+
+if (Test-Path -LiteralPath \$uiRoot) { throw 'Каталог проверки уже существует' }
+
+\$archiveDir \= Join-Path \$uiRoot 'archive'
+
+python -B tools/build_release.py --output-dir \$archiveDir
+
+if (\$LASTEXITCODE -ne 0\) { throw 'Чистая копия не собрана' }
+
+\$archives \= @(Get-ChildItem -LiteralPath \$archiveDir -Filter '\*.zip' -File)
+
+if (\$archives.Count -ne 1\) { throw 'Ожидался один проверенный ZIP' }
+
+\$runtimeDir \= Join-Path \$uiRoot 'runtime'
+
+if (Test-Path -LiteralPath \$runtimeDir) { throw 'Цель распаковки уже существует' }
+
+Expand-Archive -LiteralPath \$archives\[0\].FullName -DestinationPath \$runtimeDir
+
+\$appRoot \= Join-Path \$runtimeDir 'ZeTer OS'
+
+\$launcher \= Join-Path \$appRoot 'run_zeter_os.py'
+
+\$fixtureData \= Join-Path \$appRoot 'data'
+
+if (\!(Test-Path -LiteralPath \$launcher -PathType Leaf)) { throw 'Launcher отсутствует' }
+
+if (Test-Path -LiteralPath \$fixtureData) { throw 'Копия уже содержит данные: остановись и проверь происхождение' }
+
+Write-Output "Launcher: \$launcher"
+
+Write-Output "Тестовые данные: \$fixtureData"
+
+Write-Output ('Логи: ' \+ (Join-Path \$appRoot 'Логи проблем'))
+
+Зафиксируй напечатанные source/target-пути. Рецепт не запускает приложение и не перезаписывает существующую установку: новый GUID даёт отдельные каталоги архива и распаковки, состав source→target задаёт проверенный ZIP. До первого GUI-запуска прочитай startup текущего launcher и сверь `BASE_DIR`/`DATA_DIR`: в source-режиме они вычисляются от файла этой копии. Не переноси настоящую `data/` и не используй пользовательский backup как фикстуру.
+
+Запускай **только этот** `$launcher` командой `python -B $launcher`, вручную создай искусственные объекты, затем сверь путь данных в настройках с `$fixtureData`. Закрой копию и повтори ту же команду для save → reload. Source-копия не устанавливает бинарные обновления, но внешние действия остаются внешними: не включай автозапуск Windows, не выбирай реальную папку данных/экспорта и не открывай внешние цели ради обычного UI-теста. Для этих границ используй doubles профильного smoke или отдельную явно разрешённую проверку.
+
+Сохрани сценарий и снимки под `$uiRoot`; копию не удаляй автоматически при FAIL. Такой тест подтверждает Python/source \+ pywebview, но не установленный EXE. Browser context готовь отдельно: его IndexedDB и профиль не изолируются этим ZIP.
+
+### Выполнение сценария
+
+1. Запиши сценарий, режим `native`/`browser`, версию и ожидаемый результат.  
+2. Для native используй launcher подготовленной выше копии; до теста сверь активный путь данных. Базовый размер окна — `1320×840`, узкий — минимальный `1024×640`.  
+3. Открой изменённый сценарий с обычными данными, пустым состоянием, длинным русским текстом и большим списком.  
+4. Проверь mouse, keyboard, touch-поведение при наличии, hover/focus/active/disabled, loading/error, scroll, clipping, overlap и z-index.  
+5. Если данные сохраняются, закрой приложение, запусти снова и повторно открой объект.  
+6. Для browser/PWA при необходимости запусти из корня `python -m http.server 8000 --bind 127.0.0.1 --directory app` и открой `http://127.0.0.1:8000/` в отдельном тестовом context; не используй реальные native-данные как фикстуру.  
 7. Сохраняй временные снимки как `work/ui-checks/YYYY-MM-DD/сценарий-normal.png` и `сценарий-narrow.png`. Папка игнорируется Git.
 
 Если GUI не открывался, передай эти шаги как непроверенные, а не как пройденные.
@@ -129,10 +271,12 @@ Strict-check запускает `smoke_managed_file_native.py`, `smoke_problem_l
 
 В инструкции «Обновить вручную» проверить три текстовые ссылки внизу страницы и кнопки сверху. Выделить обычный текст и отдельно URL → щёлкнуть по выделенному левой кнопкой → «Копировать» → вставить и сверить пробелы/переносы. Повторить с ПКМ и Ctrl+C; щелчок вне выделения позволяет начать новое выделение. Проверить узкое окно и сообщение при отказе clipboard. Browser-проверка не подтверждает native clipboard и запуск внешнего браузера в Windows.
 
+Канал Pages после публикации: сверить `updates.json` с реальным ZIP и версией EXE, затем в тестовой установке проверить равную версию → актуальная, новую → предложение без скачивания, 404/повреждённый JSON/offline → ошибка проверки. В сетевом наблюдении проверки должен быть только фиксированный Pages URL, после «Обновить» — прямая Release/CDN-ссылка; запросов к `api.github.com` быть не должно. Убедиться, что шестичасовой таймер и ручная кнопка не обходят Retry-After. Синтетические HTTP и статические проверки CI не доказывают работу Pages/Actions/CDN на настоящем GitHub.
+
 Окно «О ZeTer OS»: открыть с верхней панели → сверить текущую версию, описание, «Что нового», «Обновления системы», «Репозиторий» и все контакты → выделить текст мышью → ПКМ → «Копировать» → вставить в тестовое поле; проверить также Ctrl+C. Проверить ссылки через внешнее открытие в browser/native, перенос длинных адресов и прокрутку при узком окне, закрытие/повторное открытие. В Настройках нет карточек «О системе» и «Разработчик». Проверка browser не подтверждает native clipboard и запуск внешнего браузера в Windows.
 
 | Область | Минимальный сценарий |
-|---|---|
+| :---- | :---- |
 | Запуск | Включить автозапуск на одном рабочем столе, перейти на другой и сверить общую галочку; перезапустить ZeTer OS, затем проверить появление программы после повторного входа в Windows и безопасное выключение автозапуска. Отдельно выбрать обычное/развёрнутое внешнее окно и стартовый рабочий стол, закрыть ZeTer OS, открыть повторно и сверить результат |
 | Shell/окна | Пуск, taskbar, поиск; открыть, переместить, свернуть и развернуть окно |
 | Значки рабочего стола | Удерживая Ctrl, поочерёдно выбрать разнесённые файл, папку и приложение; повторным Ctrl+ЛКМ снять один значок, обычным кликом оставить один; снова собрать группу, перетащить её за любой выбранный значок и сверить общее перемещение без изменения расстояний, сохранение выделения и координат после перезапуска |
@@ -155,13 +299,19 @@ Strict-check запускает `smoke_managed_file_native.py`, `smoke_problem_l
 
 `smoke_desktop_group_drag.js` также проверяет реальные controllers создания/установки ярлыков: установить «Промпты» на первом столе → удалить ярлык → установить на втором столе с папкой «Промпты». Название ярлыка остаётся «Промпты», папка сохраняется; повторная установка блокируется, отдельные столы независимы, защита имён обычных файлов/папок остаётся прежней.
 
+При перетаскивании на рабочем столе проверить папку, пользовательскую картинку и длинное название: за указателем движется сам значок исходного размера с сохранением точки захвата, без плашки. Для группы проверить все значки и их взаимное расположение. Проверить отпускание на свободном месте и в другую папку, отмену pointercancel без изменения координат, повторный захват без лишних копий и сохранение после reload; размеры окна 1507×911 и 980×720.
+
 ## Перед сдачей
 
-1. `node --check` изменённых JS и профильный smoke.
-2. Поиск старых имён, дубликатов и всех затронутых selectors.
-3. Generated docs: `--write`, затем `--check`.
-4. Полный strict-check.
-5. `git diff --check`, `git status --short`, `git diff --stat` и просмотр diff.
+При сохранении значка ярлыка переименовать его из другого окна: после завершения записи и перезапуска должны сохраниться новое имя и значок.
+
+Настройка папки: загрузить значок и фон (PNG/JPG/GIF), во время подготовки попробовать сохранить; быстро выбрать другую картинку и убрать её до завершения старой обработки. Сохранить → перезапустить → открыть папку и её настройки; убрать оба изображения → сохранить → повторить открытие. Повреждённый GIF должен показать ошибку, сохранив прежний предпросмотр. На искусственном отказе primary-записи оформление других окон остаётся прежним, черновик доступен для повтора. При двух native asset-запросах отказ одного не разблокирует форму до завершения другого. Проверить обычное и узкое окно, длинное имя файла и скрытые file-input. Browser fixture не доказывает установленный EXE или live pywebview-диалог.
+
+1. `node --check` изменённых JS и профильный smoke.  
+2. Поиск старых имён, дубликатов и всех затронутых selectors.  
+3. Generated docs: `--write`, затем `--check`.  
+4. Полный strict-check.  
+5. `git diff --check`, `git status --short`, `git diff --stat` и просмотр diff.  
 6. Фактический UI-сценарий либо точная передача непроверенных шагов.
 
 В отчёте укажи команды, результаты, изменённые файлы, что проверено только по коду и оставшиеся риски.
@@ -184,7 +334,7 @@ Strict-check запускает `smoke_managed_file_native.py`, `smoke_problem_l
 
 Удаление рабочего стола: `smoke_state_migration.js` проверяет отмену, staged отказ→повтор, архивирование без переноса на основной стол, сохранность исходных ID/категорий/проектов/избранного и скрытого дерева, выборочное удаление, независимые изменения, compensation success/failure, active runtime до release barrier. Import-smoke проверяет глубину архивов и unsafe payload paths. `smoke_desktop_backup_native.py` проверяет desktop ZIP с byte-identical payload, отмену, traversal/missing, atomic failure, читаемую архивную копию и retention после замены активного состояния; strict-check запускает этот тест автоматически.
 
-Ручная/isolated browser проверка: дополнительный стол с документом, событием и ссылкой → × → все флажки выключены → cancel/Escape/Delete/Ctrl+Z без изменений. Выбрать календарь, скачать ZIP: проверить desktop.json со всеми группами (включая календарь), документом и без чужих столов; скачивание не закрывает диалог. Удалить: календаря в retained архиве нет, ссылка и документ остались в archivedDesktops, основной стол их не получил. Reload сохраняет архив. В Windows проверить выбранный путь ZIP, реальное вложение и data/Архив рабочих столов/<id>/desktop.json. Отдельно выбрать links на другом столе: выбранные ссылки исчезают, основной стол остаётся прежним. Проверить маленькое окно, focus/Space/Enter, ошибку и отмену экспорта. При FAIL нужны шаги, выбранные группы, видимая ошибка и console без личных данных.
+Ручная/isolated browser проверка: дополнительный стол с документом, событием и ссылкой → × → все флажки выключены → cancel/Escape/Delete/Ctrl+Z без изменений. Выбрать календарь, скачать ZIP: проверить desktop.json со всеми группами (включая календарь), документом и без чужих столов; скачивание не закрывает диалог. Удалить: календаря в retained архиве нет, ссылка и документ остались в archivedDesktops, основной стол их не получил. Reload сохраняет архив. В Windows проверить выбранный путь ZIP, реальное вложение и data/Архив рабочих столов//desktop.json. Отдельно выбрать links на другом столе: выбранные ссылки исчезают, основной стол остаётся прежним. Проверить маленькое окно, focus/Space/Enter, ошибку и отмену экспорта. При FAIL нужны шаги, выбранные группы, видимая ошибка и console без личных данных.
 
 Подсчёты: добавить РКО → изменить поля → перетащить за ручку на выбранную карточку внутри окна → «Выше»/«Ниже» и границы списка → убрать и вернуть с прежним вводом → перезапустить и проверить порядок. Pointer drop вне окна не меняет данные рабочего стола. Также: пустой список, поиск без результатов, нули/неверный ввод, два окна и другой стол, узкая ширина, отказ сохранения и повтор, JSON/ZIP round-trip.
 

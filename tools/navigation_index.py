@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -265,6 +266,31 @@ def core_api_records(manifest: dict[str, Any] | None = None) -> list[dict[str, A
     return records
 
 
+def python_owner_symbols(owner: dict[str, Any]) -> list[str]:
+    """Read selected definitions and class methods without importing the module."""
+    path = project_path(owner["path"])
+    if path is None:
+        raise ValueError(f"Python owner escapes project: {owner['path']}")
+    tree = ast.parse(read_text(path), filename=str(path))
+    definitions = {
+        node.name: node for node in tree.body
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    symbols: list[str] = []
+    for anchor in owner.get("anchors", []):
+        node = definitions.get(anchor)
+        if node is None:
+            raise ValueError(f"Python owner {owner['id']}: definition not found: {anchor}")
+        symbols.append(anchor)
+        if isinstance(node, ast.ClassDef):
+            symbols.extend(
+                f"{anchor}.{method.name}" for method in node.body
+                if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and (not method.name.startswith("_") or method.name == "__init__")
+            )
+    return symbols
+
+
 def _markdown_cell(values: Iterable[str] | str) -> str:
     if isinstance(values, str):
         text = values
@@ -313,6 +339,7 @@ def render_core_api_index(manifest: dict[str, Any] | None = None) -> str:
         f"- Core-модулей: {len(records)}.",
         f"- Публичных членов API: {member_count}.",
         "- Consumers вычисляются по реальным ссылкам `window.ZETER_*`.",
+        "- Python-владельцев ищи через `find_owner.py`; контракты критических операций — в [DATA_MODEL.md](DATA_MODEL.md#контракты-критических-операций) и [NATIVE_BRIDGE.md](NATIVE_BRIDGE.md).",
         "",
         "| Модуль | Глобал | Публичные члены | Dependencies | Consumers | Связанные smoke |",
         "|---|---|---|---|---|---|",
@@ -461,6 +488,29 @@ def validate_owner_manifest(manifest: dict[str, Any] | None = None) -> list[str]
                 resolved.append(path)
         return resolved
 
+    python_owners = data.get("python_owners", [])
+    if not isinstance(python_owners, list) or any(not isinstance(owner, dict) for owner in python_owners):
+        failures.append("python_owners: expected a list of objects")
+        python_owners = []
+    check_ids(python_owners, "python owners")
+    for owner in python_owners:
+        label = f"python owner {owner.get('id', '<missing>')}"
+        if not isinstance(owner.get("title"), str) or not owner["title"].strip():
+            failures.append(f"{label}: title is required")
+        paths = validate_paths([owner.get("path")], f"{label}.path")
+        anchors = string_list(owner.get("anchors"), f"{label}.anchors")
+        string_list(owner.get("keywords"), f"{label}.keywords")
+        for key in ("js", "docs", "smokes"):
+            validate_paths(owner.get(key), f"{label}.{key}", allow_empty=True)
+        if paths and anchors:
+            if paths[0].suffix != ".py":
+                failures.append(f"{label}: expected a Python module")
+            else:
+                try:
+                    python_owner_symbols(owner)
+                except (SyntaxError, ValueError) as exc:
+                    failures.append(f"{label}: {exc}")
+
     owned_js: set[str] = set()
     owned_css: set[str] = set()
     for scenario in scenarios:
@@ -605,6 +655,15 @@ def search_owner_records(query: str, limit: int = 8, manifest: dict[str, Any] | 
         if score:
             results.append({"kind": "core", "score": score, "id": record["export"] or record["path"], "title": record["path"], "data": record})
 
-    kind_order = {"scenario": 0, "ui": 1, "state": 2, "core": 3}
+    for owner in data.get("python_owners", []):
+        symbols = python_owner_symbols(owner)
+        matched = [symbol for symbol in symbols if _search_score(query, symbol)]
+        haystack = " ".join([owner["id"], owner["title"], owner["path"], *owner["keywords"], *symbols])
+        score = _search_score(query, haystack)
+        if score:
+            record = {**owner, "symbols": matched or owner["anchors"]}
+            results.append({"kind": "python", "score": score, "id": owner["id"], "title": owner["title"], "data": record})
+
+    kind_order = {"scenario": 0, "ui": 1, "state": 2, "core": 3, "python": 4}
     results.sort(key=lambda item: (-item["score"], kind_order.get(item["kind"], 99), item["title"]))
     return results[:max(1, limit)]

@@ -5,6 +5,7 @@
 - Core-модулей: 82.
 - Публичных членов API: 1149.
 - Consumers вычисляются по реальным ссылкам `window.ZETER_*`.
+- Python-владельцев ищи через `find_owner.py`; контракты критических операций — в [DATA_MODEL.md](DATA_MODEL.md#контракты-критических-операций) и [NATIVE_BRIDGE.md](NATIVE_BRIDGE.md).
 
 | Модуль | Глобал | Публичные члены | Dependencies | Consumers | Связанные smoke |
 |---|---|---|---|---|---|

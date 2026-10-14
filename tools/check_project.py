@@ -3,14 +3,17 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import html
 import re
 import shutil
 import subprocess
 import sys
+import unicodedata
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import unquote, urlsplit
 
 from navigation_index import (
     GENERATED_NAVIGATION_DOCS,
@@ -43,6 +46,7 @@ TESTING_MD = DOCS_DIR / "TESTING.md"
 UPDATE_DOCS_TOOL = PROJECT_ROOT / "tools" / "update_docs.py"
 NAVIGATION_INDEX_TOOL = PROJECT_ROOT / "tools" / "navigation_index.py"
 FIND_OWNER_TOOL = PROJECT_ROOT / "tools" / "find_owner.py"
+DOCUMENTATION_SMOKE = PROJECT_ROOT / "tools" / "smoke_documentation.py"
 CHECK_PROJECT_CMD = PROJECT_ROOT / "check_project.cmd"
 BUILD_RELEASE_CMD = PROJECT_ROOT / "build_release.cmd"
 BUILD_RELEASE_TOOL = PROJECT_ROOT / "tools" / "build_release.py"
@@ -316,7 +320,7 @@ def check_required_docs() -> list[CheckResult]:
 
 def markdown_local_link_target(raw_target: str) -> str | None:
     raw = raw_target.strip()
-    if not raw or raw.startswith("#"):
+    if not raw:
         return None
     if raw.startswith("<") and ">" in raw:
         raw = raw[1:raw.index(">")]
@@ -326,7 +330,53 @@ def markdown_local_link_target(raw_target: str) -> str | None:
     blocked_prefixes = ("http:", "https:", "mailto:", "data:", "javascript:", "app:")
     if lower.startswith(blocked_prefixes):
         return None
-    return strip_url_suffix(raw)
+    return raw
+
+
+def markdown_prose(source: str) -> str:
+    """Exclude fenced and indented code from local link/heading checks."""
+    lines: list[str] = []
+    fence = ""
+    for line in source.splitlines():
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence:
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
+                fence = ""
+            lines.append("")
+        elif marker:
+            fence = marker[1]
+            lines.append("")
+        else:
+            lines.append("" if line.startswith(("    ", "\t")) else line)
+    return "\n".join(lines)
+
+
+def markdown_anchors(source: str) -> set[str]:
+    prose = markdown_prose(source)
+    anchors = set(re.findall(r"<a\b[^>]*\b(?:id|name)\s*=\s*['\"]([^'\"]+)['\"]", prose, re.I))
+    heading_ids: set[str] = set()
+    previous = ""
+    for line in prose.splitlines():
+        atx = re.match(r"^ {0,3}#{1,6}(?:\s+|$)(.*?)\s*$", line)
+        text = None
+        if atx:
+            text = re.sub(r"\s+#+\s*$", "", atx[1])
+        elif previous.strip() and re.fullmatch(r" {0,3}(?:=+|-+)\s*", line):
+            text = previous.strip()
+        if text is not None:
+            text = re.sub(r"!?\[([^\]]+)\]\([^)]*\)", r"\1", text)
+            text = html.unescape(re.sub(r"<[^>]+>", "", text))
+            text = re.sub(r"\*+|`+|(?<!\w)__|__(?!\w)", "", text).lower()
+            slug = "".join(char for char in text if char in " _-" or unicodedata.category(char)[0] in "LNM").replace(" ", "-")
+            candidate = slug
+            suffix = 0
+            while candidate in heading_ids:
+                suffix += 1
+                candidate = f"{slug}-{suffix}"
+            heading_ids.add(candidate)
+            anchors.add(candidate)
+        previous = "" if text is not None else line
+    return anchors
 
 
 def check_docs_links() -> list[CheckResult]:
@@ -336,14 +386,18 @@ def check_docs_links() -> list[CheckResult]:
     pattern = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
     failures: list[str] = []
     checked = 0
+    anchor_count = 0
+    anchor_cache: dict[Path, set[str]] = {}
     root = PROJECT_ROOT.resolve()
     for document in REQUIRED_DOCS:
-        for match in pattern.finditer(read_text(document)):
+        prose = markdown_prose(read_text(document))
+        for match in pattern.finditer(prose):
             target = markdown_local_link_target(match.group(1))
             if not target:
                 continue
             checked += 1
-            candidate = (document.parent / target).resolve()
+            parsed = urlsplit(target)
+            candidate = (document.parent / unquote(parsed.path)).resolve() if parsed.path else document.resolve()
             try:
                 candidate.relative_to(root)
             except ValueError:
@@ -351,10 +405,17 @@ def check_docs_links() -> list[CheckResult]:
                 continue
             if not candidate.exists():
                 failures.append(f"{document.name}: {target} not found")
+            elif parsed.fragment and candidate.suffix.lower() == ".md":
+                anchor_count += 1
+                if candidate not in anchor_cache:
+                    anchor_cache[candidate] = markdown_anchors(read_text(candidate))
+                fragment = unquote(parsed.fragment)
+                if fragment not in anchor_cache[candidate]:
+                    failures.append(f"{document.name}: {target} anchor #{fragment} not found")
 
     if failures:
         return [fail("docs.links", "; ".join(failures))]
-    return [ok("docs.links", f"{checked} local Markdown links resolve")]
+    return [ok("docs.links", f"{checked} local Markdown links and {anchor_count} section anchors resolve")]
 
 
 def core_module_files() -> list[Path]:
@@ -809,6 +870,8 @@ def check_owner_lookup() -> list[CheckResult]:
         ("explorer preview", "explorer-preview"),
         ("task reminder", "tasks"),
         ("createSearchController", "ZETER_SEARCH_UI_UTILS"),
+        ("get_system_metrics", "native-storage"),
+        ("DailyProblemLogs", "python-problem-logs"),
     )
     failures: list[str] = []
     for query, expected_id in fixtures:
@@ -1246,6 +1309,7 @@ def check_python_syntax() -> list[CheckResult]:
         UPDATE_DOCS_TOOL,
         NAVIGATION_INDEX_TOOL,
         FIND_OWNER_TOOL,
+        DOCUMENTATION_SMOKE,
         NATIVE_SMOKE,
         DESKTOP_BACKUP_SMOKE,
         PROBLEM_LOGS_SMOKE,
@@ -1432,6 +1496,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_core_dependencies())
     checks.extend(check_owner_manifest())
     checks.extend(check_owner_lookup())
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=DOCUMENTATION_SMOKE, key="python.documentation_smoke"))
     checks.extend(check_generated_docs())
     checks.extend(check_native_bridge_contract())
     checks.extend(check_manifest_assets())

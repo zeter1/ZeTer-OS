@@ -1,5 +1,42 @@
 {
   "version": 1,
+  "python_owners": [
+    {
+      "id": "native-storage", "title": "Python storage и pywebview API", "path": "run_zeter_os.py",
+      "anchors": ["NativeStorageApi", "WindowsStartupManager", "DefaultPlatformOpener", "startup_window_maximized", "_run_normal_app", "run_update_probe"],
+      "keywords": ["native", "python", "хранилище", "bridge", "сохранение", "автозапуск", "метрики"],
+      "js": ["app/js/core/native-storage.js", "app/js/app.js"],
+      "docs": ["docs/NATIVE_BRIDGE.md", "docs/DATA_MODEL.md", "docs/TESTING.md"],
+      "smokes": ["tools/smoke_managed_file_native.py", "tools/smoke_desktop_backup_native.py"]
+    },
+    {
+      "id": "python-problem-logs", "title": "Структурированные Логи проблем", "path": "problem_logs.py",
+      "anchors": ["ProblemLogs", "DailyProblemLogs", "diagnosed"],
+      "keywords": ["diagnostics", "диагностика", "логи", "retention", "privacy"],
+      "js": ["app/js/core/boot-guard.js", "app/js/app.js"],
+      "docs": ["Логи проблем/README_FOR_CODEX.md", "docs/TROUBLESHOOTING.md"],
+      "smokes": ["tools/smoke_problem_logs.py"]
+    },
+    {
+      "id": "python-updater", "title": "Канал и подготовка обновления EXE", "path": "app_updater.py",
+      "anchors": ["UpdateManager", "GitHubClient", "validate_manifest", "validate_feed", "select_feed"],
+      "keywords": ["updates", "обновление", "download", "manifest", "GitHub"],
+      "js": ["app/js/core/update-ui-utils.js", "app/js/app.js"],
+      "docs": ["docs/UPDATES.md"], "smokes": ["tools/smoke_app_updater.py", "tools/smoke_update_feed.py"]
+    },
+    {
+      "id": "python-update-runner", "title": "Установка и rollback обновления EXE", "path": "update_runner.py",
+      "anchors": ["Transaction", "execute_request", "recover"],
+      "keywords": ["обновление", "установка", "rollback", "swap", "recovery"],
+      "js": [], "docs": ["docs/UPDATES.md"], "smokes": ["tools/smoke_app_updater.py"]
+    },
+    {
+      "id": "python-release-builder", "title": "Чистый portable ZIP исходников", "path": "tools/build_release.py",
+      "anchors": ["build_release", "collect_release_entries", "validate_release_archive"],
+      "keywords": ["сборка", "portable", "ZIP", "release", "изолированная копия"],
+      "js": [], "docs": ["README_PYTHON.md", "docs/TESTING.md"], "smokes": ["tools/smoke_release_builder.py"]
+    }
+  ],
   "scenarios": [
     {
       "id": "business-calculations",

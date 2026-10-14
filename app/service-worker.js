@@ -1,5 +1,5 @@
-const ZETER_CACHE_REVISION = "folder-images-1";
-const ZETER_CACHE = "zeter-os-4.0.17-folder-images-1";
+const ZETER_CACHE_REVISION = "docs-tooling-1";
+const ZETER_CACHE = "zeter-os-4.0.19-docs-tooling-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
