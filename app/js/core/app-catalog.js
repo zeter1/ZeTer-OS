@@ -22,6 +22,8 @@
     calculator: Object.freeze({ name: "Калькулятор", icon: "🧮", w: 390, h: 540, pinned: true, render: "calculator" }),
     photos: Object.freeze({ name: "Фото", icon: "🖼️", w: 760, h: 540, pinned: false, render: "photos" }),
     settings: Object.freeze({ name: "Настройки", icon: "⚙️", w: 820, h: 600, pinned: true, render: "settings" }),
+    about: Object.freeze({ name: "О ZeTer OS", icon: "ℹ️", w: 820, h: 700, pinned: false, render: "about" }),
+    manualupdate: Object.freeze({ name: "Обновить вручную", icon: "⬇️", w: 820, h: 700, pinned: false, hidden: true, render: "manualUpdate" }),
     security: Object.freeze({ name: "Центр безопасности данных", icon: "🛡️", w: 980, h: 680, pinned: true, render: "security" }),
     monitor: Object.freeze({ name: "Монитор системы", icon: "📊", w: 980, h: 720, pinned: true, render: "monitor" }),
     appcenter: Object.freeze({ name: "Приложения", icon: "🛍️", w: 760, h: 520, pinned: true, render: "appcenter" }),

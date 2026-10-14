@@ -44,8 +44,15 @@
 | `delete_restore_point(point_id)` | безопасный ID точки | Удаляет только выбранную точку и возвращает новый счётчик |
 | `cleanup_security_artifacts(payload)` | dry-run и категории logs/backups/temporary | Считает или безопасно очищает старые части журнала, автокопии старше 90 дней и служебные `.tmp` |
 | `clear_restore_points()` | нет | Резервирует и удаляет файл точек |
+| `get_app_update_status()` | нет | Кэшированный статус обновления: supported/currentVersion/phase/available/version/progress/message/error |
+| `check_app_updates()` | нет | Проверяет опубликованные GitHub Releases фиксированного репозитория; возвращает новую числовую версию либо явную ошибку/ограничение |
+| `prepare_app_update()` | нет | Скачивает выбранный Python-кандидат, проверяет размер/SHA256/ZIP/manifest/ownership и готовит staging; live-файлы не меняет |
+| `install_app_update()` | нет | После frontend save barrier запускает отдельный helper и возвращает awaiting_exit только после handshake; окно само не закрывает |
+| `cancel_app_update()` | нет | Отменяет текущую загрузку/ожидание выхода; не принимает URL, пути, команды или другой репозиторий |
 
 ## Формат ответа
+
+Установщик описан в [UPDATES.md](UPDATES.md). Служебная страница `app/update-probe.html` имеет отдельный bridge `confirm_update_probe(nonce, version)`: подтверждение проверяется отдельным ProbeApi без создания NativeStorageApi, пользовательского state и startup normalization/GC. Эта страница не загружает `app.js` и не является обычным запуском рабочего пространства.
 
 Все публичные методы возвращают объект:
 

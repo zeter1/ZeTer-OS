@@ -14,6 +14,7 @@ import hashlib
 import ctypes
 import csv
 import html
+import functools
 import io
 import json
 import os
@@ -38,6 +39,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlsplit
 
 from problem_logs import DailyProblemLogs, ProblemLogs, diagnosed, plain_path
+from app_updater import UpdateError, UpdateManager, normal_instance_lock
 
 APP_NAME = "ZeTer OS"
 WINDOWS_RUN_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -1772,6 +1774,22 @@ class WindowsStartupManager:
         return self.status()
 
 
+def guard_native_operation(method):
+    """Reject new native work once installation is armed; track active bridge calls."""
+    @functools.wraps(method)
+    def guarded(self, *args, **kwargs):
+        with self._native_operation_gate:
+            if self._app_updater.get_status()["phase"] == "awaiting_exit":
+                return {"ok": False, "error": "Программа закрывается для установки обновления."}
+            self._active_native_operations += 1
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            with self._native_operation_gate:
+                self._active_native_operations -= 1
+    return guarded
+
+
 class NativeStorageApi:
     """JS API для pywebview: хранит данные ZeTer OS в папке ./data."""
 
@@ -1780,6 +1798,7 @@ class NativeStorageApi:
         platform_opener: Optional[Any] = None,
         windows_startup_manager: Optional[Any] = None,
         problem_logs: Optional[ProblemLogs | DailyProblemLogs] = None,
+        app_updater: Optional[Any] = None,
     ) -> None:
         self._problem_logs = problem_logs
         ensure_dirs()
@@ -1794,6 +1813,11 @@ class NativeStorageApi:
         self._file_upload_lock = threading.RLock()
         self._system_metrics_lock = threading.RLock()
         self._file_uploads: Dict[str, Dict[str, Any]] = {}
+        self._native_operation_gate = threading.RLock()
+        self._active_native_operations = 0
+        self._closing = False
+        # Effective paths are taken at construction, after test overrides are applied.
+        self._app_updater = app_updater or UpdateManager(BASE_DIR, DATA_DIR)
         self._uncommitted_file_paths: Dict[str, float] = {}
         self._cleanup_orphaned_incoming_files()
         self._export_existing_state_to_readable_folder()
@@ -1829,6 +1853,40 @@ class NativeStorageApi:
         if not isinstance(payload, dict):
             raise ValueError(error_message)
         return payload
+
+    def get_app_update_status(self) -> Dict[str, Any]:
+        return self._app_updater.get_status()
+
+    def check_app_updates(self) -> Dict[str, Any]:
+        return self._app_updater.check()
+
+    def prepare_app_update(self) -> Dict[str, Any]:
+        with self._native_operation_gate:
+            if self._active_native_operations:
+                return {"ok": False, "error": "Дождитесь завершения текущей операции."}
+            with self._file_upload_lock:
+                if self._file_uploads:
+                    return {"ok": False, "error": "Дождитесь завершения копирования файлов."}
+        return self._app_updater.prepare()
+
+    def install_app_update(self) -> Dict[str, Any]:
+        with self._native_operation_gate:
+            if self._closing:
+                return {"ok": False, "error": "Программа уже закрывается."}
+            if self._active_native_operations:
+                return {"ok": False, "error": "Дождитесь завершения текущей операции."}
+            with self._file_upload_lock:
+                if self._file_uploads:
+                    return {"ok": False, "error": "Дождитесь завершения копирования файлов."}
+            return self._app_updater.install()
+
+    def cancel_app_update(self) -> Dict[str, Any]:
+        return self._app_updater.cancel()
+
+    def _cancel_update_on_close(self) -> None:
+        self._closing = True
+        if self._app_updater.get_status()["phase"] != "awaiting_exit":
+            self._app_updater.cancel()
 
     @diagnosed("incoming_cleanup")
     def _cleanup_orphaned_incoming_files(self) -> int:
@@ -2208,6 +2266,7 @@ class NativeStorageApi:
             log(f"WINDOWS_READABLE startup error: {exc}")
 
     @diagnosed("get_storage_info")
+    @guard_native_operation
     def get_storage_info(self) -> Dict[str, Any]:
         try:
             state_files, state_bytes = file_stat_totals((STATE_FILE,))
@@ -2250,6 +2309,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("get_windows_startup_status")
+    @guard_native_operation
     def get_windows_startup_status(self) -> Dict[str, Any]:
         try:
             return self._ok(**self._windows_startup_manager.status())
@@ -2257,6 +2317,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("set_windows_startup_enabled")
+    @guard_native_operation
     def set_windows_startup_enabled(self, enabled: Any) -> Dict[str, Any]:
         try:
             if not isinstance(enabled, bool):
@@ -2268,6 +2329,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("get_system_metrics")
+    @guard_native_operation
     def get_system_metrics(self) -> Dict[str, Any]:
         """Return real host metrics for the system monitor without extra packages."""
         try:
@@ -2335,6 +2397,7 @@ class NativeStorageApi:
         except Exception as exc:
             return self._error(exc)
 
+    @guard_native_operation
     def report_client_error(self, details: Any) -> Dict[str, Any]:
         """Bounded content-free JS diagnostics, including errors after frontend readiness."""
         try:
@@ -2352,6 +2415,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("save_item_asset")
+    @guard_native_operation
     def save_item_asset(self, payload: Any) -> Dict[str, Any]:
         """Atomically store a folder/shortcut image in data/Оформление объектов."""
         try:
@@ -2437,6 +2501,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("begin_file_import")
+    @guard_native_operation
     def begin_file_import(self, payload: Any) -> Dict[str, Any]:
         """Reserve a managed path and a temporary file for a complete file copy."""
         try:
@@ -2495,6 +2560,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("append_file_chunk")
+    @guard_native_operation
     def append_file_chunk(self, payload: Any) -> Dict[str, Any]:
         """Append one bounded Base64 chunk while enforcing strict byte offsets."""
         try:
@@ -2534,6 +2600,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("finish_file_import")
+    @guard_native_operation
     def finish_file_import(self, payload: Any) -> Dict[str, Any]:
         """Verify the complete byte count and atomically publish the copied file."""
         try:
@@ -2584,6 +2651,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("cancel_file_import")
+    @guard_native_operation
     def cancel_file_import(self, payload: Any) -> Dict[str, Any]:
         try:
             data = self._payload_dict(payload, "Некорректная отмена копирования файла.")
@@ -2600,6 +2668,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("open_managed_file")
+    @guard_native_operation
     def open_managed_file(self, payload: Any) -> Dict[str, Any]:
         """Open only a verified managed file copy with the OS default application."""
         try:
@@ -2612,6 +2681,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("open_external_target")
+    @guard_native_operation
     def open_external_target(self, payload: Any) -> Dict[str, Any]:
         """Open an explicit http(s) URL or absolute Windows path without a shell."""
         try:
@@ -2642,6 +2712,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("save_text_download")
+    @guard_native_operation
     def save_text_download(self, payload: Any) -> Dict[str, Any]:
         """Показывает системный диалог и сохраняет выбранный текстовый файл."""
         try:
@@ -2680,6 +2751,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("save_binary_download")
+    @guard_native_operation
     def save_desktop_backup(self, snapshot: Any) -> Dict[str, Any]:
         """Stream and verify a single desktop ZIP before replacing the chosen file."""
         with self._state_save_lock:
@@ -2771,6 +2843,7 @@ class NativeStorageApi:
                         log(f"DESKTOP_BACKUP temporary cleanup error: {exc}")
 
     @diagnosed("save_binary_download")
+    @guard_native_operation
     def save_binary_download(self, payload: Any) -> Dict[str, Any]:
         """Показывает системный диалог и сохраняет переданный двоичный файл."""
         try:
@@ -2809,6 +2882,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("open_data_folder")
+    @guard_native_operation
     def open_data_folder(self) -> Dict[str, Any]:
         try:
             ensure_dirs()
@@ -2819,6 +2893,7 @@ class NativeStorageApi:
 
 
     @diagnosed("open_logs_folder")
+    @guard_native_operation
     def open_logs_folder(self) -> Dict[str, Any]:
         try:
             ensure_dirs()
@@ -2829,6 +2904,7 @@ class NativeStorageApi:
 
 
     @diagnosed("open_problem_logs_folder")
+    @guard_native_operation
     def open_problem_logs_folder(self) -> Dict[str, Any]:
         try:
             if not self._problem_logs or not self._problem_logs.available:
@@ -2842,18 +2918,23 @@ class NativeStorageApi:
 
     @diagnosed("close_app")
     def close_app(self) -> Dict[str, Any]:
+        was_closing = self._closing
         try:
             if self._window is None or not callable(getattr(self._window, "destroy", None)):
                 raise RuntimeError("Окно ZeTer OS недоступно для безопасного закрытия.")
             log("CLOSE requested from recovery screen")
+            self._cancel_update_on_close()
             self._window.destroy()
             return self._ok(closing=True)
         except Exception as exc:
+            # A refused destroy leaves the live window usable for cancellation/retry.
+            self._closing = was_closing
             return self._error(exc)
 
 
 
     @diagnosed("open_readable_folder")
+    @guard_native_operation
     def open_readable_folder(self) -> Dict[str, Any]:
         try:
             ensure_dirs()
@@ -2865,6 +2946,7 @@ class NativeStorageApi:
 
 
     @diagnosed("load_state")
+    @guard_native_operation
     def load_state(self) -> Dict[str, Any]:
         try:
             if not STATE_FILE.exists():
@@ -2945,6 +3027,7 @@ class NativeStorageApi:
             raise
 
     @diagnosed("save_state")
+    @guard_native_operation
     def save_state(self, record: Any) -> Dict[str, Any]:
         waiting_since = time.monotonic()
         with self._state_save_lock:
@@ -3078,6 +3161,7 @@ class NativeStorageApi:
             return {"ok": False, "error": message, "stage": "primary-confirm"}
 
     @diagnosed("clear_state")
+    @guard_native_operation
     def clear_state(self) -> Dict[str, Any]:
         with self._state_save_lock:
             try:
@@ -3122,6 +3206,7 @@ class NativeStorageApi:
                 return self._error(exc)
 
     @diagnosed("load_restore_points")
+    @guard_native_operation
     def load_restore_points(self) -> Dict[str, Any]:
         try:
             with self._restore_points_lock:
@@ -3140,6 +3225,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("preflight_restore_point")
+    @guard_native_operation
     def preflight_restore_point(self, point_id: Any) -> Dict[str, Any]:
         try:
             safe_id = str(point_id or "").strip()
@@ -3183,6 +3269,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("save_restore_point")
+    @guard_native_operation
     def save_restore_point(self, point: Any) -> Dict[str, Any]:
         try:
             if isinstance(point, str):
@@ -3216,6 +3303,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("delete_restore_point")
+    @guard_native_operation
     def delete_restore_point(self, point_id: Any) -> Dict[str, Any]:
         try:
             safe_id = str(point_id or "").strip()
@@ -3237,6 +3325,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("cleanup_security_artifacts")
+    @guard_native_operation
     def cleanup_security_artifacts(self, payload: Any) -> Dict[str, Any]:
         try:
             data = json.loads(payload) if isinstance(payload, str) else payload
@@ -3296,6 +3385,7 @@ class NativeStorageApi:
             return self._error(exc)
 
     @diagnosed("clear_restore_points")
+    @guard_native_operation
     def clear_restore_points(self) -> Dict[str, Any]:
         try:
             with self._state_save_lock:
@@ -3345,7 +3435,7 @@ def startup_window_maximized() -> bool:
         return True
 
 
-def main() -> int:
+def _run_normal_app() -> int:
     diagnostics = DailyProblemLogs(BASE_DIR)
     outcome = "error"
     server: Optional[ThreadingHTTPServer] = None
@@ -3377,6 +3467,7 @@ def main() -> int:
                 text_select=True,
             )
         api._window = window
+        window.events.closing += api._cancel_update_on_close
         webview.start(debug=False)
         outcome = "success"
         return 0
@@ -3396,6 +3487,86 @@ def main() -> int:
             outcome = "partial"
         finally:
             diagnostics.close(outcome)
+
+
+class ProbeApi:
+    """Read-only bridge for a separate resource/WebView2 probe; no storage API."""
+    def __init__(self, nonce: str, version: str):
+        self._nonce = nonce
+        self._version = version
+        self._acknowledged = threading.Event()
+        self._window = None
+
+    def confirm_update_probe(self, nonce: Any, version: Any) -> Dict[str, Any]:
+        if nonce != self._nonce or version != self._version:
+            return {"ok": False, "error": "Идентификатор или версия проверки не совпадает."}
+        self._acknowledged.set()
+        if self._window is not None:
+            threading.Timer(0, self._window.destroy).start()
+        return {"ok": True, "version": self._version}
+
+
+def run_update_probe(nonce: str, expected: str, session: Path) -> int:
+    """Early branch: verify installed bytes and WebView bridge without normal boot."""
+    from app_updater import read_manifest, verify_file, version_tuple
+    from update_runner import validate_session
+    server = None
+    timeout = None
+    try:
+        if not getattr(sys, "frozen", False) or sys.platform != "win32" or not re.fullmatch(r"[a-f0-9]{32}", nonce):
+            return 1
+        version_tuple(expected)
+        root, session = validate_session(BASE_DIR, session)
+        request = json.loads((session / "request.json").read_text(encoding="utf-8"))
+        if request.get("nonce") != nonce or request.get("new", {}).get("version") != expected:
+            return 1
+        manifest = read_manifest(root)
+        if manifest["version"] != expected:
+            return 1
+        for name, record in manifest["files"].items():
+            verify_file(root, name, record)
+        import webview
+        api = ProbeApi(nonce, expected)
+        server, port = start_local_server()
+        api._window = webview.create_window("ZeTer OS — проверка обновления", f"http://127.0.0.1:{port}/update-probe.html?nonce={nonce}&expected={expected}", js_api=api, width=460, height=160, hidden=True)
+        timeout = threading.Timer(25, api._window.destroy)
+        timeout.start()
+        # Workflow-owned runtime cache only. NativeStorageApi is never constructed.
+        storage = session / "probe-webview"
+        from app_updater import plain_path as update_plain_path
+        update_plain_path(root, storage)
+        webview.start(gui="edgechromium", debug=False, private_mode=True, storage_path=str(storage))
+        return 0 if api._acknowledged.is_set() else 1
+    except Exception:
+        return 1
+    finally:
+        if timeout:
+            timeout.cancel()
+        if server:
+            server.shutdown()
+            server.server_close()
+
+
+def main() -> int:
+    if "--update-probe" in sys.argv:
+        if len(sys.argv) != 5 or sys.argv[1] != "--update-probe":
+            return 1
+        return run_update_probe(sys.argv[2], sys.argv[3], Path(sys.argv[4]))
+    lock = None
+    try:
+        if getattr(sys, "frozen", False):
+            lock = normal_instance_lock(BASE_DIR)
+            # Refuse normal data startup while a code transaction needs recovery.
+            from app_updater import pending_recovery
+            if pending_recovery(BASE_DIR):
+                raise UpdateError("Обновление прервано. Запустите сохранённый ZeTer-OS-Updater.exe --recover с journal.json из data/updates; данные не открывались.")
+        return _run_normal_app()
+    except UpdateError as exc:
+        print(str(exc))
+        return 1
+    finally:
+        if lock:
+            lock.close()
 
 
 if __name__ == "__main__":

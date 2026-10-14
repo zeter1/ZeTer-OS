@@ -117,6 +117,7 @@
 ## Хранилища
 
 - Python/pywebview: полное состояние в `data/zeter-os-state.json`.
+- `data/updates/<уникальная-транзакция>/`: служебные staging, verified backup, journal и receipts установщика. Это не пользовательское state и не входит в замену program files; recovery сохраняется без автоматического удаления. Контракт — [UPDATES.md](UPDATES.md).
 - Браузер: основная запись в IndexedDB `zeter-os-primary-state`.
 - `localStorage`: только маленький диагностический снимок; старое полное состояние может быть прочитано для миграции или временно записано как аварийный fallback.
 

@@ -82,9 +82,7 @@ assert.match(html, /Дмитрий Колесниченко/, "help must identif
 assert.match(html, /zeter11@gmail\.com/, "help must provide the developer contact email");
 
 const settingsHtml = settings.settingsAppHTML(settings.settingsAppViewModel({ osVersion: "3.77" }));
-assert.match(settingsHtml, /<h3>Разработчик<\/h3>/, "settings must have a dedicated developer card");
-assert.match(settingsHtml, /Дмитрий Колесниченко/, "settings must identify the developer");
-assert.match(settingsHtml, /zeter11@gmail\.com/, "settings must provide the developer contact email");
+assert.doesNotMatch(settingsHtml, /<h3>(Разработчик|О системе)<\/h3>/, "product information belongs in the About window, outside settings");
 assert.match(settingsHtml, /Сохранение и данные/, "settings must expose storage status and manual save");
 assert.match(settingsHtml, /Уведомления/, "settings must expose notification preferences");
 assert.match(settingsHtml, /Запуск и восстановление окон/, "settings must expose startup behavior");

@@ -51,6 +51,10 @@ NATIVE_SMOKE = PROJECT_ROOT / "tools" / "smoke_managed_file_native.py"
 DESKTOP_BACKUP_SMOKE = PROJECT_ROOT / "tools" / "smoke_desktop_backup_native.py"
 PROBLEM_LOGS_SMOKE = PROJECT_ROOT / "tools" / "smoke_problem_logs.py"
 RELEASE_SMOKE = PROJECT_ROOT / "tools" / "smoke_release_builder.py"
+UPDATER_MODULE = PROJECT_ROOT / "app_updater.py"
+UPDATER_RUNNER = PROJECT_ROOT / "update_runner.py"
+UPDATER_PACKAGE_TOOL = PROJECT_ROOT / "tools" / "build_update_package.py"
+UPDATER_SMOKE = PROJECT_ROOT / "tools" / "smoke_app_updater.py"
 SMOKE_SCRIPTS = (
     PROJECT_ROOT / "tools" / "smoke_system_settings.js",
     PROJECT_ROOT / "tools" / "smoke_state_migration.js",
@@ -58,6 +62,8 @@ SMOKE_SCRIPTS = (
     PROJECT_ROOT / "tools" / "smoke_import_runtime.js",
     PROJECT_ROOT / "tools" / "smoke_export_runtime.js",
     PROJECT_ROOT / "tools" / "smoke_help_content.js",
+    PROJECT_ROOT / "tools" / "smoke_about_ui.js",
+    PROJECT_ROOT / "tools" / "smoke_update_runtime.js",
 )
 CODEMAP_GENERATED_START = "<!-- BEGIN GENERATED CORE SUMMARY -->"
 CODEMAP_GENERATED_END = "<!-- END GENERATED CORE SUMMARY -->"
@@ -75,6 +81,7 @@ REQUIRED_DOCS = (
     GLOSSARY_MD,
     TESTING_MD,
     DOCS_DIR / "HELP_MAINTENANCE.md",
+    DOCS_DIR / "UPDATES.md",
     *GENERATED_NAVIGATION_DOCS,
 )
 REQUIRED_SCRIPT_ORDER = (
@@ -153,6 +160,8 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/monitor-utils.js",
     "js/core/photo-ui-utils.js",
     "js/core/settings-ui-utils.js",
+    "js/core/about-ui-utils.js",
+    "js/core/update-ui-utils.js",
     "js/core/app-center-ui-utils.js",
     "js/core/search-utils.js",
     "js/core/initial-state-utils.js",
@@ -254,6 +263,10 @@ def check_required_files() -> list[CheckResult]:
         VERSION_JS,
         APP_JS,
         PYTHON_ENTRY,
+        UPDATER_MODULE,
+        UPDATER_RUNNER,
+        UPDATER_PACKAGE_TOOL,
+        UPDATER_SMOKE,
         PROBLEM_LOGS_MODULE,
         PROBLEM_LOGS_README,
         MANIFEST_JSON,
@@ -935,10 +948,19 @@ def check_native_bridge_contract() -> list[CheckResult]:
         return [fail("native.bridge_contract", "NATIVE_BRIDGE.md or run_zeter_os.py is missing")]
     python_methods = native_storage_api_methods()
     documented = set(re.findall(r"(?m)^\| `([a-z][a-z0-9_]+)\(", read_text(NATIVE_BRIDGE_MD)))
-    js_source = "\n".join(read_text(path) for path in sorted((APP_DIR / "js").rglob("*.js")))
-    js_calls = set(re.findall(r"nativeStorageCall\(\s*['\"]([a-z][a-z0-9_]+)['\"]", js_source))
+    # The read-only installer probe has its own narrow API, not NativeStorageApi.
+    probe_script = APP_DIR / "js" / "update-probe.js"
+    js_source = "\n".join(read_text(path) for path in sorted((APP_DIR / "js").rglob("*.js")) if path != probe_script)
+    js_calls = set(re.findall(r"(?:nativeStorageCall|callNative)\(\s*['\"]([a-z][a-z0-9_]+)['\"]", js_source))
     js_calls.update(re.findall(r"pywebview\?\.api\?\.([a-z][a-z0-9_]+)", js_source))
     failures: list[str] = []
+    if probe_script.exists():
+        probe_source = read_text(probe_script)
+        probe_calls = set(re.findall(r"pywebview\?\.api\?\.([a-z][a-z0-9_]+)", probe_source))
+        probe_classes = [node for node in ast.parse(read_text(PYTHON_ENTRY)).body if isinstance(node, ast.ClassDef) and node.name == "ProbeApi"]
+        probe_methods = {node.name for cls in probe_classes for node in cls.body if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")}
+        if probe_calls != {"confirm_update_probe"} or probe_methods != {"confirm_update_probe"}:
+            failures.append("read-only updater ProbeApi must expose exactly confirm_update_probe")
     if python_methods != documented:
         failures.append(
             "Python/docs mismatch: "
@@ -1209,6 +1231,10 @@ def check_version_cache_match() -> list[CheckResult]:
 def check_python_syntax() -> list[CheckResult]:
     scripts = (
         PYTHON_ENTRY,
+        UPDATER_MODULE,
+        UPDATER_RUNNER,
+        UPDATER_PACKAGE_TOOL,
+        UPDATER_SMOKE,
         PROBLEM_LOGS_MODULE,
         Path(__file__).resolve(),
         UPDATE_DOCS_TOOL,
@@ -1414,6 +1440,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_scenario_smokes(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=DESKTOP_BACKUP_SMOKE, key="python.desktop_backup_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=UPDATER_SMOKE, key="python.updater_smoke"))
     checks.extend(check_problem_logs_smoke(strict_node=strict_node))
     checks.extend(check_release_smoke(strict_node=strict_node))
     return checks

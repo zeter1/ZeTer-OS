@@ -768,6 +768,8 @@
       calculator: renderCalculatorApp,
       photos: renderPhotosApp,
       settings: renderSettingsApp,
+      about: renderAboutApp,
+      manualUpdate: renderManualUpdateApp,
       security: securityRuntimeController.renderSecurityCenterApp,
       monitor: renderMonitorApp,
       appcenter: renderAppCenter,
@@ -934,6 +936,8 @@
   }
 
   let state = defaultState();
+  let appUpdateApplying = false;
+  let updateUiController = null;
   const ui = {
     z: 100,
     windows: new Map(),
@@ -2500,7 +2504,6 @@
       desktopName,
       desktopDescription,
       formatBytes: bytesToHuman,
-      osVersion: OS_VERSION,
       windowsStartupAvailable: shouldUseNativeStorage(),
       applySettings,
       toast,
@@ -2515,6 +2518,16 @@
       renderStart
     });
   }
+  function renderAboutApp(){
+    const root = window.ZETER_ABOUT_UI_UTILS.aboutAppElement({
+      showContext,
+      copyText: copyTextToClipboard,
+      openExternalLink: openExternalTarget,
+      toast
+    });
+    updateUiController?.render(root);
+    return root;
+  }
   function renderAppCenter(){
     return appCenterAppElement({
       getAppEntries: installableAppEntries,
@@ -2523,6 +2536,9 @@
       installApp: installAppToDesktop,
       uninstallApp: uninstallAppFromDesktop
     });
+  }
+  function renderManualUpdateApp(){
+    return window.ZETER_UPDATE_UI_UTILS.manualUpdateElement({ openExternalLink: openExternalTarget });
   }
   function renderHelpApp(){ return helpAppElement({ openApp, osVersion: OS_VERSION }); }
   const searchController = createSearchController({
@@ -3109,7 +3125,7 @@
   let automationCheckInFlight = false;
 
   async function runAutomationCheck() {
-    if (automationCheckInFlight) return 0;
+    if (appUpdateApplying || automationCheckInFlight) return 0;
     automationCheckInFlight = true;
     try {
       return await queueAutomationMutation(async () => {
@@ -3208,7 +3224,19 @@
     toast
   });
 
-  function openNotification(id) { return taskNotificationController.openById(id); }
+  function openNotification(id) {
+    const notification = deskNotifications().find(item => item.id === id);
+    if (notification?.action === "open-update" && /^update:\d+\.\d+\.\d+$/.test(notification.source || "")) {
+      notification.read = true;
+      saveState();
+      renderNotifications();
+      closeFloating();
+      openApp("about");
+      updateUiController?.showOffer();
+      return true;
+    }
+    return taskNotificationController.openById(id);
+  }
 
   const taskReminderWatcher = createTaskReminderWatcher({
     getState: () => state,
@@ -3233,7 +3261,7 @@
     refreshWorkspaceWindows,
     safeInitStep,
     now: Date.now,
-    setTimer: (callback, delay) => setInterval(callback, delay),
+    setTimer: (callback, delay) => setInterval(() => { if (!appUpdateApplying) callback(); }, delay),
     clearTimer: timer => clearInterval(timer),
     intervalMs: TASK_REMINDER_CHECK_MS
   });
@@ -3253,7 +3281,7 @@
     refreshWorkspaceWindows,
     safeInitStep,
     now: Date.now,
-    setTimer: (callback, delay) => setInterval(callback, delay),
+    setTimer: (callback, delay) => setInterval(() => { if (!appUpdateApplying) callback(); }, delay),
     clearTimer: timer => clearInterval(timer),
     intervalMs: TASK_REMINDER_CHECK_MS
   });
@@ -3329,7 +3357,7 @@
       startTaskReminderWatcher,
       restoreWindowsForCurrentDesktop
     },
-    purgeExpiredTrash: () => purgeExpiredTrashItemsFromTarget(state, { dropActionHistory: true }),
+    purgeExpiredTrash: () => appUpdateApplying ? false : purgeExpiredTrashItemsFromTarget(state, { dropActionHistory: true }),
     refreshRecycleBinWindows,
     updateClock,
     prepareCalendarForTray: () => {
@@ -3432,11 +3460,52 @@
 
   let bootInitialized = false;
 
+  async function recordAppUpdateNotification(update = {}) {
+    const source = `update:${update.version}`;
+    const added = [];
+    for (const desktop of state.desktops || []) {
+      const workspace = workspaceDataForDesktopId(desktop.id);
+      if (workspace.notifications.some(item => item.source === source)) continue;
+      const record = notificationCenterController.addNotification(`Доступна ZeTer OS ${update.version}`, "Новая версия готова к установке. Нажмите «Обновить» или откройте «О ZeTer OS».", { desktopId: desktop.id, source, action: "open-update", save: false });
+      added.push({ workspace, record });
+    }
+    if (!added.length) return;
+    try { await saveState(); }
+    catch (error) {
+      added.forEach(({ workspace, record }) => { workspace.notifications = workspace.notifications.filter(item => item.id !== record.id); });
+      renderNotifications();
+      throw error;
+    }
+    renderNotifications();
+  }
+
+  updateUiController = window.ZETER_UPDATE_UI_UTILS.createUpdateController({
+    native: shouldUseNativeStorage(),
+    callNative: nativeStorageCall,
+    notifyAvailable: recordAppUpdateNotification,
+    openExternalLink: openExternalTarget,
+    openManualUpdate: () => { closeFloating(); return openApp("manualupdate"); },
+    setLocked: locked => {
+      appUpdateApplying = Boolean(locked);
+      document.body.classList.toggle("app-update-locked", appUpdateApplying);
+      const os = document.querySelector("#os");
+      if (os) os.inert = appUpdateApplying;
+    },
+    saveBeforeInstall: async () => {
+      await automationMutationChain;
+      await syncLiveEditorsBeforeExport();
+      await primaryStateSaveQueue.barrier();
+      await saveState();
+      await primaryStateSaveQueue.barrier();
+    }
+  });
+
   async function loadStorageAndInitialize() {
     if (bootInitialized) return;
     state = await storageStateRuntimeController.loadStateForBoot();
     bootInitialized = true;
     init();
+    void updateUiController.start();
   }
 
   function showNativeStorageRecovery(error) {

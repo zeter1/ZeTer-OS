@@ -542,6 +542,7 @@
       if (action === "export") return exportData();
       if (action === "import") return $("#import-file")?.click();
       if (action === "settings") return openApp("settings");
+      if (action === "about") return openApp("about");
       if (action === "security") return openApp("security");
       if (action === "monitor") return openApp("monitor");
       if (action === "calendar") return openApp("calendar");
@@ -607,6 +608,7 @@
       });
       bindDesktopSelectionBox();
       documentRef.addEventListener("keydown", event => {
+        if (documentRef.body?.classList.contains("app-update-locked")) { event.preventDefault(); return; }
         // Modal controls retain their native Enter/Space behavior; the shell stays idle.
         if (documentRef.querySelector?.("[data-desktop-delete-dialog], [data-prompt-dialog][open]")) return;
         const targetElement = ElementCtor && event.target instanceof ElementCtor ? event.target : null;

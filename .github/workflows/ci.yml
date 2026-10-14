@@ -43,7 +43,7 @@ jobs:
           package-manager-cache: false
 
       - name: Compile Python sources
-        run: python -m compileall -q run_zeter_os.py problem_logs.py tools build_support
+        run: python -m compileall -q run_zeter_os.py problem_logs.py app_updater.py update_runner.py tools build_support
 
       - name: Run full project verification
         run: python tools/check_project.py --strict-node
@@ -66,14 +66,7 @@ jobs:
       - name: Create portable ZIP and checksum
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package]'))
         shell: pwsh
-        run: |
-          $zip = 'dist\ZeTer-OS-Windows-x64.zip'
-          if (Test-Path $zip) { Remove-Item $zip -Force }
-          Compress-Archive -Path 'dist\ZeTer-OS\*' -DestinationPath $zip -CompressionLevel Optimal
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  ZeTer-OS-Windows-x64.zip" | Set-Content 'dist\ZeTer-OS-Windows-x64.sha256.txt' -Encoding ascii
-          Get-Item $zip | Format-List Name,Length,LastWriteTime
-          Get-Content 'dist\ZeTer-OS-Windows-x64.sha256.txt'
+        run: python tools/build_update_package.py --distribution dist/ZeTer-OS --output dist
 
       - name: Upload packaged Windows distribution
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package]'))
@@ -81,8 +74,8 @@ jobs:
         with:
           name: ZeTer-OS-Windows-x64
           path: |
-            dist/ZeTer-OS-Windows-x64.zip
-            dist/ZeTer-OS-Windows-x64.sha256.txt
+            dist/ZeTer-OS-*-Windows-x64.zip
+            dist/ZeTer-OS-*-Windows-x64.sha256.txt
           if-no-files-found: error
           retention-days: 30
 
@@ -126,9 +119,9 @@ jobs:
           title="ZeTer OS — Windows-сборка $short_sha"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes-file RELEASE_NOTES_RU.md
-            gh release upload "$tag" release/ZeTer-OS-Windows-x64.zip release/ZeTer-OS-Windows-x64.sha256.txt --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$tag" release/ZeTer-OS-*-Windows-x64.zip release/ZeTer-OS-*-Windows-x64.sha256.txt --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" release/ZeTer-OS-Windows-x64.zip release/ZeTer-OS-Windows-x64.sha256.txt \
+            gh release create "$tag" release/ZeTer-OS-*-Windows-x64.zip release/ZeTer-OS-*-Windows-x64.sha256.txt \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$title" \
               --notes-file RELEASE_NOTES_RU.md --prerelease
           fi

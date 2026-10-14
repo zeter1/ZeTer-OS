@@ -80,6 +80,7 @@
   function notificationCanOpen(notification = {}) {
     const source = notificationSource(notification);
     return Boolean(notificationLinkedObject(notification))
+      || (notification.action === "open-update" && /^update:\d+\.\d+\.\d+$/.test(source))
       || notification.action === "open-task"
       || notification.action === "open-calendar"
       || source.startsWith(TASK_SOURCE_PREFIX)

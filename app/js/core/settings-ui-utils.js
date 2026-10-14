@@ -18,7 +18,6 @@
     hotkeyConflict,
     defaultHotkeys
   } = systemSettingsUtils;
-  const developer = config.DEVELOPER || {};
   const SYSTEM_SETTING_PATHS = new Set([
     "startup.restoreWindows",
     "startup.desktop",
@@ -72,9 +71,6 @@
       hasCustomWallpaper: Boolean(wallpaper?.dataURL),
       wallpaperName: wallpaper?.name,
       wallpaperSizeText: wallpaper?.size ? formatBytes(wallpaper.size) : "",
-      osVersion: options.osVersion || "",
-      developerName: options.developerName || developer.name || "",
-      developerEmail: options.developerEmail || developer.email || "",
       windowsStartupAvailable: Boolean(options.windowsStartupAvailable),
       systemSettings,
       desktopOptions: Array.isArray(options.desktopOptions) ? options.desktopOptions : [],
@@ -296,10 +292,7 @@
         <p class="muted">Нажми «Изменить», затем новое сочетание. Системные и конфликтующие сочетания не принимаются.</p>
         <div class="hotkey-settings-list">${hotkeyRowsHTML(options)}</div>
         <small class="settings-help-note">Alt+Tab переключает окна, Ctrl+Z отменяет действие, Delete удаляет выбранный значок. Эти безопасные системные действия не переназначаются.</small>
-      </section>
-
-      <section class="setting-card"><h3>О системе</h3><p><b>ZeTer OS ${escapeHtml(options.osVersion || "")}</b></p><p class="muted">Desktop-версия ZeTer OS: интерфейс HTML/CSS/JS работает в Python-окне, а данные автоматически сохраняются в папку data рядом с программой.</p></section>
-      <section class="setting-card developer-card"><h3>Разработчик</h3><div class="developer-profile"><span class="developer-avatar" aria-hidden="true">ДК</span><div><b>${escapeHtml(options.developerName || developer.name || "")}</b><small>Автор и разработчик ZeTer OS</small></div></div><div class="developer-contact"><span>Электронная почта</span><b>${escapeHtml(options.developerEmail || developer.email || "")}</b></div></section>`;
+      </section>`;
   }
 
   function settingsAppElement(options = {}) {
@@ -318,7 +311,6 @@
       desktopName = () => "Рабочий стол",
       desktopDescription = () => "",
       formatBytes = value => String(value || ""),
-      osVersion = "",
       windowsStartupAvailable = false,
       applySettings = () => {},
       toast = () => {},
@@ -356,7 +348,6 @@
       desktopIcon: deskIcon,
       wallpaper,
       formatBytes,
-      osVersion,
       windowsStartupAvailable,
       systemSettings: getSystemSettings(),
       desktopOptions: getDesktopOptions(),

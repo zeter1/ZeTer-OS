@@ -32,6 +32,8 @@ const smokeFiles = [
   "smoke_item_customization.js",
   "smoke_persistence_ack.js",
   "smoke_help_content.js",
+  "smoke_about_ui.js",
+  "smoke_update_runtime.js",
 ];
 
 for (const smokeFile of smokeFiles) {

@@ -25,6 +25,10 @@ def run_packaged_self_test() -> int:
 
     import webview  # noqa: F401 - import itself validates pywebview packaging
     import problem_logs  # noqa: F401 - validate the native launcher dependency
+    from app_updater import read_manifest, verify_file
+    manifest = read_manifest(root)
+    for name, record in manifest["files"].items():
+        verify_file(root, name, record)
 
     index = required[0].read_text(encoding="utf-8")
     if not index.strip() or "<html" not in index.lower():

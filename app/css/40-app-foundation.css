@@ -732,7 +732,44 @@ body.light .help-search-panel {
 .desktop-profile-save-note { display: block; margin-top: 2px; }
 .desktop-profile-card .compact-actions { align-items: center; gap: 6px; }
 .desktop-profile-card .compact-actions button { width: auto; min-width: 0; min-height: 34px; height: auto; padding: 7px 10px; border-radius: 11px; font-size: 12px; line-height: 1.2; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; white-space: nowrap; }
-.developer-card { display: grid; gap: 12px; align-content: start; }
+.about-app { display: grid; gap: 16px; align-content: start; padding: 20px; user-select: text; min-width: 0; }
+.about-app .setting-card { min-width: 0; padding: 20px; }
+.about-app p { line-height: 1.6; }
+.about-app h2 { margin: 6px 0 14px; font-size: 32px; letter-spacing: -.04em; }
+.about-eyebrow { color: var(--muted); font-size: 12px; font-weight: 700; }
+.about-release-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.about-release-heading h3 { margin: 0; }
+.about-version { padding: 6px 12px; border-radius: 12px; color: var(--text); border: 1px solid var(--stroke); background: var(--glass-3); font-size: 17px; }
+.about-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 8px; margin-bottom: 14px; }
+.about-links a { display: grid; align-content: start; gap: 5px; padding: 12px; border-radius: 12px; border: 1px solid var(--stroke); color: var(--text); background: rgba(255,255,255,.04); text-decoration: none; min-width: 0; overflow-wrap: anywhere; }
+.about-links a span { color: var(--muted); font-size: 12px; }
+.about-links a:hover { background: var(--glass-2); }
+.about-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.about-developer { display: grid; gap: 14px; }
+.about-contacts { margin-bottom: 0; }
+.about-update-panel { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--stroke); }
+.about-update-panel p { margin: 0 0 10px; }
+.about-update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.about-update-actions button, .notification-update-action, .app-update-offer-heading button { min-height: 36px; border-radius: 12px; padding: 8px 12px; background: var(--glass-3); border: 1px solid var(--stroke); }
+.about-update-actions button[data-update-install], .notification-update-action { background: #335eab; }
+.about-update-actions button:disabled, .app-update-offer-heading button:disabled { opacity: .55; cursor: default; }
+.about-update-actions button:focus-visible, .notification-update-action:focus-visible, .app-update-offer-heading button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app-update-offer { position: fixed; z-index: 7500; padding: 16px; border-radius: 18px; max-width: calc(100vw - 24px); max-height: calc(100vh - 130px); overflow: auto; user-select: text; }
+.app-update-offer-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.app-update-offer p { margin: 0 0 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.app-update-offer progress, .about-update-panel progress { display: block; width: 100%; margin-bottom: 12px; accent-color: var(--accent); }
+.top-menu button.has-app-update { border-color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+.notification-update-action { justify-self: start; margin-top: 8px; }
+.notification-update-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.notification-update-actions button { min-height: 34px; padding: 7px 10px; border-radius: 10px; background: var(--glass-3); border: 1px solid var(--stroke); font-size: 12px; }
+.notification-update-actions .notification-update-action { margin: 0; background: #335eab; }
+.notification-update-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.manual-update-steps { margin: 0; padding-left: 24px; }
+.manual-update-steps li { padding-left: 4px; margin-bottom: 20px; }
+.manual-update-steps li:last-child { margin-bottom: 0; }
+.manual-update-steps p { margin: 6px 0 0; }
+.manual-update-app code { padding: 2px 5px; background: rgba(255,255,255,.07); border-radius: 5px; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .about-app { padding: 12px; gap: 12px; } .about-app .setting-card { padding: 16px; } }
 .developer-profile { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .developer-avatar { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; border: 1px solid rgba(255,255,255,.24); background: linear-gradient(135deg, rgba(122,168,255,.48), rgba(193,121,255,.42)); color: white; font-size: 13px; font-weight: 900; letter-spacing: .04em; box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
 .developer-profile > div { display: grid; gap: 3px; min-width: 0; }

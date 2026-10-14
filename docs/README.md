@@ -19,6 +19,7 @@
 | Изменить Python API или pywebview bridge | [NATIVE_BRIDGE.md](NATIVE_BRIDGE.md) |
 | Обновить пользовательскую справку после изменения возможностей | [HELP_MAINTENANCE.md](HELP_MAINTENANCE.md) |
 | Выбрать автоматические и ручные проверки | [TESTING.md](TESTING.md) |
+| Подготовить GitHub Release и разобраться в обновлении Windows-сборки | [UPDATES.md](UPDATES.md) |
 | Диагностировать запуск, storage или PWA | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
 | Уточнить desktop/workspace/root/state | [GLOSSARY.md](GLOSSARY.md) |
 | Узнать обязательные правила Codex | [../AGENTS.md](../AGENTS.md) |

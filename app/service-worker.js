@@ -1,5 +1,5 @@
-const ZETER_CACHE_REVISION = "calculations-drop-1";
-const ZETER_CACHE = "zeter-os-4.0.8-calculations-drop-1";
+const ZETER_CACHE_REVISION = "updates-2";
+const ZETER_CACHE = "zeter-os-4.0.11-updates-2";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -93,6 +93,10 @@ const ZETER_ASSETS = [
   "./js/core/monitor-utils.js",
   "./js/core/photo-ui-utils.js",
   "./js/core/settings-ui-utils.js",
+  "./js/core/about-ui-utils.js",
+  "./js/core/update-ui-utils.js",
+  "./js/update-probe.js",
+  "./update-probe.html",
   "./js/core/app-center-ui-utils.js",
   "./js/core/search-utils.js",
   "./js/core/initial-state-utils.js",

@@ -8,16 +8,6 @@ The project combines a Python desktop shell with a modular web interface and foc
 
 🌐 **Web version:** https://dkl.do.am/portfolio/ZeTerOS/index.html
 
-## Download and run on Windows
-
-> Windows builds are marked **Prerelease**: they are preliminary builds for testing. A release build may differ from the current source.
-
-1. Open [GitHub Releases](https://github.com/zeter1/ZeTer-OS/releases) and expand **Assets** for the build you choose.
-2. Download `ZeTer-OS-Windows-x64.zip` and extract the entire archive.
-3. Run `ZeTer-OS.exe` from the extracted folder.
-
-Python and project dependencies are included. Keep the runtime files and web layer beside the EXE. **Microsoft Edge WebView2 Runtime** is required separately if it is not already installed. A SHA-256 file is published beside the ZIP.
-
 ## What the project demonstrates
 
 - hybrid Python + HTML/CSS/JavaScript desktop architecture;
@@ -49,7 +39,7 @@ To inspect the interface and main features, open:
 
 **https://dkl.do.am/portfolio/ZeTerOS/index.html**
 
-### Option 2 — desktop version from source
+### Option 2 — local desktop version
 
 1. Install Python 3 for Windows.
 2. Download the project using **Code → Download ZIP** or Git:
@@ -67,7 +57,7 @@ py -3 -m pip install -r requirements.txt
 
 Node.js 22 is recommended for the full JavaScript verification set.
 
-## Launch from source
+## Launch
 
 ```powershell
 py -3 run_zeter_os.py
@@ -161,19 +151,3 @@ The build process excludes user data, Git metadata, and development-only files.
 ## License
 
 The project is not distributed under an open-source license. The source code is published as part of the portfolio and for implementation review.
-
-## Developer contacts
-
-**Язык / Language:** [Русский](README.md#контакты-для-связи-с-разработчиком) · **English**
-
-- [zeter11@gmail.com](mailto:zeter11@gmail.com)
-- [https://t.me/zeter1](https://t.me/zeter1)
-- [https://www.linkedin.com/in/zeter/](https://www.linkedin.com/in/zeter/)
-- [https://www.facebook.com/zeter1](https://www.facebook.com/zeter1)
-- [https://vk.ru/zeter1](https://vk.ru/zeter1)
-- [https://www.instagram.com/zeter1992/](https://www.instagram.com/zeter1992/)
-- [https://tenchat.ru/zeter](https://tenchat.ru/zeter)
-- [https://x.com/zeter1](https://x.com/zeter1)
-- [https://www.threads.com/@zeter1992](https://www.threads.com/@zeter1992)
-- [https://ok.ru/zeter1](https://ok.ru/zeter1)
-- [https://t.me/zeterchat](https://t.me/zeterchat) — Telegram group: about me, projects and chat

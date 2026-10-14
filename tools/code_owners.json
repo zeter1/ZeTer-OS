@@ -239,6 +239,17 @@
       "manual": "Проверить сохранение сейчас, общий автозапуск Windows на нескольких рабочих столах, уведомления и тихие часы, стартовый стол, восстановление окон, доступность, переназначение/конфликт горячих клавиш, обои, профиль, узкое окно и длинный текст."
     },
     {
+      "id": "about-system",
+      "title": "О ZeTer OS: описание, версия, обновления и разработчик",
+      "keywords": ["about", "version", "developer", "о системе", "о ZeTer OS", "разработчик", "что нового", "обновления", "контакты", "копировать"],
+      "js": ["app/js/core/about-ui-utils.js", "app/js/core/config.js", "app/js/core/version.js", "app/js/core/app-catalog.js", "app/js/core/shell-ui-utils.js"],
+      "app_anchors": ["renderAboutApp", "copyTextToClipboard", "openExternalTarget"],
+      "css": ["app/css/40-app-foundation.css"],
+      "state": ["ui.windows (обычное окно; содержимое О ZeTer OS не хранит пользовательских данных)"],
+      "smokes": ["tools/smoke_about_ui.js", "tools/smoke_help_content.js", "tools/smoke_shell_runtime.js"],
+      "manual": "Верхняя панель → О ZeTer OS: описание, версия, 13 ссылок, контакты; выделение → ПКМ → Копировать, Ctrl+C; широкое/узкое окно, повторное открытие. В Настройках нет Разработчика и О системе."
+    },
+    {
       "id": "tables",
       "title": "Таблицы, форматирование и Excel",
       "keywords": ["table", "cells", "format", "xlsx", "excel", "managed file width", "shortcut", "url", "таблица", "ячейки", "форматирование", "листы", "ширина файла", "название файла", "ярлык", "ссылка"],
@@ -248,6 +259,17 @@
       "state": ["state.fs[*].data", "table pages/cells/styles/managedFiles/displayWidth/offsetX/offsetY"],
       "smokes": ["tools/smoke_export_runtime.js", "tools/smoke_managed_file_runtime.js", "tools/smoke_shortcut_runtime.js"],
       "manual": "Изменить ячейки, размеры и страницы; добавить файл, разместить его в разных частях ячейки и растянуть за боковой маркер; уменьшить ячейку до частичного скрытия, увеличить обратно и убедиться, что сохранённые размер и координаты ярлыка не изменились; экспортировать XLSX с отдельными листами и сохранёнными размерами."
+    },
+    {
+      "id": "app-updates",
+      "title": "Обновление Windows-сборки из GitHub Releases",
+      "keywords": ["update", "github releases", "binary", "version", "rollback", "обновление", "новая версия", "установщик", "откат"],
+      "js": ["app/js/core/update-ui-utils.js", "app/js/core/about-ui-utils.js", "app/js/core/notification-utils.js", "app/js/core/notification-ui-utils.js", "app/js/core/native-storage.js"],
+      "app_anchors": ["updateUiController", "recordAppUpdateNotification", "renderAboutApp", "renderManualUpdateApp", "openNotification"],
+      "css": ["app/css/40-app-foundation.css"],
+      "state": ["workspace.notifications action=open-update/source=update:version", "runtime appUpdateApplying", "data/updates (native installer transaction; user state excluded)"],
+      "smokes": ["tools/smoke_update_runtime.js", "tools/smoke_app_updater.py"],
+      "manual": "На отдельной Windows-установке A→B: уведомление в центре и около О ZeTer OS → Обновить → download/save/close/replace/read-only probe/restart; отмена/ошибка save/неправильный hash/сбой swap/rollback; data и чужие файлы сохранены; в source/PWA установка недоступна."
     },
     {
       "id": "app-center",
@@ -362,6 +384,14 @@
       "keywords": ["start", "taskbar", "shell", "пуск"],
       "files": ["app/index.html", "app/js/core/shell-ui-utils.js", "app/js/core/start-ui-utils.js", "app/css/10-shell.css"],
       "hooks": ["start-button", "data-app", "start-menu"]
+    },
+    {
+      "id": "app-update-offer",
+      "title": "Предложение обновления около О ZeTer OS и в центре уведомлений",
+      "scenario": "app-updates",
+      "keywords": ["update", "notification", "обновить", "позже", "обновление"],
+      "files": ["app/js/core/update-ui-utils.js", "app/js/core/about-ui-utils.js", "app/js/core/notification-ui-utils.js", "app/js/app.js", "app/css/40-app-foundation.css"],
+      "hooks": ["data-update-panel", "data-update-check", "data-update-install", "data-update-cancel", "data-update-later", "data-update-news", "data-update-manual", "data-manual-update-link", "app-update-offer", "app-update-locked"]
     },
     {
       "id": "windows",

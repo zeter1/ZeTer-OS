@@ -134,3 +134,7 @@ ZeTer-OS.spec
 ```text
 dist\ZeTer-OS\
 ```
+
+## Пакет для автоматического обновления
+
+Сборщик создаёт также отдельный `ZeTer-OS-Updater.exe`, ownership manifest `zeter-update.json` и `dist/ZeTer-OS-<версия>-Windows-x64.zip` с matching `.sha256.txt`. Для предложения обновиться публикуйте versioned ZIP и checksum в GitHub Releases, сохраняя имена; весь flat-onedir runtime уже внутри ZIP. Версия берётся из `app/js/core/version.js`; helper и главный EXE проверяются как AMD64. Пользователю не нужен Python. Подробный контракт, сохранение data и recovery — [docs/UPDATES.md](docs/UPDATES.md).

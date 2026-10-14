@@ -79,7 +79,7 @@ if defined WEBVIEW2_EXE (
 )
 
 echo [4/8] Compiling Python sources...
-"%BUILD_PY%" -m compileall -q run_zeter_os.py problem_logs.py tools build_support || goto :fail
+"%BUILD_PY%" -m compileall -q run_zeter_os.py problem_logs.py app_updater.py update_runner.py tools build_support || goto :fail
 
 echo [5/8] Running project verification...
 "%BUILD_PY%" tools\check_project.py || goto :fail
@@ -104,6 +104,19 @@ echo [7/8] Building native ZeTer OS distribution...
   --hidden-import webview.platforms.edgechromium ^
   --hidden-import webview.platforms.winforms ^
   run_zeter_os.py || goto :fail
+
+rem Onefile helper must be able to run after the entire flat runtime is replaced.
+"%BUILD_PY%" -m PyInstaller ^
+  --noconfirm ^
+  --clean ^
+  --onefile ^
+  --windowed ^
+  --name "ZeTer-OS-Updater" ^
+  update_runner.py || goto :fail
+copy /y "dist\ZeTer-OS-Updater.exe" "dist\ZeTer-OS\ZeTer-OS-Updater.exe" >nul || goto :fail
+
+rem Generate ownership manifest only after both executables are present.
+"%BUILD_PY%" tools\build_update_package.py --distribution "dist\ZeTer-OS" --output dist || goto :fail
 
 set "DIST_DIR=%CD%\dist\ZeTer-OS"
 set "DIST_EXE=%DIST_DIR%\ZeTer-OS.exe"
