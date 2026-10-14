@@ -1,0 +1,10 @@
+{
+  "kind": "windows-portable-build-request",
+  "application": "ZeTer OS",
+  "version": "4.0.11",
+  "source_commit": "0ca9b0a106b93a57b091cf3ed985b2f8bfd87fa0",
+  "requested_on": "2026-10-14",
+  "workflow": ".github/workflows/ci.yml",
+  "reason": "Build and publish verified Windows x64 ONEDIR ZIP and SHA256 from current main",
+  "runtime_code_changed": false
+}
