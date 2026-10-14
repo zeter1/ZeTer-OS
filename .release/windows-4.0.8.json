@@ -1,0 +1,10 @@
+{
+  "kind": "windows-portable-build-request",
+  "application": "ZeTer OS",
+  "version": "4.0.8",
+  "source_commit": "74986204be9561ccad744f0facd2a123fe24f9fa",
+  "requested_on": "2026-10-14",
+  "workflow": ".github/workflows/ci.yml",
+  "reason": "GitHub Actions Windows package and published prerelease for current main version",
+  "runtime_code_changed": false
+}
