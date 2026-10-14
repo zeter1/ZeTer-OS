@@ -23,7 +23,7 @@
 - Предметную логику меняй у владельца в `app/js/core/`. Новый core допустим для отдельной ответственности и одного `window.ZETER_*`; не дублируй код.  
 - `app/css/style.css` содержит только упорядоченные `@import`. Статику держи в тематическом CSS, inline-style — для runtime-значений.  
 - Перед state/import/storage читай [docs/DATA_MODEL.md](docs/DATA_MODEL.md), перед pywebview API — [docs/NATIVE_BRIDGE.md](docs/NATIVE_BRIDGE.md). Не тестируй на реальных `data/`.  
-- Сохраняй schema, ID, пользовательские данные и тексты. Учитывай Windows 11, UTF-8, кириллицу, пробелы и другой cwd.  
+- Сохраняй schema, ID и данные. Учитывай Windows 11, UTF-8 и кириллицу.  
 - После изменения видимого сценария, названия, hotkey, формата, удаления, storage, import/export или backup сверь [app/js/core/help-content.js](http://app/js/core/help-content.js) по [docs/HELP_MAINTENANCE.md](docs/HELP_MAINTENANCE.md); внутренний рефакторинг этого не требует.
 
 ## Проверка и сдача
