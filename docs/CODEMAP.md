@@ -112,7 +112,7 @@
 
 | Файл | Публичный глобал | Назначение |
 |---|---|---|
-| `app/js/core/data-normalizers.js` | `ZETER_DATA_NORMALIZERS` | Задачи, календарь, уведомления и таблицы |
+| `app/js/core/data-normalizers.js` | `ZETER_DATA_NORMALIZERS` | Задачи, календарь, уведомления и таблицы; удаление предложений уже установленной версии из `normalizeNotifications` |
 | `app/js/core/workspace-utils.js` | `ZETER_WORKSPACE_UTILS` | Рабочие пространства, runtime-доступ к desktop data/profile/openWindows, sanitation окон и Explorer spaces, action-controller создания, переключения и удаления виртуальных рабочих столов; desktopBackupSnapshot выделяет данные одного стола, выборочное удаление сохраняет невыбранные группы в state.archivedDesktops без переноса на основной стол |
 | `app/js/core/trash-utils.js` | `ZETER_TRASH_UTILS` | Legacy-модель отложенного удаления: normalizer, retention, move/undo/restore и permanent delete для совместимости старых state; текущий UI удаляет после подтверждения записи и откатывает state при её отказе |
 | `app/js/core/task-ui-utils.js` | `ZETER_TASK_UI_UTILS` | Store adapters, доска, карточки и формы задач |

@@ -179,6 +179,13 @@ async function main() {
   assert.match(notificationUI.notificationCardHTML(restored, { openable: true }), /data-update-install/);
   assert.match(notificationUI.notificationCardHTML(restored, { openable: true }), /data-update-news/);
   assert.match(notificationUI.notificationCardHTML(restored, { openable: true }), /data-update-manual/);
+  assert.match(notificationUI.notificationCardHTML(restored, { openable: true }), /ZeTer OS перезапустится автоматически/);
+  assert.match(notificationUI.notificationCardHTML(restored, { openable: true }), /Не запускайте программу вручную/);
+  for (const phase of ["available", "downloading", "preparing", "ready", "installing", "awaiting_exit"]) {
+    assert.match(updates.updatePanelHTML({ ...available, phase }), /ZeTer OS перезапустится автоматически/, `restart notice must remain visible in ${phase}`);
+  }
+  assert.doesNotMatch(updates.updatePanelHTML({ supported: false }), /ZeTer OS перезапустится автоматически/, "manual update cannot promise automatic restart");
+  assert.doesNotMatch(notificationUI.notificationCardHTML({ title: "Задача", text: "Проверка" }), /ZeTer OS перезапустится автоматически/);
   assert.match(updates.updatePanelHTML(available), /data-update-news/);
   assert.match(updates.updatePanelHTML({ supported: false }), /data-update-manual/, "manual guide stays available without auto installation support");
   assert.equal(notifications.notificationCanOpen({ ...centerRecord, source: "update:javascript:bad" }), false);

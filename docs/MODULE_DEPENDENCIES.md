@@ -55,7 +55,7 @@
 | 42 | `app/js/core/object-link-utils.js` | `ZETER_OBJECT_LINK_UTILS` | — | 141 |
 | 43 | `app/js/core/object-link-ui-utils.js` | `ZETER_OBJECT_LINK_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_OBJECT_LINK_UTILS` | 164 |
 | 44 | `app/js/core/editor-ui-utils.js` | `ZETER_EDITOR_UI_UTILS` | `ZETER_CORE_UTILS`, `ZETER_MANAGED_FILE_UTILS`, `ZETER_RICH_TEXT_UTILS`, `ZETER_MARKDOWN_UTILS` | 1553 |
-| 45 | `app/js/core/data-normalizers.js` | `ZETER_DATA_NORMALIZERS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS` | 417 |
+| 45 | `app/js/core/data-normalizers.js` | `ZETER_DATA_NORMALIZERS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS` | 431 |
 | 46 | `app/js/core/workspace-utils.js` | `ZETER_WORKSPACE_UTILS` | `ZETER_OS_CONFIG`, `ZETER_LINK_LIBRARY_UTILS`, `ZETER_PROMPT_LIBRARY_UTILS`, `ZETER_BUSINESS_CALCULATIONS_UTILS`, `ZETER_WINDOW_SESSION_UTILS`, `ZETER_VISUAL_UTILS`, `ZETER_AUTOMATION_UTILS`, `ZETER_OBJECT_LINK_UTILS`, `ZETER_DATA_NORMALIZERS` | 646 |
 | 47 | `app/js/core/state-maintenance-utils.js` | `ZETER_STATE_MAINTENANCE_UTILS` | `ZETER_OS_CONFIG` | 296 |
 | 48 | `app/js/core/task-ui-utils.js` | `ZETER_TASK_UI_UTILS` | `ZETER_CORE_UTILS` | 356 |
@@ -87,7 +87,7 @@
 | 74 | `app/js/core/photo-ui-utils.js` | `ZETER_PHOTO_UI_UTILS` | `ZETER_CORE_UTILS` | 127 |
 | 75 | `app/js/core/settings-ui-utils.js` | `ZETER_SETTINGS_UI_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS`, `ZETER_SYSTEM_SETTINGS_UTILS` | 580 |
 | 76 | `app/js/core/about-ui-utils.js` | `ZETER_ABOUT_UI_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS` | 78 |
-| 77 | `app/js/core/update-ui-utils.js` | `ZETER_UPDATE_UI_UTILS` | `ZETER_CORE_UTILS` | 281 |
+| 77 | `app/js/core/update-ui-utils.js` | `ZETER_UPDATE_UI_UTILS` | `ZETER_CORE_UTILS` | 282 |
 | 78 | `app/js/core/app-center-ui-utils.js` | `ZETER_APP_CENTER_UI_UTILS` | `ZETER_CORE_UTILS` | 169 |
 | 79 | `app/js/core/search-utils.js` | `ZETER_SEARCH_UTILS` | `ZETER_CORE_UTILS`, `ZETER_TABLE_UTILS` | 573 |
 | 80 | `app/js/core/initial-state-utils.js` | `ZETER_INITIAL_STATE_UTILS` | `ZETER_OS_CONFIG`, `ZETER_CORE_UTILS`, `ZETER_SYSTEM_SETTINGS_UTILS`, `ZETER_PINNING_UTILS`, `ZETER_VISUAL_UTILS`, `ZETER_SEARCH_UTILS` | 158 |

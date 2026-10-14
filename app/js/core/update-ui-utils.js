@@ -8,6 +8,7 @@
     const progress = Math.max(0, Math.min(100, Number(status.progress) || 0));
     const message = status.error || status.message || (status.supported ? "Проверка новых версий выполняется автоматически." : "Установка обновлений доступна в Windows-сборке ZeTer OS.");
     return `<p data-update-message role="status">${escapeHtml(message)}</p>
+      ${status.supported && (status.available || ["downloading", "preparing", "ready", "installing", "awaiting_exit"].includes(status.phase)) ? `<p class="update-restart-notice"><strong>ZeTer OS перезапустится автоматически.</strong> Во время установки окно закроется, затем программа запустится сама. Дождитесь её открытия. Не запускайте программу вручную.</p>` : ""}
       ${status.phase === "downloading" ? `<progress max="100" value="${progress}" aria-label="Загрузка обновления"></progress>` : ""}
       <div class="about-update-actions"><button type="button" data-update-check${busy || !status.supported ? " disabled" : ""}>Проверить обновления</button>
       ${status.available && status.supported ? `<button type="button" data-update-install${busy ? " disabled" : ""}>Обновить до ${escapeHtml(status.version || "новой версии")}</button>` : ""}
@@ -210,7 +211,7 @@
         locked = true;
         mutationsLocked = true;
         setLocked(true);
-        applyStatus({ phase: "installing", message: "Сохраняем работу перед обновлением…" });
+        applyStatus({ phase: "installing", message: "Сохраняем работу. Затем ZeTer OS закроется, установит обновление и запустится сама…" });
         await saveBeforeInstall();
         const armed = await callNative("install_app_update");
         if (armed.phase !== "awaiting_exit") throw new Error("Процесс обновления не подтвердил готовность. ZeTer OS остаётся открытой.");

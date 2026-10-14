@@ -190,6 +190,39 @@ function plain(value) {
 const migrate = migratorUnderTest();
 const { OS_VERSION, OS_VERSION_NUMBER, TRASH_ROOT, DAY_MS } = sandbox.ZETER_OS_CONFIG;
 
+function smokeInstalledUpdateNotifications() {
+  const [major, minor, patch] = OS_VERSION.split(".").map(Number);
+  const future = `${major}.${minor}.${patch + 1}`;
+  const records = [
+    { id: "installed_update", source: `update:${OS_VERSION}`, action: "open-update", read: false },
+    { id: "older_update", source: "update:3.99.99", action: "open-update", read: true },
+    { id: "old_patch", source: "update:4.0.9", action: "open-update", read: false },
+    { id: "future_update", source: `update:${future}`, action: "open-update", read: false },
+    { id: "future_minor", source: "update:4.10.0", action: "open-update", read: true },
+    { id: "task_reminder", source: "task:task_1", action: "open-task", read: false },
+    { id: "update_completed", source: "system", title: "ZeTer OS обновлена", read: true },
+    { id: "unknown_update", source: "update:invalid", action: "open-update", read: false },
+    { id: "other_action", source: `update:${OS_VERSION}`, action: "other", read: false }
+  ];
+  const expected = ["future_update", "future_minor", "task_reminder", "update_completed", "unknown_update", "other_action"];
+  const input = { fs: {}, settings: {}, currentDesktop: "second", notifications: plain(records), desktops: [
+    { id: "desktop", name: "Основной" },
+    { id: "second", name: "Второй", data: { notifications: plain(records) } }
+  ] };
+  const restored = migrate(input);
+  for (const desktop of restored.desktops) {
+    assert.deepEqual(Array.from(desktop.data.notifications, item => item.id), expected, "boot must remove only installed/older update offers from every desktop");
+  }
+  assert.deepEqual(Array.from(restored.notifications, item => item.id), expected, "legacy alias must not restore old offers");
+  const reloaded = migrate(plain(restored));
+  for (const desktop of reloaded.desktops) {
+    assert.deepEqual(Array.from(desktop.data.notifications, item => item.id), expected, "save/reload must preserve future and unrelated notifications");
+  }
+  const imported = sandbox.ZETER_DATA_NORMALIZERS.normalizeNotifications(plain(records));
+  assert.deepEqual(Array.from(imported, item => item.id), expected, "import/shared normalization must also remove installed offers");
+}
+smokeInstalledUpdateNotifications();
+
 const defaults = migrate(sandbox.ZETER_INITIAL_STATE_UTILS.defaultState());
 assert.deepEqual(plain(defaults.desktops[0].data.library), { entries: [], categories: [] });
 const linkLegacy = migrate({ fs: {}, settings: {}, future: "keep" });

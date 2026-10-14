@@ -760,6 +760,9 @@ body.light .help-search-panel {
 .app-update-offer progress, .about-update-panel progress { display: block; width: 100%; margin-bottom: 12px; accent-color: var(--accent); }
 .top-menu button.has-app-update { border-color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
 .notification-update-action { justify-self: start; margin-top: 8px; }
+.update-restart-notice { line-height: 1.45; }
+.update-restart-notice strong { display: block; margin-bottom: 4px; }
+.notification .update-restart-notice { margin: 8px 0 0; font-size: 12px; }
 .notification-update-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .notification-update-actions button { min-height: 34px; padding: 7px 10px; border-radius: 10px; background: var(--glass-3); border: 1px solid var(--stroke); font-size: 12px; }
 .notification-update-actions .notification-update-action { margin: 0; background: #335eab; }

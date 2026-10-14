@@ -19,7 +19,7 @@
     const openable = Boolean(options.openable);
     const time = new Date(notification.time || Date.now()).toLocaleTimeString("ru-RU");
     const updateAction = notification.action === "open-update" && /^update:\d+\.\d+\.\d+$/.test(notification.source || "")
-      ? `<div class="notification-update-actions"><button type="button" class="notification-update-action" data-update-install>Обновить</button><button type="button" data-update-news>Что нового</button><button type="button" data-update-manual>Обновить вручную</button></div>` : "";
+      ? `<p class="update-restart-notice"><strong>ZeTer OS перезапустится автоматически.</strong> Во время установки окно закроется, затем программа запустится сама. Дождитесь её открытия. Не запускайте программу вручную.</p><div class="notification-update-actions"><button type="button" class="notification-update-action" data-update-install>Обновить</button><button type="button" data-update-news>Что нового</button><button type="button" data-update-manual>Обновить вручную</button></div>` : "";
     return `<div class="notification ${notification.read ? "read" : "unread"}${openable ? " openable" : ""}" data-notification-id="${escapeHtml(notification.id)}" ${openable ? `role="button" tabindex="0" title="Открыть связанный объект"` : ""}><button class="notification-delete" data-delete-notification="${escapeHtml(notification.id)}" title="Удалить уведомление" aria-label="Удалить уведомление">×</button><b>${escapeHtml(notification.title)}</b><span class="notification-text">${escapeHtml(notification.text)} · ${time}</span>${updateAction}</div>`;
   }
 

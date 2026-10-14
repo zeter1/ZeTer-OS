@@ -629,7 +629,7 @@ class UpdateManager:
                 os.fsync(stream.fileno())
             writable.unlink()
             atomic_json(session, session / "request.json", {"schema": 1, "root": str(self.root.resolve()), "session": str(session.resolve()), "old": installed, "new": staged})
-            self._set(phase="ready", progress=100, message="Обновление проверено. Можно закрыть программу и установить.")
+            self._set(phase="ready", progress=100, message="Обновление проверено. ZeTer OS сохранит работу, закроется и перезапустится автоматически. Не запускайте программу вручную.")
         return self._operation(action)
 
     def install(self):
@@ -646,7 +646,7 @@ class UpdateManager:
                     if self.cancelled.is_set():
                         atomic_json(self.session, self.session / "cancel.json", {"cancelled": True})
                         raise UpdateError("Установка отменена до закрытия программы.")
-                    self._set(phase="awaiting_exit", message="Обновление готово к установке после закрытия программы.")
+                    self._set(phase="awaiting_exit", message="ZeTer OS закрывается для установки обновления и затем запустится сама. Дождитесь открытия — не запускайте программу вручную.")
             finally:
                 with self.lock:
                     self.arming = False

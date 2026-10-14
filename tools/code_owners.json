@@ -264,11 +264,11 @@
       "id": "app-updates",
       "title": "Обновление Windows-сборки из GitHub Releases",
       "keywords": ["update", "github releases", "binary", "version", "rollback", "обновление", "новая версия", "установщик", "откат"],
-      "js": ["app/js/core/update-ui-utils.js", "app/js/core/about-ui-utils.js", "app/js/core/notification-utils.js", "app/js/core/notification-ui-utils.js", "app/js/core/native-storage.js"],
+      "js": ["app/js/core/update-ui-utils.js", "app/js/core/about-ui-utils.js", "app/js/core/notification-utils.js", "app/js/core/notification-ui-utils.js", "app/js/core/data-normalizers.js", "app/js/core/native-storage.js"],
       "app_anchors": ["updateUiController", "recordAppUpdateNotification", "renderAboutApp", "renderManualUpdateApp", "openNotification"],
       "css": ["app/css/40-app-foundation.css"],
       "state": ["workspace.notifications action=open-update/source=update:version", "runtime appUpdateApplying", "data/updates (native installer transaction; user state excluded)"],
-      "smokes": ["tools/smoke_update_runtime.js", "tools/smoke_app_updater.py"],
+      "smokes": ["tools/smoke_update_runtime.js", "tools/smoke_app_updater.py", "tools/smoke_state_migration.js"],
       "manual": "В инструкции Обновить вручную: ссылки на репозиторий/Releases; выделение → левая/правая кнопка → Копировать, Ctrl+C, новое выделение и отказ clipboard. На отдельной Windows-установке A→B: уведомление в центре и около О ZeTer OS → Обновить → download/save/close/replace/read-only probe/restart; отмена/ошибка save/неправильный hash/сбой swap/rollback; data и чужие файлы сохранены; в source/PWA установка недоступна."
     },
     {
@@ -391,7 +391,7 @@
       "scenario": "app-updates",
       "keywords": ["update", "notification", "обновить", "позже", "обновление"],
       "files": ["app/js/core/update-ui-utils.js", "app/js/core/about-ui-utils.js", "app/js/core/notification-ui-utils.js", "app/js/app.js", "app/css/40-app-foundation.css"],
-      "hooks": ["data-update-panel", "data-update-check", "data-update-install", "data-update-cancel", "data-update-later", "data-update-news", "data-update-manual", "data-manual-update-link", "app-update-offer", "app-update-locked"]
+      "hooks": ["data-update-panel", "data-update-check", "data-update-install", "data-update-cancel", "data-update-later", "data-update-news", "data-update-manual", "data-manual-update-link", "app-update-offer", "app-update-locked", "update-restart-notice"]
     },
     {
       "id": "windows",

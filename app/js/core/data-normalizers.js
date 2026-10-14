@@ -352,8 +352,22 @@
     return clean;
   }
 
+  function isInstalledUpdateNotification(notification) {
+    if (notification?.action !== "open-update") return false;
+    const offered = String(notification.source || "").match(/^update:(\d+)\.(\d+)\.(\d+)$/);
+    const installed = String(config.OS_VERSION || "").match(/^(\d+)\.(\d+)\.(\d+)$/);
+    if (!offered || !installed) return false;
+    for (let part = 1; part <= 3; part += 1) {
+      const availablePart = Number(offered[part]), installedPart = Number(installed[part]);
+      if (availablePart !== installedPart) return availablePart < installedPart;
+    }
+    return true;
+  }
+
   function normalizeNotifications(notifications = []) {
-    return Array.isArray(notifications) ? notifications.slice(-NOTIFICATION_MAX_ITEMS).map(normalizeNotificationRecord) : [];
+    return Array.isArray(notifications)
+      ? notifications.filter(item => !isInstalledUpdateNotification(item)).slice(-NOTIFICATION_MAX_ITEMS).map(normalizeNotificationRecord)
+      : [];
   }
 
   function normalizeNotificationStore(store = {}) {
