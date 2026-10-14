@@ -257,10 +257,12 @@
     let iconChanged = false;
     let backgroundChanged = false;
     let saving = false;
+    let cancelled = false;
+    const imageLoads = { icon: { generation: 0, loading: false }, background: { generation: 0, loading: false } };
 
     const closeWindow = typeof options.closeWindow === "function" ? options.closeWindow : () => {};
     const persistAsset = typeof options.persistAsset === "function" ? options.persistAsset : async () => null;
-    const saveState = typeof options.saveState === "function" ? options.saveState : async () => {};
+    const saveItem = typeof options.saveItem === "function" ? options.saveItem : async () => { throw new Error("Сохранение настроек недоступно."); };
     const renderAllFileSurfaces = typeof options.renderAllFileSurfaces === "function" ? options.renderAllFileSurfaces : () => {};
     const refreshItemDependents = typeof options.refreshItemDependents === "function" ? options.refreshItemDependents : () => {};
     const toast = typeof options.toast === "function" ? options.toast : () => {};
@@ -294,6 +296,12 @@
     }
 
     function inspectShortcut() {
+      const loading = imageLoads.icon.loading || imageLoads.background.loading;
+      root.querySelectorAll("button, input, textarea").forEach(control => {
+        if (control !== saveButton) control.disabled = saving;
+      });
+      saveButton.textContent = saving ? "Сохранение…" : loading ? "Подготовка изображения…" : "Сохранить настройки";
+      saveButton.disabled = saving || loading;
       if (item.type !== "shortcut") return true;
       const normalized = normalizeShortcutTarget(shortcutTargetInput?.value || "");
       const missingInternal = normalized?.kind === "zeter" && !getItem(normalized.itemId);
@@ -307,11 +315,12 @@
           : normalized
             ? shortcutKindLabel(normalized)
             : "Укажи абсолютный путь Windows, сайт или путь ZeTer OS";
-      saveButton.disabled = saving || !valid;
+      saveButton.disabled = saving || loading || !valid;
       return valid;
     }
 
     root.addEventListener("click", event => {
+      if (saving || cancelled) return;
       const target = event.target;
       const swatch = target.closest?.("[data-item-color]");
       if (swatch && colorInput) {
@@ -322,16 +331,24 @@
       if (target.closest?.("[data-item-icon-upload]")) root.querySelector("[data-item-icon-file]")?.click();
       if (target.closest?.("[data-item-background-upload]")) root.querySelector("[data-item-background-file]")?.click();
       if (target.closest?.("[data-item-icon-clear]")) {
+        imageLoads.icon.generation++;
+        imageLoads.icon.loading = false;
         pendingIcon = null;
         iconChanged = true;
         syncIconPreview();
       }
       if (target.closest?.("[data-item-background-clear]")) {
+        imageLoads.background.generation++;
+        imageLoads.background.loading = false;
         pendingBackground = null;
         backgroundChanged = true;
         syncBackgroundPreview();
       }
-      if (target.closest?.("[data-item-settings-cancel]")) closeWindow(winId);
+      if (target.closest?.("[data-item-settings-cancel]")) {
+        cancelled = true;
+        closeWindow(winId);
+      }
+      inspectShortcut();
     });
 
     colorInput?.addEventListener("input", () => {
@@ -341,45 +358,41 @@
     shortcutNameInput?.addEventListener("input", inspectShortcut);
     shortcutTargetInput?.addEventListener("input", inspectShortcut);
 
-    root.querySelector("[data-item-icon-file]")?.addEventListener("change", async event => {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file) return;
-      try {
-        pendingIcon = await createDesktopIconFromFile(file);
-        iconChanged = true;
+    for (const kind of ["icon", "background"]) {
+      root.querySelector(`[data-item-${kind}-file]`)?.addEventListener("change", async event => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file || saving || cancelled) return;
+        const load = imageLoads[kind];
+        const generation = ++load.generation;
+        load.loading = true;
         errorText.textContent = "";
-        syncIconPreview();
-      } catch (error) {
-        errorText.textContent = error?.message || "Не удалось подготовить значок.";
-      }
-    });
-
-    root.querySelector("[data-item-background-file]")?.addEventListener("change", async event => {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file) return;
-      try {
-        pendingBackground = await createCustomWallpaperFromFile(file);
-        backgroundChanged = true;
-        errorText.textContent = "";
-        syncBackgroundPreview();
-      } catch (error) {
-        errorText.textContent = error?.message || "Не удалось подготовить фон папки.";
-      }
-    });
+        inspectShortcut();
+        try {
+          const image = await (kind === "icon" ? createDesktopIconFromFile(file) : createCustomWallpaperFromFile(file));
+          if (generation !== load.generation || cancelled || !root.isConnected) return;
+          if (kind === "icon") { pendingIcon = image; iconChanged = true; syncIconPreview(); }
+          else { pendingBackground = image; backgroundChanged = true; syncBackgroundPreview(); }
+        } catch (error) {
+          if (generation === load.generation && !cancelled && root.isConnected) {
+            errorText.textContent = error?.message || "Не удалось подготовить изображение.";
+          }
+        } finally {
+          if (generation === load.generation) { load.loading = false; inspectShortcut(); }
+        }
+      });
+    }
 
     form.addEventListener("submit", async event => {
       event.preventDefault();
-      if (saving || !inspectShortcut()) return;
+      if (saving || cancelled || imageLoads.icon.loading || imageLoads.background.loading || !inspectShortcut()) return;
       const current = getItem(item.id);
       if (!current || current.type !== item.type) {
         errorText.textContent = "Элемент был удалён. Закрой окно и повтори действие.";
         return;
       }
       saving = true;
-      saveButton.disabled = true;
-      saveButton.textContent = "Сохранение…";
+      inspectShortcut();
       errorText.textContent = "";
       try {
         const assetJobs = [];
@@ -391,7 +404,9 @@
           assetJobs.push(Promise.resolve(persistAsset(current.id, "folder-background", pendingBackground))
             .then(saved => { pendingBackground = mergeSavedAsset(pendingBackground, saved); }));
         }
-        await Promise.all(assetJobs);
+        const assets = await Promise.allSettled(assetJobs);
+        const failedAsset = assets.find(result => result.status === "rejected");
+        if (failedAsset) throw failedAsset.reason;
 
         const appearance = {
           ...(current.appearance && typeof current.appearance === "object" ? current.appearance : {}),
@@ -403,17 +418,17 @@
           if (pendingBackground) appearance.background = pendingBackground;
           else delete appearance.background;
         }
-        current.appearance = appearance;
-        normalizeItemAppearance(current);
+        const candidate = { ...current, appearance };
+        normalizeItemAppearance(candidate);
 
-        if (current.type === "shortcut" && !updateShortcutItem(current, {
+        if (current.type === "shortcut" && !updateShortcutItem(candidate, {
           name: shortcutNameInput?.value,
           target: shortcutTargetInput?.value
         })) {
           throw new Error("Проверь название и ссылку или путь ярлыка.");
         }
-        current.updatedAt = Date.now();
-        await Promise.resolve(saveState());
+        candidate.updatedAt = Date.now();
+        await saveItem(candidate);
         renderAllFileSurfaces();
         refreshItemDependents(current.id);
         toast("Настройки сохранены", current.name);

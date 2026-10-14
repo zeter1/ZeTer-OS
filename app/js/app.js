@@ -2437,7 +2437,29 @@
       documentRef: document,
       getItem: itemId => state.fs?.[itemId],
       persistAsset: persistItemCustomizationAsset,
-      saveState,
+      saveItem: candidate => primaryStateSaveQueue.transaction(async write => {
+        const current = state.fs?.[candidate.id];
+        if (!current || current.type !== candidate.type) throw new Error("Элемент был удалён. Закрой окно и повтори действие.");
+        const changes = { appearance: candidate.appearance, updatedAt: candidate.updatedAt };
+        if (candidate.type === "shortcut") {
+          for (const key of ["name", "shortcut", "extension", "managedFile"]) changes[key] = candidate[key];
+        }
+        const baseline = Object.fromEntries(Object.keys(changes).map(key => [key, JSON.stringify(current[key])]));
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = cloneForBackup(state);
+        Object.assign(snapshot.fs[candidate.id], changes);
+        const result = await write(snapshot);
+        if (!result?.saved) throw new Error("Хранилище ещё не готово к записи.");
+        // Preserve mutations made while writing; their queued save follows the barrier.
+        if (state.fs?.[candidate.id] === current) {
+          for (const [key, value] of Object.entries(changes)) {
+            if (JSON.stringify(current[key]) === baseline[key]) current[key] = value;
+          }
+        }
+        writeSmallSettingsToLocalStorage();
+        scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+      }),
       renderAllFileSurfaces,
       refreshItemDependents: itemId => {
         refreshOpenEditors(itemId);

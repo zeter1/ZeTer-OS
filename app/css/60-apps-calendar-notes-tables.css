@@ -1280,6 +1280,25 @@ body.managed-file-drag-active .desktop-sticky {
   padding-top: 2px;
 }
 
+.item-settings-actions button,
+.item-settings-footer button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: var(--glass-3);
+  color: var(--text);
+  font: inherit;
+}
+
+.item-settings-footer button.primary { background: #335eab; }
+.item-settings-actions button:hover,
+.item-settings-footer button:hover { border-color: var(--accent); }
+.item-settings-app button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.item-settings-app button:disabled { opacity: .55; cursor: wait; }
+.item-settings-heading > div,
+.item-settings-section > div { min-width: 0; overflow-wrap: anywhere; }
+
 .item-settings-missing {
   place-self: center;
   text-align: center;

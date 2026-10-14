@@ -142,9 +142,9 @@
 
   async function optimizeCustomWallpaperDataURL(dataURL = "", sourceMime = "") {
     const mime = String(sourceMime || "").toLowerCase();
-    if (/image\/gif/i.test(mime)) return dataURL;
-
     const img = await loadImageFromDataURL(dataURL);
+    // GIF keeps its animation, but must still decode before it can be saved.
+    if (/image\/gif/i.test(mime || parseDataUrl(dataURL)?.mime || "")) return dataURL;
     const width = img.naturalWidth || img.width;
     const height = img.naturalHeight || img.height;
     if (!width || !height) return dataURL;

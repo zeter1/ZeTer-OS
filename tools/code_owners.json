@@ -93,7 +93,7 @@
       "css": ["app/css/10-shell.css", "app/css/20-windows.css", "app/css/80-overrides.css"],
       "state": ["state.desktops[]", "state.archivedDesktops[]", "workspace.openWindows", "state.fs[*].x/y", "state.fs[*].appearance"],
       "smokes": ["tools/smoke_desktop_group_drag.js", "tools/smoke_state_migration.js", "tools/smoke_desktop_backup_native.py", "tools/smoke_storage_runtime.js", "tools/smoke_shortcut_runtime.js", "tools/smoke_item_customization.js"],
-      "manual": "Через Ctrl+ЛКМ добавить и снять отдельные значки, проверить переход к одиночному выделению, затем перетащить всю группу за любой выбранный значок с сохранением взаимного расположения; отдельно открыть, переместить, свернуть, развернуть и восстановить окно после перезапуска; перед удалением дополнительного стола скачать все его данные, выбрать группы удаления, проверить сохранение остальных в архиве без переноса и сохранность основного стола."
+      "manual": "Через Ctrl+ЛКМ добавить и снять отдельные значки, проверить переход к одиночному выделению, затем перетащить всю группу за любой выбранный значок с сохранением взаимного расположения; проверить копии самих значков в desktop-drag-preview, точку захвата, длинное название, пользовательскую картинку и очистку после отпускания/отмены; отдельно открыть, переместить, свернуть, развернуть и восстановить окно после перезапуска; перед удалением дополнительного стола скачать все его данные, выбрать группы удаления, проверить сохранение остальных в архиве без переноса и сохранность основного стола."
     },
     {
       "id": "explorer-files",
@@ -262,13 +262,13 @@
     },
     {
       "id": "app-updates",
-      "title": "Обновление Windows-сборки из GitHub Releases",
-      "keywords": ["update", "github releases", "binary", "version", "rollback", "обновление", "новая версия", "установщик", "откат"],
+      "title": "Обновление Windows-сборки: GitHub Pages → Releases",
+      "keywords": ["update", "github pages", "updates.json", "feed", "github releases", "binary", "version", "rollback", "обновление", "новая версия", "установщик", "откат"],
       "js": ["app/js/core/update-ui-utils.js", "app/js/core/about-ui-utils.js", "app/js/core/notification-utils.js", "app/js/core/notification-ui-utils.js", "app/js/core/data-normalizers.js", "app/js/core/native-storage.js"],
       "app_anchors": ["updateUiController", "recordAppUpdateNotification", "renderAboutApp", "renderManualUpdateApp", "openNotification"],
       "css": ["app/css/40-app-foundation.css"],
       "state": ["workspace.notifications action=open-update/source=update:version", "runtime appUpdateApplying", "data/updates (native installer transaction; user state excluded)"],
-      "smokes": ["tools/smoke_update_runtime.js", "tools/smoke_app_updater.py", "tools/smoke_state_migration.js"],
+      "smokes": ["tools/smoke_update_runtime.js", "tools/smoke_app_updater.py", "tools/smoke_update_feed.py", "tools/smoke_state_migration.js"],
       "manual": "В инструкции Обновить вручную: ссылки на репозиторий/Releases; выделение → левая/правая кнопка → Копировать, Ctrl+C, новое выделение и отказ clipboard. На отдельной Windows-установке A→B: уведомление в центре и около О ZeTer OS → Обновить → download/save/close/replace/read-only probe/restart; отмена/ошибка save/неправильный hash/сбой swap/rollback; data и чужие файлы сохранены; в source/PWA установка недоступна."
     },
     {
