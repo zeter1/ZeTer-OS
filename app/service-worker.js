@@ -1,5 +1,5 @@
-const ZETER_CACHE_REVISION = "links-10";
-const ZETER_CACHE = "zeter-os-4.0.1-links-10";
+const ZETER_CACHE_REVISION = "calculations-drop-1";
+const ZETER_CACHE = "zeter-os-4.0.8-calculations-drop-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -23,7 +23,13 @@ const ZETER_ASSETS = [
   "./js/core/shortcut-utils.js",
   "./js/core/link-library-utils.js",
   "./js/core/link-library-ui-utils.js",
+  "./js/core/prompt-library-utils.js",
+  "./js/core/prompt-library-ui-utils.js",
+  "./js/core/business-calculations-utils.js",
+  "./js/core/business-calculations-ui-utils.js",
+  "./css/67-business-calculations.css",
   "./css/65-link-library.css",
+  "./css/66-prompt-library.css",
   "./js/core/shell-ui-utils.js",
   "./js/core/first-run-ui-utils.js",
   "./js/core/context-menu-ui-utils.js",

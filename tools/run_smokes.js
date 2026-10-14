@@ -27,6 +27,8 @@ const smokeFiles = [
   "smoke_managed_file_runtime.js",
   "smoke_shortcut_runtime.js",
   "smoke_link_library.js",
+  "smoke_prompt_library.js",
+  "smoke_business_calculations.js",
   "smoke_item_customization.js",
   "smoke_persistence_ack.js",
   "smoke_help_content.js",

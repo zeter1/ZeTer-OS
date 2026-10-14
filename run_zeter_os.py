@@ -22,7 +22,9 @@ import re
 import secrets
 import shutil
 import zipfile
+import zlib
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -32,7 +34,7 @@ import webbrowser
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlsplit
 
 from problem_logs import DailyProblemLogs, ProblemLogs, diagnosed, plain_path
@@ -1483,27 +1485,118 @@ def _write_windows_readable_data(
     return {"readableDir": str(READABLE_ROOT_DIR), "readableFiles": total_files, "readableBytes": total_bytes, **counters}
 
 
-def _publish_readable_tree(staging_root: Path, target_root: Path) -> None:
+def file_stat_totals(paths: Iterable[Path]) -> tuple[int, int]:
+    """Count observed files once; a concurrent removal is not a storage failure."""
+    files = total_bytes = 0
+    for path in paths:
+        try:
+            info = path.stat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISREG(info.st_mode):
+            files += 1
+            total_bytes += info.st_size
+    return files, total_bytes
+
+
+def _readable_files_match(source: Path, target: Path) -> bool:
+    """Compare generated content, including every DOCX part, without ZIP dates."""
+    def streams_match(left, right) -> bool:
+        while True:
+            chunk = left.read(1024 * 1024)
+            try:
+                existing_chunk = right.read(1024 * 1024)
+            except (OSError, zipfile.BadZipFile, zlib.error, NotImplementedError, RuntimeError):
+                return False
+            if chunk != existing_chunk:
+                return False
+            if not chunk:
+                return True
+
+    if source.suffix.casefold() == ".docx":
+        with zipfile.ZipFile(source) as candidate:
+            try:
+                existing = zipfile.ZipFile(target)
+            except (OSError, zipfile.BadZipFile):
+                return False
+            with existing:
+                new_parts = sorted(candidate.infolist(), key=lambda info: info.filename)
+                old_parts = sorted(existing.infolist(), key=lambda info: info.filename)
+                if [(part.filename, part.file_size, part.CRC) for part in new_parts] != [
+                    (part.filename, part.file_size, part.CRC) for part in old_parts
+                ]:
+                    return False
+                for new_part, old_part in zip(new_parts, old_parts):
+                    with candidate.open(new_part) as left:
+                        try:
+                            right = existing.open(old_part)
+                        except (OSError, zipfile.BadZipFile, NotImplementedError, RuntimeError):
+                            return False
+                        with right:
+                            if not streams_match(left, right):
+                                return False
+                return True
+    with source.open("rb") as left:
+        try:
+            right = target.open("rb")
+        except OSError:
+            return False
+        with right:
+            return streams_match(left, right)
+
+
+def _readable_target_context(operation, action: str, target: Path, counters=None) -> None:
+    if operation is None:
+        return
+    suffix = target.suffix.casefold().lstrip(".")
+    kind = "other" if action == "mkdir" else suffix if suffix in {"docx", "json", "csv", "txt"} else "image" if suffix in {"png", "jpg", "jpeg", "gif", "webp", "bmp"} else "other"
+    operation.fields.update(counters or {}, publishAction=action, fileKind=kind, targetStatusKnown=False)
+    operation.fields.pop("targetReadOnly", None)
+    operation.fields.pop("targetExisted", None)
+    try:
+        info = target.stat()
+        operation.fields.update(targetExisted=True, targetStatusKnown=True,
+            targetReadOnly=bool(getattr(info, "st_file_attributes", 0) & 1) if sys.platform.startswith("win") else not bool(info.st_mode & stat.S_IWUSR))
+    except FileNotFoundError:
+        operation.fields.update(targetExisted=False, targetStatusKnown=True)
+    except OSError:
+        pass  # Metadata is optional; actual publication still decides success.
+
+
+def _publish_readable_tree(staging_root: Path, target_root: Path, operation=None) -> Dict[str, int]:
     """Publish a fully built mirror without first making live files disappear."""
+    _readable_target_context(operation, "mkdir", target_root)
     target_root.mkdir(parents=True, exist_ok=True)
     expected_files: set[Path] = set()
+    counters = {"publishedFiles": 0, "unchangedFiles": 0, "staleFilesRemoved": 0}
 
     for source in sorted(staging_root.rglob("*"), key=lambda path: (len(path.parts), str(path))):
         relative = source.relative_to(staging_root)
         target = target_root / relative
         if source.is_dir():
+            _readable_target_context(operation, "mkdir", target, counters)
             target.mkdir(parents=True, exist_ok=True)
             continue
         expected_files.add(relative)
+        _readable_target_context(operation, "mkdir", target.parent, counters)
         target.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(source, target)
+        _readable_target_context(operation, "compare", target, counters)
+        if not _readable_files_match(source, target):
+            if operation is not None:
+                operation.fields["publishAction"] = "replace"
+            os.replace(source, target)
+            counters["publishedFiles"] += 1
+        else:
+            counters["unchangedFiles"] += 1
 
     stale_files = [
         path for path in target_root.rglob("*")
         if path.is_file() and path.relative_to(target_root) not in expected_files
     ]
     for stale in stale_files:
+        _readable_target_context(operation, "stale_delete", stale, counters)
         stale.unlink()
+        counters["staleFilesRemoved"] += 1
 
     directories = sorted(
         [path for path in target_root.rglob("*") if path.is_dir()],
@@ -1515,18 +1608,26 @@ def _publish_readable_tree(staging_root: Path, target_root: Path) -> None:
             directory.rmdir()
         except OSError:
             pass
+    return counters
 
 
-def export_windows_readable_data(state: Dict[str, Any]) -> Dict[str, Any]:
+def export_windows_readable_data(state: Dict[str, Any], *, diagnostics=None) -> Dict[str, Any]:
     """Build the Windows mirror off-screen, then publish complete files."""
     ensure_dirs()
     token = f"{os.getpid()}-{threading.get_ident()}-{secrets.token_hex(4)}"
     staging_root = DATA_DIR / f".zeter-readable-{token}"
     staging_summary = DATA_DIR / f".zeter-readable-summary-{token}.tmp"
     try:
-        result = _write_windows_readable_data(state, staging_root, staging_summary)
-        _publish_readable_tree(staging_root, READABLE_ROOT_DIR)
-        os.replace(staging_summary, READABLE_SUMMARY_FILE)
+        with diagnostics.operation("readable_build") if diagnostics else contextlib.nullcontext() as operation:
+            result = _write_windows_readable_data(state, staging_root, staging_summary)
+            if operation is not None:
+                operation.result(result)
+        with diagnostics.operation("readable_publish") if diagnostics else contextlib.nullcontext() as operation:
+            published = _publish_readable_tree(staging_root, READABLE_ROOT_DIR, operation)
+            _readable_target_context(operation, "summary_replace", READABLE_SUMMARY_FILE, published)
+            os.replace(staging_summary, READABLE_SUMMARY_FILE)
+            if operation is not None:
+                operation.fields["publicationComplete"] = True
         result["readableFiles"] = sum(1 for path in READABLE_ROOT_DIR.rglob("*") if path.is_file())
         result["readableBytes"] = sum(path.stat().st_size for path in READABLE_ROOT_DIR.rglob("*") if path.is_file())
         return result
@@ -1705,6 +1806,10 @@ class NativeStorageApi:
 
     def _diagnostic_operation(self, stage: str):
         return self._problem_logs.operation(stage) if self._problem_logs else contextlib.nullcontext()
+
+    def _diagnostic_fields(self, **fields) -> None:
+        if self._problem_logs:
+            self._problem_logs.annotate(**fields)
 
     def _problem(self, exc: BaseException, stage: Optional[str] = None, outcome: str = "error") -> None:
         if self._problem_logs:
@@ -2071,7 +2176,7 @@ class NativeStorageApi:
 
     @diagnosed("readable_export")
     def _export_readable(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        return export_windows_readable_data(state)
+        return export_windows_readable_data(state, diagnostics=self._problem_logs)
 
     def _export_existing_state_to_readable_folder(self) -> None:
         try:
@@ -2105,14 +2210,16 @@ class NativeStorageApi:
     @diagnosed("get_storage_info")
     def get_storage_info(self) -> Dict[str, Any]:
         try:
-            state_bytes = STATE_FILE.stat().st_size if STATE_FILE.exists() else 0
-            restore_bytes = RESTORE_FILE.stat().st_size if RESTORE_FILE.exists() else 0
-            data_bytes = 0
-            for path in DATA_DIR.rglob("*"):
-                if path.is_file():
-                    data_bytes += path.stat().st_size
-            backup_files = [path for path in BACKUP_DIR.glob("*") if path.is_file()] if BACKUP_DIR.exists() else []
-            log_files = [path for path in LOG_DIR.glob("*") if path.is_file()] if LOG_DIR.exists() else []
+            state_files, state_bytes = file_stat_totals((STATE_FILE,))
+            _, restore_bytes = file_stat_totals((RESTORE_FILE,))
+            _, data_bytes = file_stat_totals(DATA_DIR.rglob("*"))
+            backup_files, backup_bytes = file_stat_totals(BACKUP_DIR.glob("*"))
+            log_files, log_bytes = file_stat_totals(LOG_DIR.glob("*"))
+            managed_files, managed_bytes = file_stat_totals(
+                path for path in MANAGED_FILE_ROOT_DIR.rglob("*") if MANAGED_FILE_INCOMING_DIR not in path.parents
+            )
+            item_assets, item_asset_bytes = file_stat_totals(ITEM_ASSET_ROOT_DIR.rglob("*"))
+            readable_files, readable_bytes = file_stat_totals(READABLE_ROOT_DIR.rglob("*"))
             return self._ok(
                 dataDir=str(DATA_DIR),
                 stateFile=str(STATE_FILE),
@@ -2123,21 +2230,21 @@ class NativeStorageApi:
                 readableDir=str(READABLE_ROOT_DIR),
                 readableSummaryFile=str(READABLE_SUMMARY_FILE),
                 managedFileDir=str(MANAGED_FILE_ROOT_DIR),
-                managedFileBytes=sum(p.stat().st_size for p in MANAGED_FILE_ROOT_DIR.rglob("*") if p.is_file() and MANAGED_FILE_INCOMING_DIR not in p.parents) if MANAGED_FILE_ROOT_DIR.exists() else 0,
-                managedFiles=sum(1 for p in MANAGED_FILE_ROOT_DIR.rglob("*") if p.is_file() and MANAGED_FILE_INCOMING_DIR not in p.parents) if MANAGED_FILE_ROOT_DIR.exists() else 0,
+                managedFileBytes=managed_bytes,
+                managedFiles=managed_files,
                 itemAssetDir=str(ITEM_ASSET_ROOT_DIR),
-                itemAssetBytes=sum(p.stat().st_size for p in ITEM_ASSET_ROOT_DIR.rglob("*") if p.is_file()) if ITEM_ASSET_ROOT_DIR.exists() else 0,
-                itemAssets=sum(1 for p in ITEM_ASSET_ROOT_DIR.rglob("*") if p.is_file()) if ITEM_ASSET_ROOT_DIR.exists() else 0,
-                readableBytes=sum(p.stat().st_size for p in READABLE_ROOT_DIR.rglob("*") if p.is_file()) if READABLE_ROOT_DIR.exists() else 0,
-                readableFiles=sum(1 for p in READABLE_ROOT_DIR.rglob("*") if p.is_file()) if READABLE_ROOT_DIR.exists() else 0,
-                backupBytes=sum(path.stat().st_size for path in backup_files),
-                backupFiles=len(backup_files),
-                logBytes=sum(path.stat().st_size for path in log_files),
-                logFiles=len(log_files),
+                itemAssetBytes=item_asset_bytes,
+                itemAssets=item_assets,
+                readableBytes=readable_bytes,
+                readableFiles=readable_files,
+                backupBytes=backup_bytes,
+                backupFiles=backup_files,
+                logBytes=log_bytes,
+                logFiles=log_files,
                 stateBytes=state_bytes,
                 restoreBytes=restore_bytes,
                 dataBytes=data_bytes,
-                exists=STATE_FILE.exists(),
+                exists=bool(state_files),
             )
         except Exception as exc:
             return self._error(exc)
@@ -2839,7 +2946,9 @@ class NativeStorageApi:
 
     @diagnosed("save_state")
     def save_state(self, record: Any) -> Dict[str, Any]:
+        waiting_since = time.monotonic()
         with self._state_save_lock:
+            self._diagnostic_fields(lockWaitMs=round((time.monotonic() - waiting_since) * 1000, 3))
             return self._save_state_locked(record)
 
     def _save_state_locked(self, record: Any) -> Dict[str, Any]:
@@ -2877,13 +2986,14 @@ class NativeStorageApi:
             removed_backups = 0
             if previous_existed and time.time() - self._last_previous_backup_at > 15:
                 try:
-                    backup_path = BACKUP_DIR / (
-                        f"zeter-os-state-previous-{updated_at}-{secrets.token_hex(3)}.json"
-                    )
-                    atomic_write_bytes(backup_path, previous_bytes)
-                    previous_backup = str(backup_path)
-                    self._last_previous_backup_at = time.time()
-                    removed_backups = prune_backups()
+                    with self._diagnostic_operation("previous_backup"):
+                        backup_path = BACKUP_DIR / (
+                            f"zeter-os-state-previous-{updated_at}-{secrets.token_hex(3)}.json"
+                        )
+                        atomic_write_bytes(backup_path, previous_bytes)
+                        previous_backup = str(backup_path)
+                        self._last_previous_backup_at = time.time()
+                        removed_backups = prune_backups()
                 except Exception as exc:
                     self._problem(exc, "previous_backup", "partial")
                     backup_error = str(exc)
@@ -2896,18 +3006,20 @@ class NativeStorageApi:
                 self._problem(exc, "readable_export", "partial")
                 readable_error = str(exc)
                 log(f"WINDOWS_READABLE save error: {exc}")
+                readable_files, readable_bytes = file_stat_totals(READABLE_ROOT_DIR.rglob("*"))
                 readable = {
                     "readableDir": str(READABLE_ROOT_DIR),
-                    "readableFiles": sum(1 for path in READABLE_ROOT_DIR.rglob("*") if path.is_file()) if READABLE_ROOT_DIR.exists() else 0,
-                    "readableBytes": sum(path.stat().st_size for path in READABLE_ROOT_DIR.rglob("*") if path.is_file()) if READABLE_ROOT_DIR.exists() else 0,
+                    "readableFiles": readable_files,
+                    "readableBytes": readable_bytes,
                 }
 
             archive_error = ""
             archive_info: Dict[str, Any] = {}
             try:
-                archive_info = export_archived_desktops(state)
+                with self._diagnostic_operation("archived_export"):
+                    archive_info = export_archived_desktops(state)
             except Exception as exc:
-                self._problem(exc, "readable_export", "partial")
+                self._problem(exc, "archived_export", "partial")
                 archive_error = str(exc)
                 readable_error = "; ".join(filter(None, (readable_error, f"Архив рабочих столов: {archive_error}")))
                 log(f"DESKTOP_ARCHIVE save error: {exc}")

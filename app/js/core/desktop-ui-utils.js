@@ -239,7 +239,6 @@
     const getExplorerRoot = typeof options.getExplorerRoot === "function" ? options.getExplorerRoot : () => null;
     const currentWorkspace = typeof options.currentWorkspace === "function" ? options.currentWorkspace : () => ({});
     const createId = typeof options.createId === "function" ? options.createId : prefix => `${prefix}-${Date.now()}`;
-    const uniqueName = typeof options.uniqueName === "function" ? options.uniqueName : name => name;
     const openApp = typeof options.openApp === "function" ? options.openApp : () => {};
     const toast = typeof options.toast === "function" ? options.toast : () => {};
     const saveState = typeof options.saveState === "function" ? options.saveState : () => {};
@@ -302,7 +301,8 @@
       getState().fs[id] = {
         id,
         type: "app",
-        name: uniqueName(app.name, parent),
+        // Application labels are catalog titles, not unique filesystem names.
+        name: app.name,
         parent,
         x: position.x,
         y: position.y,

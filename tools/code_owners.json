@@ -2,6 +2,46 @@
   "version": 1,
   "scenarios": [
     {
+      "id": "business-calculations",
+      "title": "Подсчёты и порядок карточек",
+      "keywords": [
+        "calculations",
+        "подсчёты",
+        "BizPilot",
+        "маржа",
+        "карточки",
+        "перетаскивание"
+      ],
+      "js": [
+        "app/js/core/business-calculations-utils.js",
+        "app/js/core/business-calculations-ui-utils.js",
+        "app/js/core/workspace-utils.js",
+        "app/js/core/state-import-validator.js"
+      ],
+      "app_anchors": [
+        "renderBusinessCalculationsApp"
+      ],
+      "css": [
+        "app/css/67-business-calculations.css"
+      ],
+      "state": [
+        "workspace.calculations"
+      ],
+      "smokes": [
+        "tools/smoke_business_calculations.js",
+        "tools/smoke_state_migration.js"
+      ],
+      "manual": "Добавить и убрать карточки, перетащить за ручку на позицию выбранной карточки внутри окна, проверить обе половины и кнопки выше/ниже, сохранение полей и порядка, два окна и столы, reload и узкую ширину."
+    },
+    {
+      "id": "prompt-library", "title": "Проекты и категории промптов", "keywords": ["prompts", "промпты", "название промпта", "скопировать промпт"],
+      "js": ["app/js/core/prompt-library-utils.js", "app/js/core/prompt-library-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js"],
+      "app_anchors": ["renderPromptLibraryApp"], "css": ["app/css/65-link-library.css", "app/css/66-prompt-library.css"],
+      "state": ["workspace.promptLibrary.projects[]", "workspace.promptLibrary.categories[]", "workspace.promptLibrary.entries[]"],
+      "smokes": ["tools/smoke_prompt_library.js", "tools/smoke_state_migration.js"],
+      "manual": "Создать проекты и категории, сохранить отдельное название и многострочный текст; копировать ровно текст; проверить поиск, избранное, перенос, два окна, другой стол, архив, reload и узкую ширину."
+    },
+    {
       "id": "link-library",
       "title": "Библиотеки ссылок рабочих столов",
       "keywords": [
@@ -245,6 +285,49 @@
   ],
   "ui_contracts": [
     {
+      "id": "business-calculations-app",
+      "title": "Приложение Подсчёты",
+      "scenario": "business-calculations",
+      "keywords": [
+        "calculations UI",
+        "подсчёты",
+        "drag"
+      ],
+      "files": [
+        "app/js/core/business-calculations-utils.js",
+        "app/js/core/business-calculations-ui-utils.js",
+        "app/js/app.js",
+        "app/js/core/app-catalog.js",
+        "app/css/67-business-calculations.css"
+      ],
+      "hooks": [
+        "business-calculations-app",
+        "data-calc-card",
+        "data-calc-field",
+        "data-calc-action",
+        "data-calc-list",
+        "data-calc-results",
+        "data-calc-status",
+        "data-calc-handle",
+        "data-calc-drag-preview",
+        "data-calc-resize",
+        "data-calc-size",
+        "data-calc-wide",
+        "data-calc-result",
+        "data-calc-id",
+        "data-calc-currency",
+        "data-calc-search",
+        "data-calc-retry",
+        "data-calc-catalog",
+        "data-calc-catalog-list"
+      ]
+    },
+    {
+      "id": "prompt-library-app", "title": "Приложение Промпты", "scenario": "prompt-library", "keywords": ["prompts UI", "промпты", "копировать"],
+      "files": ["app/js/core/prompt-library-ui-utils.js", "app/js/core/app-catalog.js", "app/js/app.js", "app/css/66-prompt-library.css"],
+      "hooks": ["prompt-library-app", "data-prompt-action", "data-prompt-project", "data-prompt-filter", "data-prompt-search", "data-prompt-form", "data-prompt-status", "data-prompt-row", "data-prompt-list", "data-prompt-count", "data-prompt-id", "data-prompt-dialog", "data-prompt-dialog-submit", "data-prompt-dialog-cancel", "data-prompt-dialog-error"]
+    },
+    {
       "id": "link-library-app",
       "title": "Приложение Ссылки",
       "scenario": "link-library",
@@ -394,6 +477,78 @@
     }
   ],
   "state_lifecycle": [
+    {
+      "id": "business-calculations",
+      "title": "Подсчёты рабочего стола",
+      "state_paths": [
+        "workspace.calculations"
+      ],
+      "stages": {
+        "defaults": [
+          {
+            "path": "app/js/core/workspace-utils.js",
+            "anchors": [
+              "workspaceDefaults"
+            ]
+          }
+        ],
+        "normalizers": [
+          {
+            "path": "app/js/core/business-calculations-utils.js",
+            "anchors": [
+              "normalizeBusinessCalculations"
+            ]
+          }
+        ],
+        "migration": [
+          {
+            "path": "app/js/core/workspace-utils.js",
+            "anchors": [
+              "normalizeWorkspaceData"
+            ]
+          }
+        ],
+        "validator": [
+          {
+            "path": "app/js/core/state-import-validator.js",
+            "anchors": [
+              "validateImportedStateForImport"
+            ]
+          }
+        ],
+        "serializer": [
+          {
+            "path": "app/js/core/export-utils.js",
+            "anchors": [
+              "buildDownloadOsDataZipModel"
+            ]
+          }
+        ],
+        "storage": [
+          {
+            "path": "app/js/core/storage-utils.js",
+            "anchors": [
+              "createPrimaryStateSaveQueue"
+            ]
+          }
+        ]
+      },
+      "smokes": [
+        "tools/smoke_business_calculations.js",
+        "tools/smoke_state_migration.js"
+      ]
+    },
+    {
+      "id": "prompt-library", "title": "Библиотека промптов рабочего стола", "state_paths": ["workspace.promptLibrary"],
+      "stages": {
+        "defaults": [{"path": "app/js/core/workspace-utils.js", "anchors": ["workspaceDefaults"]}],
+        "normalizers": [{"path": "app/js/core/prompt-library-utils.js", "anchors": ["normalizePromptLibrary"]}],
+        "migration": [{"path": "app/js/core/workspace-utils.js", "anchors": ["normalizeWorkspaceData"]}],
+        "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedStateForImport"]}],
+        "serializer": [{"path": "app/js/core/export-utils.js", "anchors": ["buildDownloadOsDataZipModel"]}],
+        "storage": [{"path": "app/js/core/storage-utils.js", "anchors": ["createPrimaryStateSaveQueue"]}]
+      }, "smokes": ["tools/smoke_prompt_library.js", "tools/smoke_state_migration.js"]
+    },
     {
       "id": "link-library",
       "title": "Библиотеки ссылок рабочих столов",

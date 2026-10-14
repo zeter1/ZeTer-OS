@@ -19,6 +19,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 SCHEMA = 1
+DIAGNOSTIC_REVISION = 2
 OWNER = "zeter-os-problem-logs"
 RETENTION_DAYS = 120
 EVENT_LIMIT = 4 * 1024
@@ -36,7 +37,8 @@ SESSION_FILES = frozenset({"manifest.json", "events.jsonl", "problems.jsonl", "s
 STAGES = frozenset({
     "boot", "server_start", "window_create", "frontend_ready", "client_runtime",
     "get_storage_info", "get_system_metrics", "load_state", "save_state", "primary_confirm",
-    "readable_export", "startup_backup", "previous_backup", "payload_cleanup", "incoming_cleanup",
+    "readable_export", "readable_build", "readable_publish", "archived_export",
+    "startup_backup", "previous_backup", "payload_cleanup", "incoming_cleanup",
     "load_restore_points", "preflight_restore_point", "save_restore_point", "delete_restore_point",
     "clear_restore_points", "clear_state", "cleanup_security_artifacts", "save_item_asset",
     "begin_file_import", "append_file_chunk", "finish_file_import", "cancel_file_import",
@@ -47,8 +49,13 @@ STAGES = frozenset({
 OUTCOMES = frozenset({"started", "success", "error", "partial", "cancelled", "recovered", "slow", "incomplete"})
 NUMBER_FIELDS = frozenset({"stateBytes", "size", "receivedSize", "expectedSize", "count", "removed",
                           "preserved", "readableFiles", "readableBytes", "managedFilesRemoved", "itemAssetsRemoved",
-                          "line", "column", "pending", "dropped", "durationMs"})
-BOOL_FIELDS = frozenset({"primaryVerified", "readableOk", "backupOk", "payloadGcOk", "cancelled", "recorded"})
+                          "line", "column", "pending", "dropped", "durationMs", "lockWaitMs",
+                          "publishedFiles", "unchangedFiles", "staleFilesRemoved", "selfMs", "childMs"})
+BOOL_FIELDS = frozenset({"primaryVerified", "readableOk", "archiveOk", "backupOk", "payloadGcOk",
+                         "cancelled", "recorded", "successAfterIssue", "publicationComplete",
+                         "targetExisted", "targetReadOnly", "targetStatusKnown"})
+ENUM_FIELDS = {"publishAction": frozenset({"mkdir", "compare", "replace", "stale_delete", "summary_replace"}),
+               "fileKind": frozenset({"docx", "json", "csv", "txt", "image", "other"})}
 CLIENT_KINDS = frozenset({"boot_timeout", "runtime_error", "unhandled_rejection", "storage_load_error"})
 RUN_NAME_PATTERN = re.compile(r"run-\d{6}-\d{3}-[a-f0-9]{32}")
 
@@ -113,6 +120,10 @@ class Operation:
     def __init__(self, logger, stage):
         self.logger, self.stage = logger, stage
         self.id = uuid.uuid4().hex
+        self.parent = getattr(logger.local, "operation", None)
+        self.parent_id = self.parent.id if self.parent else None
+        self.root_id = self.parent.root_id if self.parent else self.id
+        self.child_ms = 0.0
         self.started = time.monotonic()
         self.outcome = "success"
         self.fields = {}
@@ -121,17 +132,17 @@ class Operation:
     def result(self, result):
         if not isinstance(result, dict):
             return
-        self.fields = self.logger.safe_fields(result)
+        self.fields.update(self.logger.safe_fields(result))
         if result.get("ok") is False:
             self.outcome = "error"
         elif result.get("cancelled"):
             self.outcome = "cancelled"
-        elif any(result.get(key) is False for key in ("readableOk", "backupOk", "payloadGcOk")):
+        elif any(result.get(key) is False for key in ("readableOk", "archiveOk", "backupOk", "payloadGcOk")):
             self.outcome = "partial"
 
 
 class ProblemLogs:
-    def __init__(self, app_root: Path, *, clock=utc_now, source_root: Path | None = None):
+    def __init__(self, app_root: Path, *, clock=utc_now, source_root: Path | None = None, process_identity=None):
         self.app_root = Path(app_root).absolute()
         self.root = self.app_root / "Логи проблем"
         self.source_root = Path(source_root or app_root).resolve()
@@ -160,18 +171,28 @@ class ProblemLogs:
         self.problem_samples = {}
         self.problem_occurrences = 0
         self.last_problem_observation = None
+        self.previous_incomplete = []
+        self.previous_incomplete_count = 0
         self.source_files = {"run_zeter_os.py", "problem_logs.py", "app/js/app.js", "app/js/core/version.js"}
         core = self.source_root / "app" / "js" / "core"
         if core.is_dir():
             self.source_files.update("app/js/core/" + p.name for p in core.glob("*.js") if p.is_file())
-        self.manifest = {"owner": OWNER, "schema": SCHEMA, "day": self.day, "sessionId": self.id,
+        identity = self._identity()
+        self.manifest = {"owner": OWNER, "schema": SCHEMA, "diagnosticRevision": DIAGNOSTIC_REVISION,
+                         "day": self.day, "sessionId": self.id,
                          "pid": os.getpid(), "startedAt": stamp(started_at),
-                         "runtimeMode": "source", "identity": self._identity()}
+                         "runtimeMode": "frozen" if getattr(sys, "frozen", False) else "source", "identity": identity,
+                         "identityBasis": "on_disk_at_session_start",
+                         "processStartIdentity": process_identity or identity,
+                         "diskSourceDrift": bool(process_identity and process_identity != identity)}
         try:
             if not plain_path(self.app_root, self.root):
                 raise OSError("unsafe diagnostic root")
             self.root.mkdir(exist_ok=True)
             self._retention()
+            self.manifest["previousIncompleteSessions"] = self.previous_incomplete
+            self.manifest["previousIncompleteCount"] = self.previous_incomplete_count
+            self.manifest["previousIncompleteOmitted"] = max(0, self.previous_incomplete_count - len(self.previous_incomplete))
             self.day_root.mkdir(exist_ok=True)
             self.session.mkdir()
             self._store(self.session / "manifest.json", self.manifest, control=True)
@@ -191,12 +212,16 @@ class ProblemLogs:
 
     def _identity(self):
         hashes = {}
+        missing = []
+        hashed_count = 0
         aggregate = hashlib.sha256()
         for name in sorted(self.source_files):
             try:
                 data = (self.source_root / name).read_bytes()
             except OSError:
+                missing.append(name)
                 continue
+            hashed_count += 1
             digest = hashlib.sha256(data).hexdigest()
             aggregate.update((name + ":" + digest + "\n").encode())
             if name in {"run_zeter_os.py", "problem_logs.py", "app/js/app.js", "app/js/core/version.js"}:
@@ -213,9 +238,21 @@ class ProblemLogs:
             webview = importlib.metadata.version("pywebview")
         except importlib.metadata.PackageNotFoundError:
             webview = "not-installed"
-        return {"app": "ZeTer OS", "version": version, "python": sys.version.split()[0],
+        identity = {"app": "ZeTer OS", "version": version, "python": sys.version.split()[0],
                 "pywebview": webview, "platform": sys.platform, "sourceHashes": hashes,
-                "sourceSetSha256": aggregate.hexdigest(), "sourceFileCount": len(self.source_files)}
+                "sourceSetSha256": aggregate.hexdigest(), "sourceFileCount": len(self.source_files),
+                "hashedSourceFileCount": hashed_count, "missingSourceFileCount": len(missing),
+                "missingSourceFiles": missing[:8], "sourceIdentityComplete": not missing}
+        if getattr(sys, "frozen", False):
+            try:
+                digest = hashlib.sha256()
+                with Path(sys.executable).open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                identity["executableSha256"] = digest.hexdigest()
+            except OSError:
+                identity["executableIdentityAvailable"] = False
+        return identity
 
     def _pointer(self, filename):
         return {"owner": OWNER, "schema": SCHEMA, "day": self.day, "sessionId": self.id,
@@ -524,6 +561,10 @@ class ProblemLogs:
                             closed = False
                         if not closed:
                             incomplete += 1
+                            self.previous_incomplete_count += 1
+                            self.previous_incomplete.append({"day": day_root.name, "sessionId": manifest["sessionId"],
+                                "evidenceState": "no_closed_summary_observed"})
+                            self.previous_incomplete = self.previous_incomplete[-8:]
                         continue
                     try:
                         # Recheck immediately before unlinking only the known owner set.
@@ -564,7 +605,21 @@ class ProblemLogs:
         for key in BOOL_FIELDS:
             if isinstance(fields.get(key), bool):
                 result[key] = fields[key]
+        for key, values in ENUM_FIELDS.items():
+            if isinstance(fields.get(key), str) and fields[key] in values:
+                result[key] = fields[key]
         return result
+
+    def annotate(self, **fields):
+        operation = getattr(self.local, "operation", None)
+        if operation is not None:
+            operation.fields.update(self.safe_fields(fields))
+
+    def _operation_context(self, operation):
+        if operation is None:
+            return {}
+        return {"durationMs": round((time.monotonic() - operation.started) * 1000, 3),
+                "fields": self.safe_fields(operation.fields)}
 
     def exception(self, exc):
         chain, seen = [], set()
@@ -584,9 +639,14 @@ class ProblemLogs:
                                "function": tb.tb_frame.f_code.co_name if name != "external" else "omitted"})
                 tb = tb.tb_next
             numeric_code = lambda value: value if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 0xFFFFFFFF else None
+            error_number = numeric_code(getattr(exc, "errno", None))
+            windows_error = numeric_code(getattr(exc, "winerror", None))
+            failure_class = ("sharing_violation" if windows_error in {32, 33} else
+                             "access_denied" if windows_error == 5 or error_number in {1, 13} else
+                             "missing_file" if isinstance(exc, FileNotFoundError) else
+                             "disk_full" if windows_error == 112 or error_number == 28 else category)
             chain.append({"type": type(exc).__name__[:80], "messageClass": category,
-                          "errno": numeric_code(getattr(exc, "errno", None)),
-                          "winerror": numeric_code(getattr(exc, "winerror", None)),
+                          "failureClass": failure_class, "errno": error_number, "winerror": windows_error,
                           "frames": frames[-8:], "framesOmitted": max(0, len(frames) - 8)})
             exc = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
         return {"chain": chain, "chainTruncated": exc is not None,
@@ -600,9 +660,12 @@ class ProblemLogs:
             outcome = outcome if outcome in OUTCOMES else "error"
             operation = getattr(self.local, "operation", None)
             self.seq += 1
-            event = {"schema": SCHEMA, "sessionId": self.id, "seq": self.seq, "utc": stamp(self.clock()),
+            event = {"schema": SCHEMA, "diagnosticRevision": DIAGNOSTIC_REVISION,
+                     "sessionId": self.id, "seq": self.seq, "utc": stamp(self.clock()),
                      "elapsedMs": round((time.monotonic() - self.started) * 1000, 3), "stage": stage,
                      "outcome": outcome, "operationId": operation.id if operation else None,
+                     "parentOperationId": operation.parent_id if operation else None,
+                     "rootOperationId": operation.root_id if operation else None,
                      "fields": self.safe_fields(fields)}
             try:
                 if not self.detail_available:
@@ -637,7 +700,9 @@ class ProblemLogs:
                 return self._degrade("problem_fingerprint_cap")
             entry = self.problems.setdefault(fingerprint, {"fingerprint": fingerprint, "stage": stage, "outcome": outcome, "occurrences": 0})
             entry["occurrences"] += 1
+            entry.setdefault("firstSeenAt", stamp(self.clock()))
             entry["lastSeenAt"] = stamp(self.clock())
+            entry["lastContext"] = self._operation_context(operation)
             if operation and stage == operation.stage and outcome != "slow":
                 operation.problem_recorded = True
                 operation.outcome = outcome
@@ -646,8 +711,12 @@ class ProblemLogs:
                 if self.overflow_active:
                     return self._publish_overflow()
                 return False
-            problem = {**entry, "schema": SCHEMA, "sessionId": self.id, "utc": stamp(self.clock()),
-                       "operationId": operation.id if operation else None, "evidence": detail}
+            problem = {**entry, "schema": SCHEMA, "diagnosticRevision": DIAGNOSTIC_REVISION,
+                       "sessionId": self.id, "utc": stamp(self.clock()),
+                       "operationId": operation.id if operation else None,
+                       "parentOperationId": operation.parent_id if operation else None,
+                       "rootOperationId": operation.root_id if operation else None,
+                       "context": self._operation_context(operation), "evidence": detail}
             sample = {"fingerprint": fingerprint, "stage": stage, "outcome": outcome,
                       "sessionId": self.id, "sourceSetSha256": self.manifest["identity"]["sourceSetSha256"]}
             chain = detail.get("chain") or []
@@ -678,12 +747,15 @@ class ProblemLogs:
 
     @contextlib.contextmanager
     def operation(self, stage):
+        stage = stage if stage in STAGES else "client_runtime"
         previous = getattr(self.local, "operation", None)
         operation = Operation(self, stage)
         self.local.operation = operation
         with self.lock:
-            metric = self.metrics.setdefault(stage, {"count": 0, "totalMs": 0, "maxMs": 0, "outcomes": {}})
+            metric = self.metrics.setdefault(stage, {"count": 0, "completedCount": 0, "inFlight": 0,
+                "totalMs": 0, "maxMs": 0, "outcomes": {}, "laterSuccessCount": 0})
             metric["count"] += 1
+            metric["inFlight"] += 1
             sampled = metric["count"] <= 3
         if sampled:
             self.event(stage, "started")
@@ -695,19 +767,38 @@ class ProblemLogs:
             raise
         finally:
             duration = round((time.monotonic() - operation.started) * 1000, 3)
+            operation.fields.update(childMs=round(operation.child_ms, 3), selfMs=round(max(0, duration - operation.child_ms), 3))
             with self.lock:
+                metric["inFlight"] -= 1
+                metric["completedCount"] += 1
                 metric["totalMs"] = round(metric["totalMs"] + duration, 3)
                 metric["maxMs"] = max(metric["maxMs"], duration)
                 metric["outcomes"][operation.outcome] = metric["outcomes"].get(operation.outcome, 0) + 1
                 outcome_occurrence = metric["outcomes"][operation.outcome]
+                success_after_issue = (operation.outcome == "success" and
+                    metric.get("lastIssue", {}).get("completionIndex", 0) > metric.get("lastSuccess", {}).get("completionIndex", 0))
+                if success_after_issue:
+                    metric["laterSuccessCount"] += 1
+                    operation.fields["successAfterIssue"] = True
+                completed = {"operationId": operation.id, "utc": stamp(self.clock()),
+                    "completionIndex": metric["completedCount"], "outcome": operation.outcome,
+                    "durationMs": duration, "fields": self.safe_fields(operation.fields)}
+                metric["lastCompleted"] = completed
+                reference = {key: value for key, value in completed.items() if key != "fields"}
+                if operation.outcome == "success":
+                    metric["lastSuccess"] = reference
+                elif operation.outcome in {"error", "partial"}:
+                    metric["lastIssue"] = reference
             if operation.outcome in {"error", "partial", "recovered"} and not operation.problem_recorded:
                 self.failure(stage=stage, outcome=operation.outcome)
             event_outcome = "slow" if duration >= 1500 and operation.outcome == "success" else operation.outcome
             # Exact totals remain in summary.metrics; the timeline keeps only decisive samples.
-            if sampled or (event_outcome != "success" and outcome_occurrence <= 3):
-                self.event(stage, event_outcome, durationMs=duration, **operation.fields)
+            if sampled or (event_outcome != "success" and outcome_occurrence <= 3) or (success_after_issue and metric["laterSuccessCount"] <= 3):
+                self.event(stage, event_outcome, **{**operation.fields, "durationMs": duration})
             if duration >= 1500:
                 self.failure(stage=stage, outcome="slow")
+            if previous is not None:
+                previous.child_ms += (time.monotonic() - operation.started) * 1000
             self.local.operation = previous
 
     def close(self, outcome="success"):
@@ -725,18 +816,42 @@ class ProblemLogs:
                  "outcome": item["outcome"], "occurrences": item["occurrences"]}
                 for item in self.problems.values() if item["occurrences"] > 1
             ]
-            summary = {"owner": OWNER, "schema": SCHEMA, "sessionId": self.id,
+            classification = {
+                "errorObservations": sum(item["occurrences"] for item in self.problems.values() if item["outcome"] == "error"),
+                "partialObservations": sum(item["occurrences"] for item in self.problems.values() if item["outcome"] == "partial"),
+                "slowObservations": sum(item["occurrences"] for item in self.problems.values() if item["outcome"] == "slow"),
+                "stagesWithLaterSuccess": sorted(stage for stage, metric in self.metrics.items() if metric["laterSuccessCount"]),
+                "stagesEndingWithIssue": sorted(stage for stage, metric in self.metrics.items()
+                    if metric.get("lastCompleted", {}).get("outcome") in {"error", "partial"}),
+                "inFlightOperations": sum(metric["inFlight"] for metric in self.metrics.values()),
+            }
+            if classification["inFlightOperations"]:
+                self.health["integrity"] = "degraded"
+                if "operations_pending_at_close" not in self.health["gaps"]:
+                    self.health["gaps"].append("operations_pending_at_close")
+            summary = {"owner": OWNER, "schema": SCHEMA, "diagnosticRevision": DIAGNOSTIC_REVISION,
+                       "sessionId": self.id, "problemClassification": classification,
                        "status": "closed", "closedAt": stamp(self.clock()), "requestedOutcome": outcome,
-                       "outcome": "issues" if self.problems else outcome, "metrics": self.metrics,
+                       "outcome": "incomplete" if classification["inFlightOperations"] else "issues" if self.problems else outcome,
+                       "metrics": self.metrics,
                        "problems": list(self.problems.values()), "improvementSignals": {
                            "slowestOperations": slowest, "repeatedProblems": repeated,
                            "diagnosticGaps": list(self.health["gaps"]),
                        }, "health": self.health, "lastSequence": self.seq}
+            if len(_json(summary)) > CONTROL_LIMIT:
+                # Preserve counts, final outcomes and correlation before optional context.
+                for problem in summary["problems"]:
+                    problem.get("lastContext", {}).pop("fields", None)
+                for metric in summary["metrics"].values():
+                    metric.get("lastCompleted", {}).pop("fields", None)
+                summary["contextDetailsOmitted"] = True
+                self.health["integrity"] = "degraded"
+                self.health["gaps"].append("summary_context_limited")
             try:
                 if not self.detail_available:
                     raise OSError("diagnostics unavailable")
                 self._store(self.session / "health.json", self.health, control=True)
-                report = f"ZeTer OS — {self.id}\nИтог: {summary['outcome']}\nДиагностика: {self.health['integrity']}\nПроблем: {len(self.problems)}; пропущено: {self.health['dropped']}\nПодробности: summary.json, problems.jsonl, events.jsonl\n"
+                report = f"ZeTer OS — {self.id}\nИтог: {summary['outcome']}\nДиагностика: {self.health['integrity']}\nПроблем: {len(self.problems)}; пропущено: {self.health['dropped']}\nОшибки: {classification['errorObservations']}; частичный результат: {classification['partialObservations']}; медленные операции: {classification['slowObservations']}\nПоздний успех этапа не доказывает исправление всех прежних проблем.\nПодробности: summary.json, problems.jsonl, events.jsonl\n"
                 self._store(self.session / "report.txt", report.encode("utf-8"), control=True)
                 self._store(self.session / "summary.json", summary, control=True)
                 self._publish_pointer("latest_run.json", self._pointer("summary.json"), "startedAt")
@@ -772,7 +887,8 @@ class DailyProblemLogs:
                 day = self.clock().astimezone().date().isoformat()
                 if not self.closed and day != self.current.day:
                     previous = self.current
-                    self.current = ProblemLogs(self.app_root, clock=self.clock, source_root=self.source_root)
+                    self.current = ProblemLogs(self.app_root, clock=self.clock, source_root=self.source_root,
+                        process_identity=previous.manifest["processStartIdentity"])
                     self.active[self.current] = 0
                     if self.active[previous] == 0:
                         previous.close()
@@ -795,6 +911,10 @@ class DailyProblemLogs:
     def failure(self, *args, **kwargs):
         with self._using() as logger:
             return logger.failure(*args, **kwargs)
+
+    def annotate(self, **fields):
+        with self._using() as logger:
+            return logger.annotate(**fields)
 
     @contextlib.contextmanager
     def operation(self, stage):

@@ -8,7 +8,10 @@ import shutil
 import sys
 import tempfile
 import threading
+import warnings
+import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import run_zeter_os as zeter
@@ -93,7 +96,202 @@ def configure_temp_data(root: Path) -> None:
     zeter.ITEM_ASSET_ROOT_DIR = zeter.DATA_DIR / "Оформление объектов"
 
 
+def smoke_storage_snapshot_races() -> None:
+    with tempfile.TemporaryDirectory(prefix="zeter-storage-stat-") as temp:
+        root = Path(temp)
+        configure_temp_data(root)
+        api = zeter.NativeStorageApi(platform_opener=RecordingPlatformOpener())
+        stable = zeter.BACKUP_DIR / "stable.json"
+        stable.write_bytes(b"stable-backup")
+        gone = zeter.BACKUP_DIR / "gone.json"
+        original_glob = Path.glob
+        original_is_file = Path.is_file
+
+        def snapshot_glob(path: Path, pattern: str, **kwargs):
+            if path == zeter.BACKUP_DIR and pattern == "*":
+                return iter([stable, gone])
+            return original_glob(path, pattern, **kwargs)
+
+        def preceding_file_check(path: Path) -> bool:
+            # Model a backup removed after it was observed as a file.
+            return True if path == gone else original_is_file(path)
+
+        with patch.object(Path, "glob", snapshot_glob), patch.object(Path, "is_file", preceding_file_check):
+            info = api.get_storage_info()
+        assert info.get("ok") is True, "A vanished backup broke the entire storage summary"
+        assert info["backupFiles"] == 1 and info["backupBytes"] == len(b"stable-backup"), info
+        assert stable.read_bytes() == b"stable-backup"
+        original_stat = Path.stat
+
+        def denied_stat(path: Path, *args, **kwargs):
+            if path == stable:
+                raise PermissionError("synthetic permanent denial")
+            return original_stat(path, *args, **kwargs)
+
+        with patch.object(Path, "stat", denied_stat):
+            denied = api.get_storage_info()
+        assert denied.get("ok") is False, "Storage statistics hid a permission failure"
+
+
+def smoke_readable_publication() -> None:
+    with tempfile.TemporaryDirectory(prefix="zeter-readable-publish-") as temp:
+        root = Path(temp)
+        configure_temp_data(root)
+        api = zeter.NativeStorageApi(platform_opener=RecordingPlatformOpener())
+        staging = root / "staging"
+        target = root / "mirror"
+        staging.mkdir()
+        target.mkdir()
+
+        def document(path: Path, year: int, body: bytes = b"same XML", image: bytes = b"image") -> None:
+            with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for name, data in (("word/document.xml", body), ("word/media/image.png", image)):
+                    info = zipfile.ZipInfo(name, (year, 1, 1, 0, 0, 0))
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    archive.writestr(info, data)
+
+        old_doc = target / "note.docx"
+        document(old_doc, 2024)
+        document(staging / "note.docx", 2026)
+        before = old_doc.read_bytes()
+        assert before != (staging / "note.docx").read_bytes(), "Fixture must differ in ZIP metadata"
+        (target / "same.txt").write_bytes(b"same text")
+        (staging / "same.txt").write_bytes(b"same text")
+        (target / "stale.txt").write_bytes(b"obsolete")
+        original_replace = zeter.os.replace
+
+        def deny_unchanged(source, destination) -> None:
+            if Path(destination) in (old_doc, target / "same.txt"):
+                error = PermissionError("synthetic locked unchanged document")
+                error.winerror = 5
+                raise error
+            original_replace(source, destination)
+
+        with patch.object(zeter.os, "replace", deny_unchanged):
+            zeter._publish_readable_tree(staging, target)
+        assert old_doc.read_bytes() == before, "Identical DOCX was needlessly replaced"
+        assert not (target / "stale.txt").exists(), "Stale mirror file survived publication"
+        for body, image in ((b"changed XML", b"image"), (b"changed XML", b"changed image")):
+            document(staging / "note.docx", 2026, body, image)
+            candidate = (staging / "note.docx").read_bytes()
+            zeter._publish_readable_tree(staging, target)
+            assert old_doc.read_bytes() == candidate, "Changed DOCX content was skipped"
+        old_doc.write_bytes(b"invalid ZIP")
+        document(staging / "note.docx", 2026)
+        candidate = (staging / "note.docx").read_bytes()
+        zeter._publish_readable_tree(staging, target)
+        assert old_doc.read_bytes() == candidate, "Corrupt mirror was treated as identical"
+        for encrypted in (False, True):
+            document(staging / "note.docx", 2026)
+            broken = bytearray((staging / "note.docx").read_bytes())
+            for signature, flag_offset, compression_offset in ((b"PK\x03\x04", 6, 8), (b"PK\x01\x02", 8, 10)):
+                position = broken.index(signature)
+                offset = flag_offset if encrypted else compression_offset
+                broken[position + offset:position + offset + 2] = (1 if encrypted else 99).to_bytes(2, "little")
+            old_doc.write_bytes(broken)
+            candidate = (staging / "note.docx").read_bytes()
+            zeter._publish_readable_tree(staging, target)
+            assert old_doc.read_bytes() == candidate, "Unreadable target ZIP blocked valid publication"
+        document(staging / "note.docx", 2026)
+        broken = bytearray((staging / "note.docx").read_bytes())
+        data_offset = 30 + int.from_bytes(broken[26:28], "little") + int.from_bytes(broken[28:30], "little")
+        broken[data_offset] = (broken[data_offset] & ~6) | 6  # Reserved DEFLATE block type.
+        old_doc.write_bytes(broken)
+        candidate = (staging / "note.docx").read_bytes()
+        zeter._publish_readable_tree(staging, target)
+        assert old_doc.read_bytes() == candidate, "Corrupt target DEFLATE blocked valid publication"
+        (target / "same.txt").write_bytes(b"outdated text")
+        (staging / "same.txt").write_bytes(b"new text")
+        document(staging / "note.docx", 2026)
+        original_open = Path.open
+
+        def deny_target_read(path: Path, *args, **kwargs):
+            if path == target / "same.txt":
+                raise PermissionError("synthetic read-only denial with replacement allowed")
+            return original_open(path, *args, **kwargs)
+
+        with patch.object(Path, "open", deny_target_read):
+            zeter._publish_readable_tree(staging, target)
+        assert (target / "same.txt").read_bytes() == b"new text"
+        document(staging / "note.docx", 2026)
+        previous_doc = old_doc.read_bytes()
+        (staging / "note.docx").write_bytes(b"invalid candidate")
+        try:
+            zeter._publish_readable_tree(staging, target)
+        except zipfile.BadZipFile:
+            pass
+        else:
+            raise AssertionError("Invalid candidate was published")
+        assert old_doc.read_bytes() == previous_doc
+        for extra_name in ("extra.xml", "word/document.xml"):
+            document(staging / "note.docx", 2026)
+            # Duplicate names are deliberately retained in the comparison.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                with zipfile.ZipFile(staging / "note.docx", "a") as archive:
+                    archive.writestr(extra_name, b"extra content")
+            candidate = (staging / "note.docx").read_bytes()
+            zeter._publish_readable_tree(staging, target)
+            assert old_doc.read_bytes() == candidate, "Extra/duplicate ZIP entry was skipped"
+
+        state = {"desktops": [{"id": "desk", "name": "Desk", "data": {}}],
+                 "fs": {"note": {"id": "note", "type": "note", "name": "Note", "parent": "desk", "content": "before"}}}
+        assert api.save_state({"state": state}).get("readableOk") is True
+        live_doc = next(zeter.READABLE_ROOT_DIR.rglob("*.docx"))
+        previous_doc = live_doc.read_bytes()
+        state["fs"]["note"]["content"] = "after"
+
+        def deny_changed(source, destination) -> None:
+            if Path(destination) == live_doc:
+                raise PermissionError("synthetic permanent changed-document denial")
+            original_replace(source, destination)
+
+        with patch.object(zeter.os, "replace", deny_changed):
+            partial = api.save_state({"state": state})
+        assert partial.get("ok") is True and partial.get("primaryVerified") is True and partial.get("readableOk") is False, partial
+        assert zeter.read_json_file(zeter.STATE_FILE)["state"]["fs"]["note"]["content"] == "after"
+        assert live_doc.read_bytes() == previous_doc, "Failed publication damaged the prior document"
+        assert not list(zeter.DATA_DIR.glob(".zeter-readable-*")), "Staging survived failed publication"
+
+
+def smoke_publication_failure_context() -> None:
+    with tempfile.TemporaryDirectory(prefix="zeter-publication-context-") as temp:
+        root = Path(temp)
+        staging, target = root / "staging", root / "target"
+        staging.mkdir()
+        target.mkdir()
+        (staging / "note.txt").write_bytes(b"same")
+        (target / "note.txt").write_bytes(b"same")
+        stale = target / "stale.json"
+        stale.write_bytes(b"stale")
+        logger = zeter.ProblemLogs(root, source_root=Path(__file__).resolve().parents[1])
+        original_unlink = Path.unlink
+
+        def denied_unlink(path: Path, *args, **kwargs):
+            if path == stale:
+                raise PermissionError("synthetic stale deletion failure")
+            return original_unlink(path, *args, **kwargs)
+
+        try:
+            with patch.object(Path, "unlink", denied_unlink), logger.operation("readable_publish") as operation:
+                zeter._publish_readable_tree(staging, target, operation)
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("Stale deletion failure was hidden")
+        logger.close()
+        import json
+        problem = json.loads((logger.session / "problems.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        fields = problem["context"]["fields"]
+        assert fields["publishAction"] == "stale_delete" and fields["fileKind"] == "json", fields
+        assert fields["targetExisted"] is True and fields["targetStatusKnown"] is True
+        assert stale.read_bytes() == b"stale"
+
+
 def main() -> None:
+    smoke_storage_snapshot_races()
+    smoke_readable_publication()
+    smoke_publication_failure_context()
     class TransientlyLockedFile:
         def __init__(self) -> None:
             self.attempts = 0
@@ -773,7 +971,7 @@ def main() -> None:
         assert folder_icon_path.read_bytes() == icon_before_failure, "Unconfirmed save changed an item asset"
 
         original_export_windows_readable_data = zeter.export_windows_readable_data
-        zeter.export_windows_readable_data = lambda _state: (_ for _ in ()).throw(OSError("simulated readable publish failure"))
+        zeter.export_windows_readable_data = lambda _state, **_kwargs: (_ for _ in ()).throw(OSError("simulated readable publish failure"))
         try:
             state["security"]["saveAfterReadableFailure"] = "confirmed"
             partial = api.save_state({"state": state, "osVersion": "smoke", "versionNumber": 1})

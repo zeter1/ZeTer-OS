@@ -608,7 +608,7 @@
       bindDesktopSelectionBox();
       documentRef.addEventListener("keydown", event => {
         // Modal controls retain their native Enter/Space behavior; the shell stays idle.
-        if (documentRef.querySelector?.("[data-desktop-delete-dialog]")) return;
+        if (documentRef.querySelector?.("[data-desktop-delete-dialog], [data-prompt-dialog][open]")) return;
         const targetElement = ElementCtor && event.target instanceof ElementCtor ? event.target : null;
         if (event.altKey && event.key === "Tab") { event.preventDefault(); cycleWindows(event.shiftKey); return; }
         if (event.key === "Escape") closeFloating();

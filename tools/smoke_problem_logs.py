@@ -234,7 +234,122 @@ def smoke_day_rollover(fixed: datetime) -> None:
         assert json.loads((logger.root / "latest_run.json").read_text(encoding="utf-8"))["sessionId"] == current.id
 
 
+def smoke_diagnostic_context() -> None:
+    with tempfile.TemporaryDirectory(prefix="zeter-diagnostic-context-") as temp:
+        root = Path(temp) / "ZeTer OS"
+        root.mkdir()
+        logger = ProblemLogs(root, source_root=PROJECT_ROOT)
+        secret = "SYNTHETIC_PRIVATE_DOCUMENT_AND_TOKEN"
+        for _ in range(4):
+            with logger.operation("save_state") as operation:
+                operation.result({"ok": True, "primaryVerified": True, "readableOk": True})
+        try:
+            with logger.operation("save_state") as failed_save:
+                try:
+                    with logger.operation("readable_publish"):
+                        error = PermissionError(13, secret)
+                        error.winerror = 5
+                        raise error
+                except PermissionError:
+                    failed_save.result({"ok": True, "primaryVerified": True, "readableOk": False})
+        except PermissionError:
+            raise AssertionError("Fixture unexpectedly propagated a partial save")
+        with logger.operation("save_state") as recovered_save:
+            with logger.operation("readable_publish") as published:
+                published.result({"ok": True, "publishedFiles": 2, "unchangedFiles": 3, "private": secret})
+            recovered_save.result({"ok": True, "primaryVerified": True, "readableOk": True, "private": secret})
+        with logger.operation("save_state") as archive_failure:
+            archive_failure.result({"ok": True, "primaryVerified": True, "readableOk": True, "archiveOk": False})
+        with logger.operation("get_storage_info") as slow:
+            slow.started -= 2
+            slow.result({"ok": True, "count": 4})
+        logger.close()
+        manifest = json.loads((logger.session / "manifest.json").read_text(encoding="utf-8"))
+        summary = json.loads((logger.session / "summary.json").read_text(encoding="utf-8"))
+        events = read_json_lines(logger.session / "events.jsonl")
+        problems = read_json_lines(logger.session / "problems.jsonl")
+        assert manifest.get("diagnosticRevision") == 2, "Missing additive diagnostic revision"
+        metric = summary["metrics"]["save_state"]
+        assert metric["lastCompleted"]["outcome"] == "partial", "Archive failure was reported as a clean save"
+        assert metric["lastCompleted"]["fields"]["archiveOk"] is False
+        assert metric["laterSuccessCount"] == 1 and metric["inFlight"] == 0
+        assert metric["lastSuccess"]["operationId"] == recovered_save.id
+        assert metric["lastIssue"]["operationId"] == archive_failure.id
+        assert any(event["operationId"] == recovered_save.id and event["fields"].get("successAfterIssue") for event in events), "Late successful recovery was lost after sampling"
+        child = next(event for event in events if event["operationId"] == published.id)
+        assert child["parentOperationId"] == recovered_save.id and child["rootOperationId"] == recovered_save.id
+        issue = next(problem for problem in problems if problem["stage"] == "readable_publish")
+        assert issue["parentOperationId"] == failed_save.id and issue["rootOperationId"] == failed_save.id
+        assert issue["evidence"]["chain"][0]["failureClass"] == "access_denied"
+        slow_issue = next(problem for problem in problems if problem["outcome"] == "slow")
+        assert slow_issue["context"]["durationMs"] >= 2000
+        assert slow_issue["context"]["fields"]["count"] == 4
+        assert summary["problemClassification"]["slowObservations"] == 1
+        assert secret not in "\n".join(path.read_text(encoding="utf-8") for path in logger.session.iterdir())
+
+
+def smoke_diagnostic_identity_and_caps() -> None:
+    with tempfile.TemporaryDirectory(prefix="zeter-diagnostic-identity-") as temp:
+        root = Path(temp) / "ZeTer OS"
+        root.mkdir()
+        source = Path(temp) / "source"
+        for name in ("run_zeter_os.py", "problem_logs.py", "app/js/app.js", "app/js/core/version.js"):
+            path = source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('window.ZETER_OS_VERSION = "9.0.0";' if name.endswith("version.js") else "synthetic source", encoding="utf-8")
+        moment = [datetime.now().astimezone().replace(hour=23, minute=59, second=0, microsecond=0)]
+        daily = DailyProblemLogs(root, clock=lambda: moment[0], source_root=source)
+        first_identity = daily.current.manifest["processStartIdentity"]
+        (source / "run_zeter_os.py").write_text("changed synthetic source", encoding="utf-8")
+        moment[0] += timedelta(minutes=2)
+        daily.event("boot")
+        assert daily.current.manifest["processStartIdentity"] == first_identity, "Midnight replaced process-start identity"
+        assert daily.current.manifest["diskSourceDrift"] is True
+        assert daily.current.manifest["identity"]["sourceSetSha256"] != first_identity["sourceSetSha256"]
+        daily.close()
+        (source / "run_zeter_os.py").unlink()
+        missing = ProblemLogs(root, source_root=source)
+        assert missing.manifest["identity"]["missingSourceFileCount"] == 1
+        assert missing.manifest["identity"]["hashedSourceFileCount"] == 3
+        assert missing.manifest["identity"]["sourceIdentityComplete"] is False
+        missing.close()
+        executable = Path(temp) / "synthetic.exe"
+        executable.write_bytes(b"synthetic executable bytes")
+        with patch.object(sys, "frozen", True, create=True), patch.object(sys, "executable", str(executable)):
+            frozen = ProblemLogs(root, source_root=source)
+            assert frozen.manifest["runtimeMode"] == "frozen"
+            import hashlib
+            assert frozen.manifest["identity"]["executableSha256"] == hashlib.sha256(executable.read_bytes()).hexdigest()
+            frozen.close()
+        legacy = seed_session(root / "Логи проблем", "a" * 32, moment[0], incomplete=True)
+        sentinel = (legacy / "manifest.json").read_bytes()
+        noticed = ProblemLogs(root, source_root=source)
+        assert noticed.manifest["previousIncompleteCount"] >= 1
+        assert any(item["sessionId"] == "a" * 32 and item["evidenceState"] == "no_closed_summary_observed"
+                   for item in noticed.manifest["previousIncompleteSessions"])
+        assert (legacy / "manifest.json").read_bytes() == sentinel, "Incomplete legacy evidence was modified"
+        noticed.close()
+        capped = ProblemLogs(root, source_root=PROJECT_ROOT)
+        fields = {key: 10**15 for key in problem_logs.NUMBER_FIELDS}
+        fields.update({key: True for key in problem_logs.BOOL_FIELDS})
+        for index, stage in enumerate(sorted(problem_logs.STAGES)):
+            with capped.operation(stage) as operation:
+                capped.annotate(**fields, publishAction="replace", fileKind="docx", unknown="SECRET")
+                capped.failure(ValueError("SECRET"), stage=stage)
+                if index < 15:
+                    capped.failure(ValueError("SECRET"), stage=stage, outcome="partial")
+        capped.close()
+        summary_path = capped.session / "summary.json"
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        assert summary_path.stat().st_size <= problem_logs.CONTROL_LIMIT
+        assert all(metric["lastCompleted"]["outcome"] in {"error", "partial"} for metric in summary["metrics"].values())
+        assert summary["health"]["writeFailures"] == 0, "Bounded summary failed publication"
+        assert "SECRET" not in summary_path.read_text(encoding="utf-8")
+
+
 def main() -> None:
+    smoke_diagnostic_context()
+    smoke_diagnostic_identity_and_caps()
     assert SESSION_LIMIT == 2 * 1024 * 1024
     assert ROOT_LIMIT == 32 * 1024 * 1024
     with tempfile.TemporaryDirectory(prefix="zeter-path-alias-") as alias_temp:

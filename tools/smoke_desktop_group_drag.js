@@ -21,7 +21,7 @@ const sandbox = {
       debounce(callback) { return callback; }
     },
     ZETER_STICKY_UTILS: {},
-    ZETER_CONTEXT_MENU_UI_UTILS: {},
+    ZETER_CONTEXT_MENU_UI_UTILS: { createDesktopContextMenuController() { return {}; } },
     ZETER_MANAGED_FILE_UTILS: {}
   }
 };
@@ -36,6 +36,10 @@ function loadCore(name) {
 loadCore("desktop-layout-utils.js");
 loadCore("item-drag-ui-utils.js");
 loadCore("desktop-ui-utils.js");
+loadCore("config.js");
+loadCore("fs-item-utils.js");
+loadCore("app-catalog.js");
+loadCore("app-center-ui-utils.js");
 
 const layout = sandbox.window.ZETER_DESKTOP_LAYOUT_UTILS;
 const itemDrag = sandbox.window.ZETER_ITEM_DRAG_UI_UTILS;
@@ -200,4 +204,32 @@ assert.deepEqual(events, [
   ["drop", 20, 25]
 ], "pointer drag lifecycle must expose the exact shared movement delta");
 
-console.log("desktop group drag smoke: ok");
+async function smokeAppShortcutNames() {
+  const state = { fs: { folder: { id: "folder", type: "folder", name: "Промпты", parent: "second" } } };
+  const originalFolder = JSON.stringify(state.fs.folder);
+  let root = "desktop", sequence = 0;
+  const items = desktopUi.createDesktopItemRuntimeController({
+    getState: () => state, getApps: () => sandbox.window.ZETER_APP_CATALOG.APP_CATALOG_DEFINITIONS,
+    getDesktopRoot: () => root, isDesktopRoot: parent => ["desktop", "second"].includes(parent),
+    documentRef: { querySelector() { return null; } }, createId: prefix => `${prefix}_${++sequence}`,
+    uniqueName: (name, parent) => sandbox.window.ZETER_FS_ITEM_UTILS.uniqueName(state.fs, name, parent)
+  });
+  const apps = sandbox.window.ZETER_APP_CENTER_UI_UTILS.createAppShortcutController({
+    getState: () => state, getApps: () => sandbox.window.ZETER_APP_CATALOG.APP_CATALOG_DEFINITIONS,
+    getRootId: () => root, itemInWorkspace: items.itemInWorkspace, addDesktopShortcut: items.addDesktopShortcut,
+    saveState: async () => ({ saved: true })
+  });
+  assert.equal(await apps.install("prompts"), true);
+  assert.equal(state.fs[apps.shortcutIds("prompts")[0]].name, "Промпты");
+  assert.equal(await apps.uninstall("prompts"), true);
+  root = "second";
+  assert.equal(await apps.install("prompts"), true);
+  assert.equal(state.fs[apps.shortcutIds("prompts")[0]].name, "Промпты", "same-named folder must not number an app label");
+  assert.equal(await apps.install("prompts"), false, "app center still prevents duplicate installation in one workspace");
+  assert.equal(JSON.stringify(state.fs.folder), originalFolder);
+  assert.equal(sandbox.window.ZETER_FS_ITEM_UTILS.uniqueName(state.fs, "Промпты", "second"), "Промпты (2)", "ordinary filesystem naming still protects collisions");
+  root = "desktop"; assert.equal(await apps.install("prompts"), true);
+  assert.equal(state.fs[apps.shortcutIds("prompts")[0]].name, "Промпты", "another workspace keeps the plain app label");
+  console.log("app shortcut names smoke: ok (install/delete/other desktop, same-name folder, independent labels, file collision protection)");
+}
+smokeAppShortcutNames().then(() => console.log("desktop group drag smoke: ok")).catch(error => { console.error(error); process.exitCode = 1; });

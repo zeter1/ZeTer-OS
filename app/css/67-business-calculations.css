@@ -1,0 +1,88 @@
+/* Business calculations are ordered cards inside their application window. */
+.window-body:has(> .business-calculations-app) { background: var(--bg1); }
+.business-calculations-app { position: relative; display: flex; flex-direction: column; height: 100%; min-width: 0; container-type: inline-size; gap: 10px; overflow: hidden; }
+.calculation-app-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.calculation-app-header h1 { margin: 3px 0 4px; font-size: 23px; }
+.calculation-app-header p { margin: 0; color: var(--muted); font-size: 13px; }
+.calculation-eyebrow { color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+.calculation-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 0; border-block: 1px solid var(--stroke); font-size: 12px; color: var(--muted); }
+.calculation-toolbar label { display: flex; align-items: center; gap: 8px; }
+.calculation-toolbar select { width: 86px; }
+.calculation-toolbar p { margin: 0; flex: 1 1 230px; }
+.business-calculations-app .error { color: var(--danger); }
+.calculation-order-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.calculation-list { flex: 1; min-height: 180px; overflow: auto; padding: 5px 8px 14px 5px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-items: start; gap: 12px; scroll-behavior: auto; }
+.calculation-card { position: relative; display: flex; flex-direction: column; container-type: inline-size; background: var(--glass-2); border: 1px solid var(--stroke); border-radius: 14px; padding: 13px; min-width: 0; }
+.calculation-card[data-calc-size] { width: min(100%, var(--calc-card-width)); height: var(--calc-card-height); }
+.calculation-card[data-calc-wide] { grid-column: span 2; }
+.calculation-card-content { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+.calculation-card > header { display: flex; flex: 0 0 auto; align-items: center; gap: 9px; }
+.calculation-heading { flex: 1; min-width: 0; }
+.calculation-heading small { color: var(--accent); letter-spacing: .05em; text-transform: uppercase; font-size: 10px; }
+.calculation-heading h2 { margin: 3px 0 0; font-size: 15px; overflow-wrap: anywhere; }
+.business-calculations-app .calculation-handle { flex: 0 0 32px; height: 32px; padding: 0; cursor: grab; touch-action: none; font-size: 23px; color: var(--muted); }
+.business-calculations-app .calculation-handle:active { cursor: grabbing; }
+.calculation-icon { display: grid; place-items: center; flex: 0 0 32px; height: 32px; border-radius: 9px; background: var(--glass-3); color: var(--accent); font-weight: 700; }
+.calculation-description { color: var(--muted); margin: 9px 0 11px; font-size: 11px; line-height: 1.4; }
+.calculation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.calculation-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; min-width: 0; }
+.calculation-fields label small { color: var(--muted); font-weight: 400; }
+.business-calculations-app .app-input { min-width: 0; width: 100%; padding: 7px 9px; background: var(--bg1); color: var(--text); border: 1px solid var(--stroke-strong); border-radius: 9px; font: inherit; }
+.business-calculations-app .calculation-toolbar select { width: 86px; }
+.business-calculations-app input[aria-invalid="true"] { border-color: var(--danger); }
+.business-calculations-app :is(button, input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.calculation-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--stroke); }
+.calculation-metric { min-width: 0; padding: 9px; background: var(--glass-1); border: 1px solid var(--stroke); border-radius: 9px; }
+.calculation-metric span { display: block; color: var(--muted); font-size: 10px; margin-bottom: 5px; }
+.calculation-metric strong { font-size: 16px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.calculation-metric.negative strong, .calculation-bar.negative b { color: var(--danger); }
+.calculation-chart { display: grid; gap: 5px; padding: 9px 0 0; }
+.calculation-bar { display: grid; grid-template-columns: 100px minmax(20px, 1fr) minmax(65px, auto); align-items: center; gap: 8px; font-size: 10px; }
+.calculation-bar span { color: var(--muted); }
+.calculation-bar b { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.calculation-bar meter { width: 100%; height: 10px; accent-color: var(--accent); }
+.calculation-bar meter::-webkit-meter-bar { background: var(--glass-3); border: 0; }
+.calculation-bar meter::-webkit-meter-optimum-value { background: var(--accent); }
+.calculation-bar.negative meter::-webkit-meter-optimum-value { background: var(--danger); }
+.calculation-note { font-size: 11px; color: var(--muted); margin: 9px 0 0; }
+.calculation-card > footer { display: flex; flex: 0 0 auto; justify-content: space-between; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--stroke); padding-top: 9px; margin-top: 11px; padding-right: 16px; }
+.calculation-card footer > div { display: flex; gap: 6px; }
+.calculation-card-options { flex-wrap: wrap; }
+.calculation-card footer button { font-size: 11px; min-height: 30px; padding: 6px 9px; }
+.calculation-resize-handle { position: absolute; right: 3px; bottom: 3px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; font-size: 20px; cursor: nwse-resize; touch-action: none; }
+.calculation-resize-handle:hover, .calculation-resizing .calculation-resize-handle { background: var(--glass-3); color: var(--accent); }
+.calculation-resizing { outline: 2px solid var(--accent); outline-offset: -2px; }
+.calculation-card.calculation-dragging { opacity: .24; border-style: dashed; }
+.calculation-drag-preview { position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; background: var(--bg1); border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: -1px; box-shadow: 0 18px 45px rgba(0,0,0,.45); will-change: transform; }
+.calculation-drop-target { outline: 3px solid var(--accent); outline-offset: -1px; }
+.calculation-drop-target::after { content: "На это место"; position: absolute; top: -5px; right: 6px; z-index: 1; border-radius: 6px; padding: 4px 8px; background: var(--accent); color: var(--bg1); font-size: 11px; font-weight: 700; }
+.calculation-catalog { flex: 0 0 auto; max-height: 48%; overflow: auto; padding: 14px; background: var(--glass-2); border: 1px solid var(--stroke-strong); border-radius: 14px; }
+.business-calculations-app [hidden] { display: none; }
+.calculation-catalog-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.calculation-catalog h2 { font-size: 16px; margin: 0; }
+.calculation-search { display: grid; gap: 6px; font-size: 12px; margin: 12px 0; }
+.calculation-catalog-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--stroke); }
+.calculation-catalog-row > div { flex: 1; min-width: 0; }
+.calculation-catalog-row strong { font-size: 13px; }
+.calculation-catalog-row p { font-size: 11px; margin: 4px 0 0; color: var(--muted); }
+.calculation-catalog-row button { flex: 0 0 auto; min-width: 104px; font-size: 12px; }
+.calculation-empty { grid-column: 1 / -1; margin: auto; padding: 30px 10px; max-width: 460px; text-align: center; }
+.calculation-empty > span { font-size: 42px; color: var(--accent); }
+.calculation-empty h2 { font-size: 19px; }
+.calculation-empty p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+@container (max-width: 779px) {
+  .calculation-list { grid-template-columns: 1fr; }
+  .calculation-card[data-calc-wide] { grid-column: span 1; }
+}
+@container (max-width: 419px) {
+  .calculation-card { padding: 12px; }
+  .calculation-fields { grid-template-columns: 1fr; }
+  .calculation-metrics { grid-template-columns: 1fr; }
+  .calculation-metric { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .calculation-metric span { margin: 0; }
+  .calculation-bar { grid-template-columns: 90px minmax(20px, 1fr) 90px; gap: 7px; }
+  .calculation-catalog-row { flex-wrap: wrap; }
+  .calculation-catalog-row button { margin-left: 50px; }
+  .calculation-icon { display: none; }
+  .calculation-catalog-row button { margin-left: 0; }
+}

@@ -11,6 +11,7 @@ for (const name of ["utils.js", "shortcut-utils.js", "link-library-utils.js", "l
 }
 const lib = sandbox.ZETER_LINK_LIBRARY_UTILS;
 sandbox.ZETER_DATA_NORMALIZERS = { TASK_TITLE_MAX_CHARS: 500, TASK_TAG_MAX_CHARS: 160, TASK_CHECKLIST_TEXT_MAX_CHARS: 500 };
+vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core/prompt-library-utils.js"), "utf8"), sandbox);
 sandbox.ZETER_RICH_TEXT_UTILS = { cleanRichHtml: value => value };
 sandbox.ZETER_ITEM_CUSTOMIZATION_UTILS = { isItemAssetPath: () => false };
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core/state-import-validator.js"), "utf8"), sandbox);

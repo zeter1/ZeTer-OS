@@ -86,6 +86,10 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/shortcut-utils.js",
     "js/core/link-library-utils.js",
     "js/core/link-library-ui-utils.js",
+    "js/core/prompt-library-utils.js",
+    "js/core/prompt-library-ui-utils.js",
+    "js/core/business-calculations-utils.js",
+    "js/core/business-calculations-ui-utils.js",
     "js/core/shell-ui-utils.js",
     "js/core/first-run-ui-utils.js",
     "js/core/context-menu-ui-utils.js",
@@ -1366,10 +1370,10 @@ def check_problem_logs_smoke(strict_node: bool) -> list[CheckResult]:
             errors="replace",
             capture_output=True,
             check=False,
-            timeout=30,
+            timeout=90,
         )
     except subprocess.TimeoutExpired:
-        return [fail("python.problem_logs_smoke", "problem logs smoke exceeded 30 seconds")]
+        return [fail("python.problem_logs_smoke", "problem logs smoke exceeded 90 seconds")]
 
     output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
     output = output or "problem logs smoke failed"

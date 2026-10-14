@@ -760,6 +760,8 @@
       calendarEventEditor: renderCalendarEventEditorApp,
       automations: renderAutomationsApp,
       links: renderLinkLibraryApp,
+      prompts: renderPromptLibraryApp,
+      calculations: renderBusinessCalculationsApp,
       automationEditor: renderAutomationEditorApp,
       shortcutEditor: renderShortcutEditorApp,
       itemSettings: renderItemSettingsApp,
@@ -2353,6 +2355,62 @@
       onChange: () => {
         [...ui.windows.entries()].forEach(([id, record]) => {
           if (id !== winId && record.appId === "links" && record.desktopId === workspaceId) record.el.querySelector(".link-library-app")?.refreshLibrary?.();
+        });
+      }
+    });
+  }
+
+  function renderPromptLibraryApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const controller = window.ZETER_PROMPT_LIBRARY_UTILS.createPromptLibraryController({
+      getWorkspace: () => state.desktops.some(desk => desk.id === workspaceId) ? workspaceDataForDesktopId(workspaceId) : null,
+      createId: uid, saveState, queueMutation: queueAutomationMutation,
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, library) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.promptLibrary = library;
+        return write(snapshot);
+      }
+    });
+    return window.ZETER_PROMPT_LIBRARY_UI_UTILS.createPromptLibraryApp(params, {
+      documentRef: document, controller,
+      copyText: text => navigator.clipboard.writeText(text),
+      confirm: text => confirm(text),
+      onChange: () => {
+        writeSmallSettingsToLocalStorage();
+        scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+        [...ui.windows.entries()].forEach(([id, record]) => {
+          if (id !== winId && record.appId === "prompts" && record.desktopId === workspaceId) record.el.querySelector(".prompt-library-app")?.refreshLibrary?.();
+        });
+      }
+    });
+  }
+
+  function renderBusinessCalculationsApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const controller = window.ZETER_BUSINESS_CALCULATIONS_UTILS.createBusinessCalculationsController({
+      getWorkspace: () => state.desktops.some(desk => desk.id === workspaceId) ? workspaceDataForDesktopId(workspaceId) : null,
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, calculations) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.calculations = calculations;
+        return write(snapshot);
+      }
+    });
+    return window.ZETER_BUSINESS_CALCULATIONS_UI_UTILS.createBusinessCalculationsApp(params, {
+      documentRef: document, controller,
+      onChange: () => {
+        writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+        [...ui.windows.entries()].forEach(([id, record]) => {
+          if (id !== winId && record.appId === "calculations" && record.desktopId === workspaceId) record.el.querySelector(".business-calculations-app")?.refreshCalculations?.();
         });
       }
     });

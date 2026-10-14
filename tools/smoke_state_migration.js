@@ -48,6 +48,7 @@ function loadCore(name) {
   "system-settings-utils.js",
   "shortcut-utils.js",
   "link-library-utils.js",
+  "prompt-library-utils.js", "business-calculations-utils.js",
   "pinning-utils.js",
   "trash-utils.js",
   "asset-utils.js",
@@ -449,6 +450,7 @@ async function smokeSelectiveDesktopDeletion() {
   assert.deepEqual(plain(archive.desktop.data.taskProjects), source.data.taskProjects);
   assert.equal(archive.fs.note.content, "Keep contents"); assert.equal(archive.fs.hiddenRoot.parent, "second");
   assert.equal(state.fs.note, undefined); assert.equal(persisted.archivedDesktops[0].fs.child.content, "Keep child");
+  assert.deepEqual(plain(archive.desktop.data.calculations), source.data.calculations, "archive retains calculations and their order");
   const archivedBefore = JSON.stringify(state.archivedDesktops);
   workspace.syncLegacyWorkspaceAliases(state);
   assert.equal(JSON.stringify(state.archivedDesktops), archivedBefore, "normalization must not truncate inactive archive data");
@@ -464,8 +466,15 @@ async function smokeSelectiveDesktopDeletion() {
   await make(state, []).remove("second");
   assert.equal(state.desktops[0].data.library.entries[0].name, "Other");
   assert.equal(state.archivedDesktops[0].desktop.data.library.entries[0].name, "Путь", "archives allow same target without merging");
-  state = fixture(); await make(state, ["files","tasks","calendar","links","automation","notifications"]).remove("second");
+  state = fixture(); await make(state, ["files","tasks","calendar","links","prompts","calculations","automation","notifications"]).remove("second");
   assert.equal(state.archivedDesktops, undefined, "explicit selection of all groups leaves no retained archive");
+  state = fixture(); state.desktops[1].data.calculations.selected = [];
+  state.desktops[1].data.calculations.inputs.margin.cost = "987";
+  await make(state, ["files","tasks","calendar","links","prompts","automation","notifications"]).remove("second");
+  assert.equal(state.archivedDesktops?.[0]?.desktop.data.calculations.inputs.margin.cost, "987", "hidden calculations are retained when their deletion group is not selected");
+  state = fixture(); await make(state, ["calculations"]).remove("second");
+  assert.equal(state.archivedDesktops[0].desktop.data.calculations, undefined);
+  assert.equal(state.desktops[0].data.calculations.selected[0], "margin", "deleting calculations affects only the chosen desktop");
   for (const compensationFails of [false, true]) {
     state = fixture(); let count = 0;
     const controller = make(state, [], async snapshot => {
@@ -536,7 +545,46 @@ async function smokeScopedLibraryRollbackWithNormalization() {
   assert.equal(fixture.desktops[1].data.library.entries[0].favorite, true, "retry after normalized refusal must save once");
 }
 
-smokeSelectiveDesktopDeletion().then(smokeScopedLibraryRollbackWithNormalization).then(smokePersistedDeletion).then(() => {
+async function smokePromptWorkspacePersistence() {
+  const workspace = sandbox.ZETER_WORKSPACE_UTILS, prompts = sandbox.ZETER_PROMPT_LIBRARY_UTILS;
+  const text = "\n\n  exact\r\nbody  ";
+  const library = { projects: [{ id: "promptproject", name: "Проект" }], categories: [{ id: "promptcat", projectId: "promptproject", name: "Код" }],
+    entries: [{ id: "prompt", projectId: "promptproject", categoryId: "promptcat", name: "Название", text, favorite: false }] };
+  const fixture = () => ({ fs: {}, currentDesktop: "second", desktops: [
+    { id: "desktop", name: "Основной", data: workspace.workspaceDefaults() },
+    { id: "second", name: "Второй", data: workspace.workspaceDefaults({ promptLibrary: JSON.parse(JSON.stringify(library)) }) }
+  ] });
+  const state = fixture(); workspace.syncLegacyWorkspaceAliases(state);
+  assert.deepEqual(plain(state.desktops[0].data.promptLibrary), { projects: [], categories: [], entries: [] });
+  let reject = true;
+  const controller = prompts.createPromptLibraryController({ getWorkspace: () => state.desktops[1].data, createId: kind => `${kind}_new`, saveState: async () => {
+    workspace.syncLegacyWorkspaceAliases(state); state.marker = "independent";
+    if (reject) throw new Error("normalized prompt refusal"); return { saved: true };
+  } });
+  const before = JSON.stringify(state.desktops[1].data.promptLibrary);
+  await assert.rejects(controller.toggleFavorite("prompt"), /normalized prompt refusal/);
+  assert.equal(JSON.stringify(state.desktops[1].data.promptLibrary), before); assert.equal(state.marker, "independent");
+  reject = false; await controller.toggleFavorite("prompt");
+  assert.equal(state.desktops[1].data.promptLibrary.entries[0].text, text);
+  assert.equal(state.desktops[1].data.promptLibrary.entries[0].favorite, true);
+  for (const selected of [[], ["prompts"]]) {
+    const target = fixture(); workspace.syncLegacyWorkspaceAliases(target);
+    const mainBefore = JSON.stringify(target.desktops[0]);
+    const queue = sandbox.ZETER_STORAGE_UTILS.createPrimaryStateSaveQueue({ getState: () => target, nativeStorage: true, writePrimaryRecord: async () => ({ updatedAt: 1 }) });
+    const deletion = workspace.createVirtualDesktopController({ getState: () => target, requestDeletion: (model, execute) => {
+      assert.equal(model.groups.find(group => group.id === "prompts").count, 3); return execute(selected);
+    }, persistTransaction: operation => queue.transaction(operation), saveState: () => queue.queue() });
+    const backup = workspace.desktopBackupSnapshot(target, "second");
+    assert.equal(backup.desktop.data.promptLibrary.entries[0].text, text);
+    await deletion.remove("second");
+    assert.equal(JSON.stringify(target.desktops[0]), mainBefore);
+    if (selected.length) assert.equal(target.archivedDesktops?.[0]?.desktop.data.promptLibrary, undefined);
+    else assert.deepEqual(plain(target.archivedDesktops[0].desktop.data.promptLibrary), library);
+  }
+  console.log("prompt workspace smoke: ok (normalized refusal/retry, exact text, desktop ZIP snapshot, retained archive/selective removal)");
+}
+
+smokeSelectiveDesktopDeletion().then(smokeScopedLibraryRollbackWithNormalization).then(smokePromptWorkspacePersistence).then(smokePersistedDeletion).then(() => {
   console.log(`state migration smoke: ok (${fs.existsSync(MIGRATION_PATH) ? "core" : "app baseline"})`);
 }).catch(error => {
   console.error(error);

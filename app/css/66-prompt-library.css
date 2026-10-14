@@ -1,0 +1,28 @@
+/* Prompts reuse the library layout and controls from 65-link-library.css. */
+.prompt-library-project { display: grid; gap: 6px; font-weight: 600; font-size: 12px; }
+.prompt-library-project select { width: 100%; min-width: 0; }
+.prompt-library-app .prompt-library-project select:focus-visible { outline-offset: -2px; }
+.prompt-library-app .link-library-editor label[hidden] { display: none; }
+.prompt-library-dialog { padding: 0; width: min(650px, calc(100vw - 40px)); background: var(--bg1); }
+.prompt-library-dialog:not([open]) { display: none; }
+.prompt-library-dialog::backdrop { background: rgba(5, 9, 18, .65); backdrop-filter: blur(8px); }
+.prompt-library-dialog > form { display: flex; flex-direction: column; min-height: 0; max-height: calc(100dvh - 40px); }
+.prompt-library-dialog-field { display: grid; gap: 8px; font-size: 13px; font-weight: 600; padding-block: 8px; }
+.prompt-library-dialog .app-input { width: 100%; padding: 10px 12px; border: 1px solid var(--stroke-strong); border-radius: 10px; background: var(--glass-2); color: var(--text); font: inherit; }
+.prompt-library-dialog input:focus-visible, .prompt-library-dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.prompt-library-project-actions { display: grid; gap: 8px; margin: 10px 0 18px; }
+.prompt-library-app summary { cursor: pointer; padding: 6px 0; color: var(--muted); font-size: 12px; }
+.prompt-library-app summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.prompt-library-project-actions details > button { display: block; margin-top: 6px; max-width: 100%; }
+.prompt-library-category { margin-bottom: 6px; }
+.prompt-library-category .link-library-category-row { margin-bottom: 0; }
+.prompt-library-category details { padding-left: 12px; }
+.prompt-library-category details > div { display: grid; gap: 5px; padding-bottom: 8px; }
+.prompt-library-app .prompt-library-text { margin-top: 8px; }
+.prompt-library-app .prompt-library-text p { max-height: 320px; overflow: auto; margin: 6px 0; padding: 10px; border-radius: 8px; background: var(--glass-2); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.prompt-library-app .link-library-star[aria-pressed="true"] svg { fill: currentColor; }
+.prompt-library-app .link-library-sidebar { flex-basis: 238px; }
+@container (max-width: 620px) {
+  .prompt-library-app .link-library-sidebar { flex-basis: auto; max-height: 310px; }
+  .prompt-library-category { display: inline-block; max-width: 100%; vertical-align: top; }
+}
