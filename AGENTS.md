@@ -15,7 +15,7 @@
 - Владелец: `python tools/find_owner.py "запрос"`; frontend: [docs/FRONTEND_WORKFLOW.md](docs/FRONTEND_WORKFLOW.md). Сверь [docs/CODEMAP.md](docs/CODEMAP.md) и `rg`: вызовы, глобалы, selectors, `data-*`, state-пути.
 - Запуск/storage/bridge: сначала [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) и актуальный журнал.
 - Диагностика: соблюдай [контракт](<Логи проблем/README_FOR_CODEX.md>).
-- Сборка/загрузка uCoz через MCP: [docs/UCOZ.md](docs/UCOZ.md). Сохраняй URL, backup; проверяй файлы до переключения.
+- uCoz/MCP: [инструкция](docs/UCOZ.md). Backup/проверка файлов до переключения; конечный адрес — постоянный `index.html`, без `releases`.
 - Не делай массовое форматирование, несвязанный рефакторинг и удаление возможностей. Уточняй существенный выбор или риск для данных.
 
 ## JavaScript, CSS и данные

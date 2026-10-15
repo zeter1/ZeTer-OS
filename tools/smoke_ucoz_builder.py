@@ -19,7 +19,7 @@ class UcozBuildTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "Проект с пробелами"
         files = {
-            "index.html": '<!doctype html><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="css/style.css"><script src="js/core/version.js"></script><script src="js/core/shell-ui-utils.js"></script><script src="js/app.js"></script>',
+            "index.html": '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src \'self\'; script-src \'self\'; base-uri \'none\'"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="css/style.css"><script src="js/core/version.js"></script><script src="js/core/shell-ui-utils.js"></script><script src="js/app.js"></script></head><body></body></html>',
             "css/style.css": '@import "theme.css";',
             "css/theme.css": 'body { background: url("../assets/icon.svg"); }',
             "assets/icon.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
@@ -65,6 +65,36 @@ class UcozBuildTests(unittest.TestCase):
             self.build()
         self.assertEqual((self.root / "dist/ZeTer-OS-uCoz-FTP-9.8.7.zip").read_bytes(), old)
 
+    @unittest.skipUnless(shutil.which("node"), "Node required for actual entry bootstrap regression")
+    def test_entry_keeps_permanent_url_and_immutable_resource_base(self):
+        result = self.build()
+        with zipfile.ZipFile(result.archive_path) as archive:
+            meta = json.loads(archive.read("release.json"))
+            prefix = meta["entry"].removesuffix("index.html")
+            html = archive.read(meta["entry"]).decode()
+            self.assertIn('<base href="./" data-zeter-ucoz>', html)
+            self.assertLess(html.index('src="ucoz-entry.js"'), html.index('href="css/style.css"'))
+            bootstrap = archive.read(prefix + "ucoz-entry.js").decode()
+        code = r'''
+const vm=require("node:vm"), assert=require("node:assert/strict"), fs=require("node:fs");
+const code=fs.readFileSync(0,"utf8");
+for(const folder of ["/portfolio/ZeTerOS/", "/other/path/", "/"]){
+ const release=folder+"releases/v9-8-7-aaaaaaaaaaaaaaaa/";
+ const base={href:"./"}, state={saved:"unchanged"}; let changed;
+ const sandbox={URL, document:{currentScript:{src:"https://example.test"+release+"ucoz-entry.js"},querySelector:()=>base},
+   location:new URL("https://example.test"+release+"index.html?probe=1#section"),
+   history:{state,replaceState:(s,title,url)=>{assert.equal(s,state);changed=url;}}};
+ vm.runInNewContext(code,sandbox);
+ assert.equal(changed,"https://example.test"+folder+"index.html?probe=1#section");
+ assert.equal(base.href,"https://example.test"+release);
+ assert.equal(new URL("css/style.css",base.href).pathname,release+"css/style.css");
+ assert.equal(new URL("../../service-worker.js",base.href).pathname,folder+"service-worker.js");
+}
+'''
+        executed = subprocess.run([shutil.which("node"), "-e", code], input=bootstrap,
+            text=True, encoding="utf-8", capture_output=True, timeout=15)
+        self.assertEqual(executed.returncode, 0, executed.stdout + executed.stderr)
+
     def test_release_directory_is_accepted_by_ucoz(self):
         result = self.build()
         self.assertRegex(result.build_id, r"^[A-Za-z0-9_-]+$")
@@ -106,6 +136,7 @@ const base = "https://example.test/portfolio/ZeTerOS/";
 const buildA = "v9-8-7-aaaaaaaaaaaaaaaa", buildB = "v9-8-7-bbbbbbbbbbbbbbbb";
 const entryA = new URL("releases/" + buildA + "/index.html", base).href;
 const entryB = new URL("releases/" + buildB + "/index.html", base).href;
+let offline = false;
 const sandbox = { URL, Request, Response, Date, Math, Set, console,
   self: { registration: { scope: base }, addEventListener() {} },
   caches: { keys: async () => ["zeter-ucoz-/portfolio/ZeTerOS/-" + buildA],
@@ -115,6 +146,7 @@ const sandbox = { URL, Request, Response, Date, Math, Set, console,
       if (key === entryA) return new Response("complete A");
     } }) },
   fetch: async req => {
+    if (offline) throw new Error("offline fixture");
     const url = typeof req === "string" ? req : req.url;
     if (url.includes("release.json")) return Response.json({schema:1,build:buildB,entry:"releases/"+buildB+"/index.html"});
     if (url === entryB) return new Response("unavailable B", {status:503});
@@ -129,6 +161,13 @@ vm.runInContext("const BUILD=" + JSON.stringify(buildA) + ";const ASSETS=[];" + 
   assert.equal(await response.text(), "complete A");
   const failedB = await sandbox.navigate(new Request(entryB));
   assert.equal(failedB.status, 503, "failed B must terminate rather than loop back to A");
+  offline = true;
+  const permanent = await sandbox.navigate(new Request(base + "index.html?probe=1"));
+  assert.equal(permanent.status, 302);
+  assert.equal(permanent.headers.get("Location"), entryA + "?probe=1");
+  const offlineEntry = await sandbox.navigate(new Request(permanent.headers.get("Location")));
+  assert.equal(offlineEntry.status, 200, "query must not hide the complete offline HTML entry");
+  assert.equal(await offlineEntry.text(), "complete A");
 })().catch(error => { console.error(error); process.exitCode=1; });
 '''
         result = subprocess.run([shutil.which("node"), "-e", code],

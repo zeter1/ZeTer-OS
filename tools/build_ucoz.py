@@ -48,6 +48,7 @@ LOADER = RELEASE_READER + r'''
   }
   try {
     const entry = await readRelease(base);
+    entry.search = location.search;
     entry.hash = location.hash;
     location.replace(entry.href);
   } catch (error) {
@@ -67,6 +68,25 @@ LANDING = '''<!doctype html>
 <h1>ZeTer OS</h1><p id="status">Открывается актуальная версия…</p>
 <button id="retry" hidden>Повторить</button>
 <noscript>Для запуска ZeTer OS включите JavaScript.</noscript></body></html>
+'''
+
+ENTRY_BOOTSTRAP = r'''
+(() => {
+  const release = new URL("./", document.currentScript.src);
+  const base = document.querySelector("base[data-zeter-ucoz]");
+  if (!base || release.origin !== location.origin ||
+      !/\/releases\/[0-9A-Za-z_-]+-[0-9a-f]{16}\/$/.test(release.pathname) ||
+      location.pathname !== new URL("index.html", release).pathname) {
+    throw new Error("Некорректный адрес веб-сборки ZeTer OS");
+  }
+  // Pin the resource base before changing the document URL. Later dynamic
+  // images/fetches and PWA registration must keep this release's paths too.
+  base.href = release.href;
+  const permanent = new URL("../../index.html", release);
+  permanent.search = location.search;
+  permanent.hash = location.hash;
+  history.replaceState(history.state, "", permanent.href);
+})();
 '''
 
 WORKER = RELEASE_READER + r'''
@@ -110,6 +130,7 @@ async function navigate(request) {
       // Do not redirect a working A to an unavailable B during a failed upload.
       const probe = await fetch(entry.href, { cache: "no-store", redirect: "error" });
       if (!probe.ok) throw new Error("New entry HTTP " + probe.status);
+      entry.search = url.search;
       entry.hash = url.hash;
       return Response.redirect(entry.href, 302);
     }
@@ -117,12 +138,21 @@ async function navigate(request) {
     if (!response.ok) throw new Error("Entry HTTP " + response.status);
     return response;
   } catch (error) {
-    const cached = await cachedRelease(request);
+    // Entry HTML is immutable by build; query/hash select client state, not
+    // another file. Resource fetches below still retain full URL matching.
+    const cachedEntry = new URL(request.url);
+    cachedEntry.search = "";
+    cachedEntry.hash = "";
+    const cached = await cachedRelease(cachedEntry.href);
     if (cached) return cached;
     // An offline opening of the permanent URL uses this worker's complete release.
     const fallback = new URL("releases/" + BUILD + "/index.html", BASE);
     const isPermanent = url.pathname === BASE.pathname || url.pathname === new URL("index.html", BASE).pathname;
-    if (isPermanent && await cachedRelease(fallback.href)) return Response.redirect(fallback.href, 302);
+    if (isPermanent && await cachedRelease(fallback.href)) {
+      fallback.search = url.search;
+      fallback.hash = url.hash;
+      return Response.redirect(fallback.href, 302);
+    }
     return new Response("ZeTer OS: нет доступной полной сборки. Проверьте соединение и повторите открытие.",
       { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
@@ -162,6 +192,10 @@ class AssetParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
+        if tag == "base":
+            if values.get("href") != "./" or "data-zeter-ucoz" not in values:
+                raise ReleaseBuildError("Неожиданный base в веб-сборке uCoz.")
+            return  # Generated release base does not refer to a file.
         for key in ("src", "href", "poster"):
             value = values.get(key)
             if value and not (tag == "a" and key == "href"):
@@ -258,7 +292,17 @@ def prepare_files(root: Path) -> tuple[str, str, dict[str, bytes]]:
     html = files[prefix + "index.html"].decode("utf-8-sig")
     if html.count('href="manifest.json"') != 1:
         raise ReleaseBuildError("Не найден единственный manifest в index.html.")
+    if html.count("base-uri 'none'") != 1 or "<base" in html.lower():
+        raise ReleaseBuildError("Изменился CSP/base в index.html. Требуется пересмотр uCoz adapter.")
+    # Only the generated web copy permits an explicit same-origin base. The
+    # source/native HTML retains base-uri 'none'; no inline/eval script is added.
+    html = html.replace("base-uri 'none'", "base-uri 'self'")
+    first_link = html.find("<link ")
+    if first_link < 0:
+        raise ReleaseBuildError("Не найдено место для uCoz entry bootstrap.")
+    html = html[:first_link] + '<base href="./" data-zeter-ucoz>\n<script src="ucoz-entry.js"></script>\n' + html[first_link:]
     files[prefix + "index.html"] = html.replace('href="manifest.json"', 'href="../../manifest.json"').encode("utf-8")
+    files[prefix + "ucoz-entry.js"] = ENTRY_BOOTSTRAP.encode("utf-8")
     manifest = json.loads(source["manifest.json"])
     for icon in manifest.get("icons", []):
         icon["src"] = prefix + icon["src"]

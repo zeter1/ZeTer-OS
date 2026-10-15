@@ -222,6 +222,8 @@ Write-Output ('Логи: ' + (Join-Path $appRoot 'Логи проблем'))
 
 ## Приёмка обновления uCoz
 
+Конечный `location.href` обязан оставаться `https://dkl.do.am/portfolio/ZeTerOS/index.html` после первого открытия и обычного reload. Актуальная версия по адресу `releases/...` не проходит приёмку. `document.baseURI` и JS/CSS/изображения при этом относятся к одной immutable release-папке; root Service Worker сохраняет правильные URL/scope. Проверь entry bootstrap до остальных ресурсов, same-origin base/CSP, query/hash/history.state и offline-ссылку с query после полного precache. Не очищай storage/кэши и не перезагружай чужие вкладки.
+
 Публичный вход всегда один: `https://dkl.do.am/portfolio/ZeTerOS/index.html`, без query. Локальная fixture повторяет `/portfolio/ZeTerOS/index.html` на своём origin. После полной публикации B **первое** обычное открытие этого адреса должно показать B до начала редактирования. Автоматический переход внутри загрузки допустим; дополнительный пользовательский reload, специальная ссылка, Ctrl+F5, очистка данных или прерывание другой рабочей вкладки означают `FAIL` критерия.
 
 Перед запуском прочитай `tools/build_ucoz.py` и `tools/smoke_ucoz_builder.py`: штатная упаковка читает `app`, пишет отдельный ZIP и не импортирует приложение; smoke использует искусственные fixtures. Для браузера — отдельный context с искусственными данными. Внутри каждого A→B сохраняй один origin/profile, HTTP/SW-кэши и регистрацию worker. Новый context между A и B, DevTools Disable cache и unregister скрывают проверяемый дефект.
