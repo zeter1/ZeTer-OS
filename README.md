@@ -6,9 +6,9 @@
 
 Проект сочетает desktop-оболочку на Python с модульным web-интерфейсом и делает упор на локальное хранение данных, резервное копирование, восстановление и понятную архитектуру.
 
-🌐 **Веб-версия:** [https\://dkl.do.am/portfolio/ZeTerOS/index.html](https://dkl.do.am/portfolio/ZeTerOS/index.html)
+🌐 **Веб-версия:** https://dkl.do.am/portfolio/ZeTerOS/index.html
 
-**Актуальная версия исходного кода: 4.0.19 (14 октября 2026).** Изменения по версиям — в [CHANGELOG.md](CHANGELOG.md). Версия готовой Windows-сборки в Releases может отличаться от исходников; устройство канала обновлений описано в [docs/UPDATES.md](docs/UPDATES.md).
+**Актуальная версия исходного кода: 4.0.20 (15 октября 2026).** Изменения по версиям — в [CHANGELOG.md](CHANGELOG.md). Версия готовой Windows-сборки в Releases может отличаться от исходников; устройство канала обновлений описано в [docs/UPDATES.md](docs/UPDATES.md).
 
 ## Скачать и запустить на Windows
 
@@ -16,38 +16,38 @@
 
 Готовая Windows-версия позволяет пользоваться заметками, задачами и другими инструментами без установки Python.
 
-1. Откройте [GitHub Releases](https://github.com/zeter1/ZeTer-OS/releases) и разверните **Assets** у выбранной сборки.  
-2. Скачайте `ZeTer-OS-Windows-x64.zip` и распакуйте архив целиком в отдельную папку.  
+1. Откройте [GitHub Releases](https://github.com/zeter1/ZeTer-OS/releases) и разверните **Assets** у выбранной сборки.
+2. Скачайте `ZeTer-OS-Windows-x64.zip` и распакуйте архив целиком в отдельную папку.
 3. Запустите `ZeTer-OS.exe` из распакованной папки.
 
 Python и зависимости проекта входят в portable-дистрибутив. Не переносите EXE отдельно от соседних runtime-файлов и web-слоя. Для desktop-интерфейса нужен **Microsoft Edge WebView2 Runtime**; если он отсутствует, установите его отдельно. Рядом с ZIP опубликован файл SHA-256.
 
 ## Где посмотреть обновления ZeTer OS
 
-Все новые функции, исправления ошибок и другие изменения по версиям собраны в [**истории обновлений ZeTer OS (CHANGELOG.md)**](https://github.com/zeter1/ZeTer-OS/blob/main/CHANGELOG.md). Самые свежие записи находятся в начале файла.
+Все новые функции, исправления ошибок и другие изменения по версиям собраны в **[истории обновлений ZeTer OS (CHANGELOG.md)](https://github.com/zeter1/ZeTer-OS/blob/main/CHANGELOG.md)**. Самые свежие записи находятся в начале файла.
 
 ## Что демонстрирует проект
 
-- гибридную desktop-архитектуру Python \+ HTML/CSS/JavaScript;  
-- интеграцию frontend ↔ native через `pywebview` bridge;  
-- local-first подход к пользовательским данным;  
-- разбиение крупного frontend-кода на функциональные модули и зоны ответственности;  
-- экспорт данных, резервные копии и точки восстановления как часть продуктовой архитектуры;  
-- собственные структурные проверки и сценарные smoke-тесты;  
+- гибридную desktop-архитектуру Python + HTML/CSS/JavaScript;
+- интеграцию frontend ↔ native через `pywebview` bridge;
+- local-first подход к пользовательским данным;
+- разбиение крупного frontend-кода на функциональные модули и зоны ответственности;
+- экспорт данных, резервные копии и точки восстановления как часть продуктовой архитектуры;
+- собственные структурные проверки и сценарные smoke-тесты;
 - подготовку portable-релиза с отделением пользовательских данных от исходников и служебных файлов.
 
 ## Основные возможности
 
-- несколько независимых рабочих пространств;  
-- заметки, задачи, календарь, таблицы, файлы и работа с изображениями;  
-- бизнес-калькуляторы «Подсчёты» с выбором и порядком карточек;  
-- локальное хранение пользовательских данных;  
-- интеграция Python ↔ JavaScript через `pywebview`;  
-- экспорт данных в привычные форматы Windows;  
-- резервные копии и точки восстановления;  
-- автозапуск Windows без обязательных прав администратора;  
-- portable-сборка;  
-- модульная JavaScript-архитектура;  
+- несколько независимых рабочих пространств;
+- заметки, задачи, календарь, таблицы, файлы и работа с изображениями;
+- бизнес-калькуляторы «Подсчёты» с выбором и порядком карточек;
+- локальное хранение пользовательских данных;
+- интеграция Python ↔ JavaScript через `pywebview`;
+- экспорт данных в привычные форматы Windows;
+- резервные копии и точки восстановления;
+- автозапуск Windows без обязательных прав администратора;
+- portable-сборка;
+- модульная JavaScript-архитектура;
 - структурные проверки и smoke-тесты.
 
 ## Установка
@@ -56,69 +56,66 @@ Python и зависимости проекта входят в portable-дис�
 
 Чтобы посмотреть интерфейс и основные возможности, откройте веб-версию:
 
-[**https\://dkl.do.am/portfolio/ZeTerOS/index.html**](https://dkl.do.am/portfolio/ZeTerOS/index.html)
+**https://dkl.do.am/portfolio/ZeTerOS/index.html**
 
 ### Вариант 2 — desktop-версия из исходников
 
-1. Установите Python 3 для Windows.  
+1. Установите Python 3 для Windows.
 2. Скачайте проект через **Code → Download ZIP** или Git:
 
-git clone https\://github.com/zeter1/ZeTer-OS.git
-
+```bash
+git clone https://github.com/zeter1/ZeTer-OS.git
 cd ZeTer-OS
+```
 
 3. Установите зависимости:
 
+```powershell
 py -3 -m pip install -r requirements.txt
+```
 
 Для полного набора JavaScript-проверок рекомендуется Node.js 22.
 
 ## Запуск из исходников
 
+```powershell
 py -3 run_zeter_os.py
+```
 
 или:
 
+```text
 start_zeter_os.cmd
+```
 
 ## Как пользоваться
 
-1. Запустите ZeTer OS.  
-2. Создайте или выберите рабочее пространство.  
-3. Используйте нужные модули: заметки, задачи, календарь, таблицы, файлы и другие инструменты.  
-4. Данные сохраняются локально, поэтому после следующего запуска рабочее состояние можно продолжить.  
-5. Для важных данных используйте экспорт и резервное копирование.  
+1. Запустите ZeTer OS.
+2. Создайте или выберите рабочее пространство.
+3. Используйте нужные модули: заметки, задачи, календарь, таблицы, файлы и другие инструменты.
+4. Данные сохраняются локально, поэтому после следующего запуска рабочее состояние можно продолжить.
+5. Для важных данных используйте экспорт и резервное копирование.
 6. Перед крупными изменениями или переносом программы создайте точку восстановления.
 
 ZeTer OS задуман как единая локальная среда, поэтому основные разделы работают как части одного рабочего пространства, а не как набор независимых страниц.
 
 ## Архитектура
 
+```text
 ZeTer OS
-
-├── run_zeter_os.py          \# Python-точка входа и native bridge
-
-├── problem_logs.py          \# централизованная диагностика
-
+├── run_zeter_os.py          # Python-точка входа и native bridge
+├── problem_logs.py          # централизованная диагностика
 ├── app/
-
 │   ├── index.html
-
 │   ├── css/
-
 │   └── js/
-
-│       ├── app.js           \# корневая композиция
-
-│       └── core/            \# функциональные модули
-
+│       ├── app.js           # корневая композиция
+│       └── core/            # функциональные модули
 ├── docs/
-
 ├── tools/
-
 ├── build_release.cmd
-
 └── check_project.cmd
+```
 
 Frontend разделён на специализированные модули, а `app/js/app.js` остаётся центральной точкой композиции состояния приложения, DOM, окон, сохранения данных и native-адаптеров.
 
@@ -132,15 +129,21 @@ Desktop-версия хранит рабочее состояние локаль
 
 Базовая структурная проверка:
 
+```powershell
 python tools/check_project.py
+```
 
 JavaScript smoke-тесты:
 
+```powershell
 node tools/run_smokes.js
+```
 
 Полная Windows-проверка:
 
-.\\check_project.cmd --strict-node --no-pause
+```powershell
+.\check_project.cmd --strict-node --no-pause
+```
 
 GitHub Actions компилирует Python-часть и запускает `python tools/check_project.py --strict-node` на Windows с Python и Node.js. Реальные desktop-сценарии с окном `pywebview`, файловыми диалогами и пользовательскими данными дополнительно требуют runtime-проверки.
 
@@ -158,13 +161,19 @@ GitHub Actions компилирует Python-часть и запускает `p
 
 ## Поддержка и безопасность
 
-- [`SUPPORT.md`](SUPPORT.md) — какие данные полезно приложить к сообщению об ошибке;  
-- [GitHub Issues](https://github.com/zeter1/ZeTer-OS/issues) — обычные воспроизводимые ошибки;  
+- [`SUPPORT.md`](SUPPORT.md) — какие данные полезно приложить к сообщению об ошибке;
+- [GitHub Issues](https://github.com/zeter1/ZeTer-OS/issues) — обычные воспроизводимые ошибки;
 - [`SECURITY.md`](SECURITY.md) — сообщения о потенциальных уязвимостях.
 
 ## Portable-сборка
 
+Для веб-публикации на uCoz запустите `build_ucoz.cmd`: ZIP появится в `dist/ucoz`. Порядок загрузки и обновление без очистки браузерного кэша описаны в [инструкции uCoz](docs/UCOZ.md). Для сборки через веб-версию ChatGPT используйте [готовый промпт](UCOZ_BUILD_PROMPT.md).
+
+Переносимая Python-версия собирается отдельно:
+
+```text
 build_release.cmd
+```
 
 Сборщик исключает пользовательские данные, Git-метаданные и служебные файлы разработки.
 
@@ -174,14 +183,14 @@ build_release.cmd
 
 ## Контакты для связи с разработчиком
 
-- [zeter11@gmail.com](mailto:zeter11@gmail.com)  
-- [https\://t.me/zeter1](https://t.me/zeter1)  
-- [https\://www.linkedin.com/in/zeter/](https://www.linkedin.com/in/zeter/)  
-- [https\://www.facebook.com/zeter1](https://www.facebook.com/zeter1)  
-- [https\://vk.ru/zeter1](https://vk.ru/zeter1)  
-- [https\://www.instagram.com/zeter1992/](https://www.instagram.com/zeter1992/)  
-- [https\://tenchat.ru/zeter](https://tenchat.ru/zeter)  
-- [https\://x.com/zeter1](https://x.com/zeter1)  
-- [https\://www.threads.com/@zeter1992](https://www.threads.com/@zeter1992)  
-- [https\://ok.ru/zeter1](https://ok.ru/zeter1)  
-- [https\://t.me/zeterchat](https://t.me/zeterchat) — Telegram-группа: обо мне, проекты и чат
+- [zeter11@gmail.com](mailto:zeter11@gmail.com)
+- [https://t.me/zeter1](https://t.me/zeter1)
+- [https://www.linkedin.com/in/zeter/](https://www.linkedin.com/in/zeter/)
+- [https://www.facebook.com/zeter1](https://www.facebook.com/zeter1)
+- [https://vk.ru/zeter1](https://vk.ru/zeter1)
+- [https://www.instagram.com/zeter1992/](https://www.instagram.com/zeter1992/)
+- [https://tenchat.ru/zeter](https://tenchat.ru/zeter)
+- [https://x.com/zeter1](https://x.com/zeter1)
+- [https://www.threads.com/@zeter1992](https://www.threads.com/@zeter1992)
+- [https://ok.ru/zeter1](https://ok.ru/zeter1)
+- [https://t.me/zeterchat](https://t.me/zeterchat) — Telegram-группа: обо мне, проекты и чат

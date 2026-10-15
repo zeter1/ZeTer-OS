@@ -14,14 +14,15 @@
 ## Точки входа
 
 | Файл | Ответственность |
-| :---- | :---- |
+|---|---|
 | `run_zeter_os.py` | Python launcher, локальный сервер, pywebview API, пользовательский автозапуск Windows, уникальные атомарные записи, транзакционная primary-запись, синхронизированные restore points, `data/`, резервные и Windows-копии, объединённое удержание/GC payload и preflight локального восстановления; runtime-сеанс diagnostics создаёт в `_run_normal_app()` |
 | `app_updater.py`, `update_runner.py` | Проверка канала и пакета EXE, staging, manifest-owned замена, журнал, gates установки и rollback; контракт в [UPDATES.md](UPDATES.md) |
-| `build_exe.bat`, `build_support/package_runtime.py` | Сборка Windows EXE и runtime hook для `--self-test`; инструкция в [BUILD\_EXE.md](../BUILD_EXE.md) |
+| `build_exe.bat`, `build_support/package_runtime.py` | Сборка Windows EXE и runtime hook для `--self-test`; инструкция в [BUILD_EXE.md](../BUILD_EXE.md) |
 | `tools/build_update_package.py`, `tools/build_update_feed.py` | Пакет обновления EXE и Pages feed; отдельны от portable ZIP исходников |
 | `problem_logs.py` | Дневные компактные content-free `Логи проблем` для CODEX: run identity, safe stages/evidence, fingerprints, timeline, improvement signals, caps, 120-дневное retention и emergency health |
 | `start_zeter_os.cmd` | Пользовательский запуск на Windows |
 | `build_release.cmd`, `tools/build_release.py` | Многоразовая воспроизводимая сборка проверенного portable ZIP по белому списку, без `data`, логов и служебных файлов |
+| `build_ucoz.cmd`, `tools/build_ucoz.py` | Веб-ZIP: неизменяемые папки сборок, постоянный вход, release.json и общий Service Worker; порядок ручной передачи — [UCOZ.md](UCOZ.md) |
 | `app/index.html` | DOM-оболочка и порядок подключения ресурсов |
 | `app/js/app.js` | Интеграция core-модулей, текущего state, окон, событий и сохранения |
 | `app/css/style.css` | Единственная CSS-точка входа |
@@ -44,7 +45,7 @@
 ### Основа
 
 | Файл | Публичный глобал | Назначение |
-| :---- | :---- | :---- |
+|---|---|---|
 | `app/js/core/boot-guard.js` | `ZETER_BOOT_GUARD` | Ранний перехват фатальных ошибок и boot-timeout, блокирующий storage-recovery с безопасными действиями и native-диагностика |
 | `app/js/core/version.js` | `ZETER_OS_VERSION` | Версия интерфейса |
 | `app/js/core/config.js` | `ZETER_OS_CONFIG` | Storage IDs, лимиты, cache-name и общие константы |
@@ -54,7 +55,7 @@
 ### Shell, окна и рабочие столы
 
 | Файл | Публичный глобал | Назначение |
-| :---- | :---- | :---- |
+|---|---|---|
 | `app/js/core/shell-ui-utils.js` | `ZETER_SHELL_UI_UTILS` | Boot/first-run lifecycle, глобальные shell-события, floating-панели, top-menu dispatch, часы, toast и controllers закреплённых/running-приложений панели задач |
 | `app/js/core/first-run-ui-utils.js` | `ZETER_FIRST_RUN_UI_UTILS` | Экран первого запуска |
 | `app/js/core/context-menu-ui-utils.js` | `ZETER_CONTEXT_MENU_UI_UTILS` | Модели и action-dispatchers desktop/item-меню, меню Пуска, окон, панели задач и Проводника, разметка, callbacks и позиционирование контекстного меню |
@@ -74,7 +75,7 @@
 ### Хранение, импорт и экспорт
 
 | Файл | Публичный глобал | Назначение |
-| :---- | :---- | :---- |
+|---|---|---|
 | `app/js/core/native-storage.js` | `ZETER_NATIVE_STORAGE` | Адаптер к `window.pywebview.api` |
 | `app/js/core/shortcut-utils.js` | `ZETER_SHORTCUT_UTILS` | Нормализация Windows/URL/внутренних целей, модель и вложения ярлыков, окно создания и безопасные подписи/стандартные иконки |
 | `app/js/core/link-library-utils.js` | `ZETER_LINK_LIBRARY_UTILS` | Библиотека рабочего стола: нормализация/импорт, ключи дублей, категории, CRUD и подтверждённое сохранение с захваченным workspace и откатом только его library |
@@ -99,7 +100,7 @@
 ### Файлы, проводник и редакторы
 
 | Файл | Публичный глобал | Назначение |
-| :---- | :---- | :---- |
+|---|---|---|
 | `app/js/core/fs-item-utils.js` | `ZETER_FS_ITEM_UTILS` | Имена, пути, descendants и item-controller: создание, rename, deep duplicate, properties и typed creators |
 | `app/js/core/explorer-tab-utils.js` | `ZETER_EXPLORER_TAB_UTILS` | View-model, переходы и сохранение сессии вкладок |
 | `app/js/core/explorer-utils.js` | `ZETER_EXPLORER_UTILS` | Runtime-controller Проводника: корни/системные папки, Windows-подобное дерево рабочего стола и пространства файлов, закрепления, layout, вкладки, адрес, поиск, перемещения, preview и download flow |
@@ -115,7 +116,7 @@
 ### Предметные данные и приложения
 
 | Файл | Публичный глобал | Назначение |
-| :---- | :---- | :---- |
+|---|---|---|
 | `app/js/core/data-normalizers.js` | `ZETER_DATA_NORMALIZERS` | Задачи, календарь, уведомления и таблицы; удаление предложений уже установленной версии из `normalizeNotifications` |
 | `app/js/core/workspace-utils.js` | `ZETER_WORKSPACE_UTILS` | Рабочие пространства, runtime-доступ к desktop data/profile/openWindows, sanitation окон и Explorer spaces, action-controller создания, переключения и удаления виртуальных рабочих столов; desktopBackupSnapshot выделяет данные одного стола, выборочное удаление сохраняет невыбранные группы в state.archivedDesktops без переноса на основной стол |
 | `app/js/core/trash-utils.js` | `ZETER_TRASH_UTILS` | Legacy-модель отложенного удаления: normalizer, retention, move/undo/restore и permanent delete для совместимости старых state; текущий UI удаляет после подтверждения записи и откатывает state при её отказе |
@@ -153,7 +154,7 @@
 Ищи по стабильным функциям, а не по номерам строк:
 
 | Область | Поисковые якоря |
-| :---- | :---- |
+|---|---|
 | Загрузка и сохранение | `defaultState`, `readPrimaryStateRecord`, `loadState`, `saveState`, `migrate` |
 | Backup, restore и import/export | `securityRuntimeController`, `exportOS`, `importOS` |
 | Boot и глобальные события | `bootZeTerOs`, `shellRuntimeController`, `safeInitStep` |
@@ -168,7 +169,7 @@
 ## CSS-модули
 
 | Файл | Область |
-| :---- | :---- |
+|---|---|
 | `app/css/00-base.css` | Переменные, base tags, boot и обои |
 | `app/css/10-shell.css` | Рабочий стол, taskbar, Пуск и поиск |
 | `app/css/20-windows.css` | Окна, snap, меню, toast и lock screen |
@@ -186,27 +187,25 @@
 
 ## Данные и проверки
 
-- Формат состояния: [DATA\_MODEL.md](DATA_MODEL.md).  
-- Python API: [NATIVE\_BRIDGE.md](NATIVE_BRIDGE.md).  
-- Команды проверок: [TESTING.md](TESTING.md).  
-- Актуализация пользовательской справки: [HELP\_MAINTENANCE.md](HELP_MAINTENANCE.md).  
-- Повседневная работа с JS/CSS: [FRONTEND\_WORKFLOW.md](FRONTEND_WORKFLOW.md).  
-- Фактический граф загрузки: [MODULE\_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).  
-- Полные пользовательские сценарии: [SCENARIO\_MAP.md](SCENARIO_MAP.md).  
-- Публичный API и consumers: [CORE\_API\_INDEX.md](CORE_API_INDEX.md).  
-- DOM/data-hooks: [UI\_CONTRACTS.md](UI_CONTRACTS.md).  
-- Defaults → storage для state: [STATE\_LIFECYCLE.md](STATE_LIFECYCLE.md).  
-- Безопасная диагностика: [TROUBLESHOOTING.md](TROUBLESHOOTING.md).  
+- Формат состояния: [DATA_MODEL.md](DATA_MODEL.md).
+- Python API: [NATIVE_BRIDGE.md](NATIVE_BRIDGE.md).
+- Команды проверок: [TESTING.md](TESTING.md).
+- Актуализация пользовательской справки: [HELP_MAINTENANCE.md](HELP_MAINTENANCE.md).
+- Повседневная работа с JS/CSS: [FRONTEND_WORKFLOW.md](FRONTEND_WORKFLOW.md).
+- Фактический граф загрузки: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
+- Полные пользовательские сценарии: [SCENARIO_MAP.md](SCENARIO_MAP.md).
+- Публичный API и consumers: [CORE_API_INDEX.md](CORE_API_INDEX.md).
+- DOM/data-hooks: [UI_CONTRACTS.md](UI_CONTRACTS.md).
+- Defaults → storage для state: [STATE_LIFECYCLE.md](STATE_LIFECYCLE.md).
+- Безопасная диагностика: [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - Термины проекта: [GLOSSARY.md](GLOSSARY.md).
 
 ## Быстрый поиск
 
-python tools/find\_owner.py "preview проводника"
-
-rg \-n "function имяФункции|имяФункции" app/js/core app/js/app.js
-
-rg \-n "ZETER\_ИМЯ\_ГЛОБАЛА" app/index.html app/js
-
-rg \-n "нужный-css-class" app/css app/index.html
-
-rg \-n "nativeStorageCall|def имя\_метода" app/js run\_zeter\_os.py
+```powershell
+python tools/find_owner.py "preview проводника"
+rg -n "function имяФункции|имяФункции" app/js/core app/js/app.js
+rg -n "ZETER_ИМЯ_ГЛОБАЛА" app/index.html app/js
+rg -n "нужный-css-class" app/css app/index.html
+rg -n "nativeStorageCall|def имя_метода" app/js run_zeter_os.py
+```

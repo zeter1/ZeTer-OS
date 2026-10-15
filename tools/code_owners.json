@@ -31,6 +31,12 @@
       "js": [], "docs": ["docs/UPDATES.md"], "smokes": ["tools/smoke_app_updater.py"]
     },
     {
+      "id": "python-ucoz-builder", "title": "Веб ZIP для uCoz без очистки кэша", "path": "tools/build_ucoz.py",
+      "anchors": ["build_ucoz", "prepare_files", "validate_resources", "validate_archive"],
+      "keywords": ["ucoz", "FTP", "web", "сборка", "ZIP", "кэш", "кеш"],
+      "js": ["app/js/core/shell-ui-utils.js"], "docs": ["docs/UCOZ.md", "UCOZ_BUILD_PROMPT.md", "docs/TESTING.md"], "smokes": ["tools/smoke_ucoz_builder.py"]
+    },
+    {
       "id": "python-release-builder", "title": "Чистый portable ZIP исходников", "path": "tools/build_release.py",
       "anchors": ["build_release", "collect_release_entries", "validate_release_archive"],
       "keywords": ["сборка", "portable", "ZIP", "release", "изолированная копия"],

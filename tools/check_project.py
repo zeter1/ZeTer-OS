@@ -75,6 +75,7 @@ CODEMAP_GENERATED_START = "<!-- BEGIN GENERATED CORE SUMMARY -->"
 CODEMAP_GENERATED_END = "<!-- END GENERATED CORE SUMMARY -->"
 ALLOWED_EXTERNAL_ZETER_GLOBALS = frozenset({"ZETER_PYTHON_STORAGE"})
 REQUIRED_DOCS = (
+    DOCS_DIR / "UCOZ.md",
     DOCS_DIR / "README.md",
     DOCS_DIR / "ARCHITECTURE.md",
     CODEMAP_MD,
@@ -1515,6 +1516,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=UPDATE_FEED_SMOKE, key="python.update_feed_smoke"))
     checks.extend(check_problem_logs_smoke(strict_node=strict_node))
     checks.extend(check_release_smoke(strict_node=strict_node))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_ucoz_builder.py", key="python.ucoz_smoke"))
     return checks
 
 

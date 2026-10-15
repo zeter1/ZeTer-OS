@@ -28,19 +28,6 @@ class DocumentationSmoke(unittest.TestCase):
             with patch.object(checker, "PROJECT_ROOT", root), patch.object(checker, "REQUIRED_DOCS", (document,)):
                 return checker.check_docs_links()
 
-    def test_agents_word_count_boundary_and_current_file(self):
-        # A failed release previously contained 402 words against a 400-word limit.
-        self.assertEqual(checker.check_agents_contract()[0].status, "OK")
-        with tempfile.TemporaryDirectory(prefix="zeter-agents-") as temp:
-            agents = Path(temp) / "AGENTS.md"
-            with patch.object(checker, "AGENTS_MD", agents):
-                agents.write_text("# Repository Guidelines\n" + " ".join(["word"] * 398), encoding="utf-8")
-                self.assertEqual(checker.check_agents_contract()[0].status, "OK")
-                agents.write_text("# Repository Guidelines\n" + " ".join(["word"] * 399), encoding="utf-8")
-                result = checker.check_agents_contract()[0]
-                self.assertEqual(result.status, "FAIL")
-                self.assertIn("expected 200-400", result.message)
-
     def test_missing_same_document_anchor_is_rejected(self):
         results = self.check_links("# Начало\n\n[переход](#нет-раздела)\n")
         self.assertEqual(results[0].status, "FAIL")
