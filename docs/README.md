@@ -21,6 +21,7 @@
 | Задача | Документ |
 |---|---|
 | Повседневно менять `app/js` и `app/css` с Codex | [FRONTEND_WORKFLOW.md](FRONTEND_WORKFLOW.md) |
+| Изменить логотип, сгенерировать PNG/ICO и проверить подключение | [BRANDING.md](BRANDING.md) |
 | Выполнить конкретный рецепт правки | [EDITING_GUIDE.md](EDITING_GUIDE.md) |
 | Понять слои и архитектурные границы | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Найти core-модуль, CSS-файл или поисковый якорь | [CODEMAP.md](CODEMAP.md) |

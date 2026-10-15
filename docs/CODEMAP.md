@@ -15,6 +15,7 @@
 
 | Файл | Ответственность |
 |---|---|
+| `app/assets/icons/zeter-mark.svg`, `tools/build_brand_assets.ps1` | Исходник знака из двух синих плоскостей, цвет подложки и генератор общих SVG/PNG/ICO; потребители и контракт в [BRANDING.md](BRANDING.md) |
 | `run_zeter_os.py` | Python launcher, локальный сервер, pywebview API, пользовательский автозапуск Windows, уникальные атомарные записи, транзакционная primary-запись, синхронизированные restore points, `data/`, резервные и Windows-копии, объединённое удержание/GC payload и preflight локального восстановления; runtime-сеанс diagnostics создаёт в `_run_normal_app()` |
 | `app_updater.py`, `update_runner.py` | Проверка канала и пакета EXE, staging, manifest-owned замена, журнал, gates установки и rollback; контракт в [UPDATES.md](UPDATES.md) |
 | `build_exe.bat`, `build_support/package_runtime.py` | Сборка Windows EXE и runtime hook для `--self-test`; инструкция в [BUILD_EXE.md](../BUILD_EXE.md) |

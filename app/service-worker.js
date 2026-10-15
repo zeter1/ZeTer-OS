@@ -1,5 +1,5 @@
-const ZETER_CACHE_REVISION = "time-tracking-6";
-const ZETER_CACHE = "zeter-os-4.0.28-time-tracking-6";
+const ZETER_CACHE_REVISION = "brand-portal-1";
+const ZETER_CACHE = "zeter-os-4.0.30-brand-portal-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -107,8 +107,13 @@ const ZETER_ASSETS = [
   "./js/core/search-ui-utils.js",
   "./js/app.js",
   "./assets/icons/zeter-logo.svg",
+  "./assets/icons/zeter-mark.svg",
+  "./assets/icons/zeter-icon.ico",
+  "./assets/icons/zeter-icon-32.png",
+  "./assets/icons/zeter-icon-180.png",
   "./assets/icons/zeter-icon-192.png",
   "./assets/icons/zeter-icon-512.png",
+  "./assets/icons/zeter-icon-maskable-512.png",
   "./manifest.json"
 ];
 const ZETER_ASSET_URLS = new Set(ZETER_ASSETS.map(path => new URL(path, self.registration.scope).href));

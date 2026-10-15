@@ -38,6 +38,7 @@ dist\ZeTer-OS\ZeTer-OS.exe
 - очищает предыдущую EXE-сборку;
 - собирает ONEDIR-приложение;
 - добавляет всю папку `app/` с HTML/CSS/JS/manifest/service worker;
+- встраивает `app/assets/icons/zeter-icon.ico` в EXE; тот же файл используется для значка окна. Исходник и регенерация иконок описаны в [docs/BRANDING.md](docs/BRANDING.md);
 - явно собирает модули `pywebview`;
 - запускает `--self-test` уже на собранном EXE;
 - сообщает об успехе только после проверки packaged runtime.

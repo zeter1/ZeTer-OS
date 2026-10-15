@@ -3468,7 +3468,7 @@ def _run_normal_app() -> int:
             )
         api._window = window
         window.events.closing += api._cancel_update_on_close
-        webview.start(debug=False)
+        webview.start(debug=False, icon=str(APP_DIR / "assets" / "icons" / "zeter-icon.ico"))
         outcome = "success"
         return 0
     except Exception as exc:

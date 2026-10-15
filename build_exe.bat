@@ -98,6 +98,7 @@ echo [7/8] Building native ZeTer OS distribution...
   --contents-directory "." ^
   --windowed ^
   --name "ZeTer-OS" ^
+  --icon "app\assets\icons\zeter-icon.ico" ^
   --add-data "app;app" ^
   --runtime-hook "build_support\package_runtime.py" ^
   --collect-all webview ^

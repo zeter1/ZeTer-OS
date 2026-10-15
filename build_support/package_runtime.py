@@ -18,6 +18,8 @@ def run_packaged_self_test() -> int:
         root / "app" / "manifest.json",
         root / "app" / "service-worker.js",
         root / "app" / "js" / "core" / "version.js",
+        root / "app" / "assets" / "icons" / "zeter-logo.svg",
+        root / "app" / "assets" / "icons" / "zeter-icon.ico",
     )
     missing = [str(path) for path in required if not path.is_file()]
     if missing:

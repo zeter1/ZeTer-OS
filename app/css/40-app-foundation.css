@@ -737,6 +737,10 @@ body.light .help-search-panel {
 .about-app p { line-height: 1.6; }
 .about-app h2 { margin: 6px 0 14px; font-size: 32px; letter-spacing: -.04em; }
 .about-eyebrow { color: var(--muted); font-size: 12px; font-weight: 700; }
+.about-brand { display: flex; align-items: center; gap: 16px; margin: 14px 0 18px; min-width: 0; }
+.about-brand img { width: 64px; height: 64px; flex: 0 0 auto; }
+.about-brand h2 { margin: 0; font-size: clamp(24px, 4vw, 36px); white-space: nowrap; }
+.about-brand h2 span { color: #a3a4ff; font-weight: 500; }
 .about-release-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .about-release-heading h3 { margin: 0; }
 .about-version { padding: 6px 12px; border-radius: 12px; color: var(--text); border: 1px solid var(--stroke); background: var(--glass-3); font-size: 17px; }

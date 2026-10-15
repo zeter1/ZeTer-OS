@@ -11,6 +11,7 @@ for (const name of ["version.js", "config.js", "about-ui-utils.js"]) {
 }
 const about = sandbox.window.ZETER_ABOUT_UI_UTILS;
 const html = about.aboutAppHTML();
+assert.match(html, /class="about-brand"[\s\S]*?<img src="assets\/icons\/zeter-logo\.svg"[^>]*alt=""/, "About must use the shared product logo beside its heading");
 assert.match(html, /data-update-check/, "About must let the user check for app updates");
 assert.ok(html.includes(sandbox.window.ZETER_OS_CONFIG.OS_VERSION), "About must display the running product version");
 const expectedLinks = [
