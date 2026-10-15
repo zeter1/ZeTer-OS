@@ -69,6 +69,9 @@
   function calendarEventEditorMissingHTML() {
     return `<section class="form-card calendar-event-editor-card"><h3>Событие не найдено</h3><p class="muted">Оно могло быть удалено в другом окне.</p><button type="button" data-cancel-event-editor>Закрыть</button></section>`;
   }
+  function calendarTimePlanEditorHTML() {
+    return `<section class="form-card calendar-event-editor-card"><h3>Запланировать занятие</h3><p class="muted">Это будущая работа. План сохранится в календаре этого рабочего стола и не увеличит отработанное время. Когда начнёте работать, запустите таймер в «Учёте времени».</p><div class="form-grid"><label>Название занятия<input data-ev-title maxlength="500" placeholder="Например, подготовить макет" autocomplete="off"></label><label>Дата занятия<input data-ev-date type="date"></label><div class="two"><label>Начало<input data-ev-start type="time"></label><label>Окончание<input data-ev-end type="time"></label></div><p class="muted">Календарь хранит время с точностью до минуты. Начало и окончание — в выбранный день. Для другого дня создайте отдельное занятие.</p><select data-ev-category hidden><option value="work">Работа</option></select><select data-ev-repeat hidden><option value="none">Без повтора</option></select><label>Напомнить<select data-ev-reminder><option value="0">Без напоминания</option><option value="5">За 5 минут</option><option value="15">За 15 минут</option><option value="60">За час</option><option value="1440">За день</option></select></label><input data-ev-location hidden><label>Заметка<textarea data-ev-desc rows="4" placeholder="Что нужно сделать?"></textarea></label><div class="calendar-event-editor-actions"><button type="button" data-cancel-event-editor>Отмена</button><button type="button" class="app-btn primary" data-save-event>Сохранить план в календаре</button></div><p data-plan-status role="status" class="muted"></p></div></section>`;
+  }
 
   function mountCalendarObjectLinksPanel(root, panel, options = {}) {
     const host = root?.querySelector?.("[data-calendar-event-object-links-host]");
@@ -503,15 +506,25 @@
       closeWindow = () => {},
       toast = () => {},
       todayISO = () => "",
-      objectLinksPanelFor = null
+      objectLinksPanelFor = null,
+      saveNewPlan = null,
+      onPlanSaved = () => {}
     } = integration;
     const root = document.createElement("div");
     root.className = "calendar-event-editor-app";
     const editingId = String(params?.eventId || "");
+    const planning = Boolean(params.timeTrackingPlan && !editingId && typeof saveNewPlan === "function");
+    let planBusy = false, planSaved = false;
     const selectedDate = params?.date || getCalendar().selected || todayISO();
-    const closeEditor = () => closeWindow(winId);
+    const closeEditor = () => { if (!planBusy) closeWindow(winId); };
 
-    root.innerHTML = calendarEventEditorHTML();
+    root.innerHTML = planning ? calendarTimePlanEditorHTML() : calendarEventEditorHTML();
+    if (planning) {
+      const initial = params.initialEvent || {};
+      for (const [key, selector] of Object.entries({ title: "title", date: "date", start: "start", end: "end", reminder: "reminder", description: "desc" })) root.querySelector(`[data-ev-${selector}]`).value = initial[key] || (key === "reminder" ? "0" : "");
+      root.querySelector("[data-ev-date]").min = localTodayISO();
+      if (initial.sourceEnd) root.querySelector("[data-plan-status]").textContent = `Исходное занятие заканчивается ${String(initial.sourceEnd).replace("T", " ")}, в другой день. Выберите окончание в пределах выбранного дня; оставшуюся работу запланируйте отдельным занятием.`;
+    }
     if (editingId) {
       const filled = fillCalendarEventFormById(root, getEvents(), editingId, { ...getCalendar(), selected: selectedDate, editing: editingId });
       if (!filled.found) {
@@ -521,11 +534,11 @@
         });
         return root;
       }
-    } else {
+    } else if (!planning) {
       clearCalendarEventForm(root, selectedDate);
       root.querySelector("[data-ev-date]").min = localTodayISO();
     }
-    if (typeof objectLinksPanelFor === "function") {
+    if (!planning && typeof objectLinksPanelFor === "function") {
       if (editingId) {
         mountCalendarObjectLinksPanel(root, objectLinksPanelFor({ kind: "event", id: editingId }));
       } else {
@@ -533,7 +546,37 @@
       }
     }
 
-    const saveEvent = () => {
+    const saveEvent = async () => {
+      if (planning) {
+        if (planBusy || planSaved) return;
+        const fields = [...root.querySelectorAll("input,select,textarea,button")], disabled = fields.map(field => field.disabled), status = root.querySelector("[data-plan-status]");
+        const draft = calendarEventFormData(root, { id: "plan-draft", fallbackDate: selectedDate });
+        // Read raw date/time too: normalizers intentionally repair ordinary calendar data.
+        for (const key of ["date", "start", "end"]) draft[key] = root.querySelector(`[data-ev-${key}]`).value;
+        draft.title = root.querySelector("[data-ev-title]").value;
+        planBusy = true; fields.forEach(field => { field.disabled = true; }); status.textContent = "Сохраняем план…";
+        let acceptedPlan = null;
+        try {
+          const event = await saveNewPlan(draft);
+          planSaved = true;
+          acceptedPlan = event;
+          onPlanSaved(event);
+          setCalendar({ ...getCalendar(), selected: event.date, date: event.date, editing: null });
+          refreshOpenCalendars(winId); renderNotifications(); toast("План сохранён в календаре", "В отработанные часы он не включён. Для работы запустите таймер.");
+          planBusy = false; closeEditor();
+        } catch (failure) {
+          planBusy = false;
+          if (acceptedPlan) {
+            status.textContent = `План сохранён. Не удалось обновить интерфейс: ${failure.message || "неизвестная ошибка"}. Откройте календарь заново; повторно добавлять план не нужно.`;
+            root.querySelector("[data-cancel-event-editor]").disabled = false;
+            root.querySelector("[data-cancel-event-editor]").textContent = "Закрыть";
+          } else {
+            status.textContent = failure.message || "Не удалось сохранить план. Ввод сохранён в форме.";
+            fields.forEach((field, index) => { field.disabled = disabled[index]; });
+          }
+        }
+        return;
+      }
       const events = getEvents();
       const editorCalendar = { ...getCalendar(), selected: selectedDate, date: selectedDate, editing: editingId || null };
       const result = saveCalendarEventFromForm(root, editorCalendar, events);
@@ -581,6 +624,7 @@
     calendarShellHTML,
     calendarEventEditorHTML,
     calendarEventEditorMissingHTML,
+    calendarTimePlanEditorHTML,
     mountCalendarObjectLinksPanel,
     calendarWeekdayHeaderHTML,
     calendarEventChipHTML,

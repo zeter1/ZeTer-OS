@@ -100,6 +100,33 @@
 
   const taskStoreSaveLocks = new WeakSet();
 
+  // Uses the same store lock and canonical factories as the task board/editor.
+  function createTaskCreationController(options) {
+    async function create(kind, title, projectId = "") {
+      const workspace = options.getWorkspace();
+      const clean = String(title || "").trim();
+      if (!clean || clean.length > (kind === "project" ? 160 : 500)) throw new Error("Укажите название допустимой длины.");
+      if (!workspace) throw new Error("Рабочий стол недоступен.");
+      if (taskStoreSaveLocks.has(workspace)) throw new Error("Сохранение задач выполняется. Дождитесь завершения и повторите.");
+      taskStoreSaveLocks.add(workspace);
+      try {
+        return await options.persistTransaction(async write => {
+          if (options.getWorkspace() !== workspace) throw new Error("Рабочий стол недоступен. Откройте приложение заново.");
+          const candidate = { tasks: structuredClone(workspace.tasks || []), taskProjects: structuredClone(workspace.taskProjects || []), activeTaskProjectId: workspace.activeTaskProjectId };
+          if (kind === "task" && !candidate.taskProjects.some(project => project.id === projectId)) throw new Error("Проект уже удалён или недоступен.");
+          const item = kind === "project" ? makeTaskProject(clean) : makeTask({ title: clean, projectId, indefinite: true }, { fallbackProjectId: projectId });
+          candidate[kind === "project" ? "taskProjects" : "tasks"].push(item);
+          if (kind === "project") candidate.activeTaskProjectId = item.id;
+          const saved = await options.saveSnapshot(write, candidate);
+          if (saved?.saved !== true) throw new Error("Хранилище не подтвердило сохранение задач.");
+          Object.assign(workspace, candidate);
+          return structuredClone(item);
+        });
+      } finally { taskStoreSaveLocks.delete(workspace); }
+    }
+    return Object.freeze({ createProject: name => create("project", name), createTask: (title, projectId) => create("task", title, projectId) });
+  }
+
   function taskStoreSaveTarget(store, currentWorkspace = () => ({})) {
     const target = store?.item || currentWorkspace();
     return target && typeof target === "object" ? target : null;
@@ -717,6 +744,7 @@
     applyTaskBoardFilterAction,
     taskStoreSnapshot,
     restoreTaskStoreSnapshot,
+    createTaskCreationController,
     createTaskTargetNavigator,
     createTaskBoardApp,
     createTaskEditorApp,

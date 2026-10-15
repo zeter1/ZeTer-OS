@@ -8,7 +8,8 @@
   const linkLibraryUtils = window.ZETER_LINK_LIBRARY_UTILS;
   const promptLibraryUtils = window.ZETER_PROMPT_LIBRARY_UTILS;
   const calculationsUtils = window.ZETER_BUSINESS_CALCULATIONS_UTILS;
-  if (!config || !visualUtils || !dataNormalizers || !windowSessionUtils || !linkLibraryUtils || !promptLibraryUtils || !calculationsUtils) {
+  const timeTrackingUtils = window.ZETER_TIME_TRACKING_UTILS;
+  if (!config || !visualUtils || !dataNormalizers || !windowSessionUtils || !linkLibraryUtils || !promptLibraryUtils || !calculationsUtils || !timeTrackingUtils) {
     throw new Error("ZeTer OS workspace utils require config, visual, data normalizer and window session modules.");
   }
 
@@ -84,6 +85,7 @@
       library: linkLibraryUtils.normalizeLinkLibrary(source.library),
       promptLibrary: promptLibraryUtils.normalizePromptLibrary(source.promptLibrary),
       calculations: calculationsUtils.normalizeBusinessCalculations(source.calculations),
+      timeTracking: timeTrackingUtils.normalizeTimeTracking(source.timeTracking),
       expandedExplorerFolders: Array.isArray(source.expandedExplorerFolders) ? source.expandedExplorerFolders : [],
       openWindows: Array.isArray(source.openWindows) ? source.openWindows.slice(0, OPEN_WINDOWS_MAX) : [],
       noteStickies: Array.isArray(source.noteStickies) ? source.noteStickies : [],
@@ -119,6 +121,7 @@
     workspace.library = linkLibraryUtils.normalizeLinkLibrary(workspace.library ?? legacy.library);
     workspace.promptLibrary = promptLibraryUtils.normalizePromptLibrary(workspace.promptLibrary);
     workspace.calculations = calculationsUtils.normalizeBusinessCalculations(workspace.calculations);
+    workspace.timeTracking = timeTrackingUtils.normalizeTimeTracking(workspace.timeTracking);
     workspace.expandedExplorerFolders = Array.isArray(workspace.expandedExplorerFolders) ? workspace.expandedExplorerFolders : [];
     workspace.openWindows = Array.isArray(workspace.openWindows) ? workspace.openWindows.slice(0, OPEN_WINDOWS_MAX) : [];
     workspace.noteStickies = Array.isArray(workspace.noteStickies) ? workspace.noteStickies : [];
@@ -439,6 +442,7 @@
       { id: "links", label: "Ссылки, категории и избранное", count: length(data.library?.entries) + length(data.library?.categories), detail: `${length(data.library?.entries)} ссылок · ${length(data.library?.categories)} категорий. Избранное хранится вместе со ссылкой.` },
       { id: "calculations", label: "Подсчёты и введённые значения", count: Object.keys(data.calculations?.inputs || {}).length, detail: "Наборы введённых значений, включая убранные карточки, их порядок и валюта." },
       { id: "prompts", label: "Промпты, проекты и категории", count: length(data.promptLibrary?.entries) + length(data.promptLibrary?.projects) + length(data.promptLibrary?.categories), detail: `${length(data.promptLibrary?.entries)} промптов · ${length(data.promptLibrary?.projects)} проектов · ${length(data.promptLibrary?.categories)} категорий.` },
+      { id: "timeTracking", label: "Учёт времени", count: length(data.timeTracking?.entries) + (data.timeTracking?.active ? 1 : 0) + (data.timeTracking?.dailyGoalMinutes > 0 ? 1 : 0), detail: "История, корзина, дневная цель и незавершённый таймер. По умолчанию сохраняются в архиве." },
       { id: "automation", label: "Автоматизация и связи объектов", count: length(data.automations) + length(data.automationCategories) + length(data.objectLinks) + ["queue", "history", "checkpoints", "rateLog", "knownFileIds"].reduce((sum, key) => sum + length(runtime[key]), 0), detail: `${length(data.automations)} правил · ${length(data.automationCategories)} категорий · ${length(data.objectLinks)} связей; также очередь, история и служебные записи выполнения.` },
       { id: "notifications", label: "Уведомления", count: length(data.notifications), detail: "Сохранённые уведомления этого рабочего стола." }
     ] };
@@ -453,11 +457,11 @@
   function buildDesktopDeletionPlan(state, id, selected = [], options = {}) {
     const before = deletionClone(state), candidate = deletionClone(state);
     const remove = new Set(selected);
-    if ([...remove].some(key => !["files", "tasks", "calendar", "links", "prompts", "calculations", "automation", "notifications"].includes(key))) throw new Error("Некорректный выбор данных для удаления.");
+    if ([...remove].some(key => !["files", "tasks", "calendar", "links", "prompts", "calculations", "timeTracking", "automation", "notifications"].includes(key))) throw new Error("Некорректный выбор данных для удаления.");
     const snapshot = desktopBackupSnapshot(candidate, id), data = snapshot.desktop.data;
     const ids = desktopOwnedFileIds(candidate, id);
     const fields = { tasks: ["tasks", "taskProjects", "activeTaskProjectId"], calendar: ["events"],
-      links: ["library"], prompts: ["promptLibrary"], calculations: ["calculations"], automation: ["automations", "automationCategories", "automationRuntime", "objectLinks"], notifications: ["notifications"],
+      links: ["library"], prompts: ["promptLibrary"], calculations: ["calculations"], timeTracking: ["timeTracking"], automation: ["automations", "automationCategories", "automationRuntime", "objectLinks"], notifications: ["notifications"],
       files: ["noteStickies", "openWindows", "expandedExplorerFolders", "explorerRootId"] };
     remove.forEach(group => fields[group].forEach(key => { delete data[key]; }));
     if (remove.has("files")) snapshot.fs = {};

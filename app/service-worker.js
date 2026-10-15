@@ -1,5 +1,5 @@
-const ZETER_CACHE_REVISION = "ucoz-paths-1";
-const ZETER_CACHE = "zeter-os-4.0.21-ucoz-paths-1";
+const ZETER_CACHE_REVISION = "time-tracking-6";
+const ZETER_CACHE = "zeter-os-4.0.27-time-tracking-6";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -27,6 +27,9 @@ const ZETER_ASSETS = [
   "./js/core/prompt-library-ui-utils.js",
   "./js/core/business-calculations-utils.js",
   "./js/core/business-calculations-ui-utils.js",
+  "./js/core/time-tracking-utils.js",
+  "./js/core/time-tracking-ui-utils.js",
+  "./css/68-time-tracking.css",
   "./css/67-business-calculations.css",
   "./css/65-link-library.css",
   "./css/66-prompt-library.css",

@@ -104,6 +104,8 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/prompt-library-ui-utils.js",
     "js/core/business-calculations-utils.js",
     "js/core/business-calculations-ui-utils.js",
+    "js/core/time-tracking-utils.js",
+    "js/core/time-tracking-ui-utils.js",
     "js/core/shell-ui-utils.js",
     "js/core/first-run-ui-utils.js",
     "js/core/context-menu-ui-utils.js",

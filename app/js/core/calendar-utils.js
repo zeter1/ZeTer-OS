@@ -5,7 +5,7 @@
   const dataNormalizers = window.ZETER_DATA_NORMALIZERS;
   if (!coreUtils || !dataNormalizers) throw new Error("ZeTer OS calendar utils require core and data normalizers.");
 
-  const { parseISO, dateISO, todayISO } = coreUtils;
+  const { parseISO, dateISO, todayISO, pad } = coreUtils;
   const {
     normalizeCalendarCategory,
     normalizeCalendarRepeat,
@@ -100,7 +100,36 @@
     return { ...calendar, date: iso, selected: iso };
   }
 
+  function createCalendarPlanController(options) {
+    const now = options.now || Date.now;
+    return Object.freeze({ createPlan: draft => {
+      const submitted = structuredClone(draft), workspace = options.getWorkspace();
+      return options.persistTransaction(async write => {
+        if (!workspace || options.getWorkspace() !== workspace) throw new Error("Рабочий стол недоступен. Откройте форму заново.");
+        const title = String(submitted.title || "").trim();
+        if (!title || title.length > 500) throw new Error("Укажите название занятия, до 500 символов.");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(submitted.date || "") || ![submitted.start, submitted.end].every(value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value || ""))) throw new Error("Укажите дату, время начала и окончания.");
+        const start = new Date(`${submitted.date}T${submitted.start}:00`), end = new Date(`${submitted.date}T${submitted.end}:00`);
+        if (!Number.isFinite(+start) || dateISO(start) !== submitted.date || `${pad(start.getHours())}:${pad(start.getMinutes())}` !== submitted.start) throw new Error("Проверьте дату и время начала.");
+        if (+start < now()) throw new Error("Начало плана уже прошло. Выберите время позже текущего.");
+        if (+end <= +start || dateISO(end) !== submitted.date || `${pad(end.getHours())}:${pad(end.getMinutes())}` !== submitted.end) throw new Error("Окончание должно быть позже начала в пределах выбранного дня. Для следующего дня создайте отдельное занятие.");
+        const events = workspace.events || [];
+        if (events.length >= window.ZETER_OS_CONFIG.CALENDAR_MAX_EVENTS) throw new Error("В календаре достигнут лимит событий.");
+        const item = normalizeCalendarEvent({ ...submitted, id: options.createId("event"), title, category: "work", repeat: "none", createdAt: now(), updatedAt: now() });
+        if (events.some(event => event.id === item.id)) throw new Error("Повторный ID события.");
+        const candidate = [...structuredClone(events), item];
+        const saved = await options.saveSnapshot(write, candidate);
+        if (saved?.saved !== true) throw new Error("Хранилище не подтвердило сохранение плана.");
+        // Preserve concurrent calendar edits; their queued save follows this transaction.
+        if (!Array.isArray(workspace.events)) workspace.events = [];
+        workspace.events.push(item);
+        return structuredClone(item);
+      });
+    } });
+  }
+
   window.ZETER_CALENDAR_UTILS = Object.freeze({
+    createCalendarPlanController,
     CALENDAR_CATEGORY_NAMES,
     startOfWeek,
     addDays,

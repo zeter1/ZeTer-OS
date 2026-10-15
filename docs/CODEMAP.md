@@ -5,9 +5,9 @@
 <!-- BEGIN GENERATED CORE SUMMARY -->
 > Этот блок обновляется командой `python tools/update_docs.py --write`.
 
-- Core-модулей: 82.
-- Публичных глобалов: 82.
-- Статических зависимостей: 176.
+- Core-модулей: 84.
+- Публичных глобалов: 84.
+- Статических зависимостей: 181.
 - Подробный порядок: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
 <!-- END GENERATED CORE SUMMARY -->
 
@@ -81,6 +81,8 @@
 | `app/js/core/link-library-utils.js` | `ZETER_LINK_LIBRARY_UTILS` | Библиотека рабочего стола: нормализация/импорт, ключи дублей, категории, CRUD и подтверждённое сохранение с захваченным workspace и откатом только его library |
 | `app/js/core/link-library-ui-utils.js` | `ZETER_LINK_LIBRARY_UI_UTILS` | Приложение Ссылки: категории с шестерёнкой и закреплением, поиск, карточки с кликабельным адресом, форма, избранное, ошибки и явные действия |
 | `app/js/core/prompt-library-utils.js` | `ZETER_PROMPT_LIBRARY_UTILS` | Библиотека промптов рабочего стола: проекты и общие промпты, категории, импорт, перенос/удаление проекта, staged snapshot и подтверждённая публикация под transaction barrier |
+| `app/js/core/time-tracking-utils.js` | `ZETER_TIME_TRACKING_UTILS` | Интервалы и паузы, ручные записи/пересечения, заметки, stale-edit guard, повтор/recovery, цель, корзина с exact-snapshot purge, локальные периоды, общая выборка сводки/CSV и staged сохранение |
+| `app/js/core/time-tracking-ui-utils.js` | `ZETER_TIME_TRACKING_UI_UTILS` | Таймер и live-сводка, график/цель, недавние занятия, фильтруемый журнал по 30 записей, modal-формы с фокусом и черновиками, порядок проект→задача, создание общих задач/проектов, перенос будущей работы в календарь, карточки с подписями проекта/задачи/дат/промежутка/пауз, pending-перемещение без блокировки формы, корзина с подтверждением purge и CSV через adapter |
 | `app/js/core/business-calculations-utils.js` | `ZETER_BUSINESS_CALCULATIONS_UTILS` | 10 формул BizPilot, поля и ограничения, выбранные карточки, перенос на позицию цели и размеры, валидация импорта и staged сохранение под transaction barrier |
 | `app/js/core/business-calculations-ui-utils.js` | `ZETER_BUSINESS_CALCULATIONS_UI_UTILS` | Подсчёты: каталог, живой пересчёт, ввод с автосохранением, локальное pointer-перетаскивание с движущейся карточкой, resize/сброс размера, кнопки выше/ниже и ошибки записи |
 | `app/js/core/prompt-library-ui-utils.js` | `ZETER_PROMPT_LIBRARY_UI_UTILS` | Промпты: выбор проекта или общего раздела, категории, поиск, избранное, название/текст, копирование текста, черновик и themed dialogs создания/удаления |
@@ -121,7 +123,7 @@
 | `app/js/core/workspace-utils.js` | `ZETER_WORKSPACE_UTILS` | Рабочие пространства, runtime-доступ к desktop data/profile/openWindows, sanitation окон и Explorer spaces, action-controller создания, переключения и удаления виртуальных рабочих столов; desktopBackupSnapshot выделяет данные одного стола, выборочное удаление сохраняет невыбранные группы в state.archivedDesktops без переноса на основной стол |
 | `app/js/core/trash-utils.js` | `ZETER_TRASH_UTILS` | Legacy-модель отложенного удаления: normalizer, retention, move/undo/restore и permanent delete для совместимости старых state; текущий UI удаляет после подтверждения записи и откатывает state при её отказе |
 | `app/js/core/task-ui-utils.js` | `ZETER_TASK_UI_UTILS` | Store adapters, доска, карточки и формы задач |
-| `app/js/core/task-app-ui-utils.js` | `ZETER_TASK_APP_UI_UTILS` | Runtime-controller задач: доска, редактор, обновление открытых окон и единая навигация из поиска/уведомлений |
+| `app/js/core/task-app-ui-utils.js` | `ZETER_TASK_APP_UI_UTILS` | Runtime-controller задач: доска, редактор, staged создание общих проектов/задач с общим save-lock, обновление открытых окон и единая навигация из поиска/уведомлений |
 | `app/js/core/calendar-utils.js` | `ZETER_CALENDAR_UTILS` | Даты, повторы и операции событий |
 | `app/js/core/calendar-ui-utils.js` | `ZETER_CALENDAR_UI_UTILS` | Формы, представления и полная UI-оркестрация календаря; запрет создания событий до сегодняшней локальной даты без ограничения редактирования существующих |
 | `app/js/core/automation-utils.js` | `ZETER_AUTOMATION_UTILS` | Нормализация правил, пользовательских категорий и истории, удаление категории с отменой ожидающих запусков её правил; run-once runtime триггеров с действиями уведомления, заметки и перемещения |
@@ -181,6 +183,7 @@
 | `app/css/65-link-library.css` | Компактная библиотека ссылок, формы, категории и адаптация к ширине окна |
 | `app/css/66-prompt-library.css` | Промпты: оформление проектов, настроек категорий и раскрываемого текста; общий layout использует `65-link-library.css` |
 | `app/css/67-business-calculations.css` | Подсчёты: два столбца, компактные карточки, движущийся preview/resize, каталог, ввод/результаты, графики и узкая ширина |
+| `app/css/68-time-tracking.css` | Учёт времени: timer/overview grid, график недели, цель, фильтры/журнал/корзина, modal-формы и узкие окна |
 | `app/css/80-overrides.css` | Поздние shell/app overrides |
 | `app/css/85-explorer-plus.css` | Tabs, address, preview и selection |
 | `app/css/90-security.css` | Центр безопасности |

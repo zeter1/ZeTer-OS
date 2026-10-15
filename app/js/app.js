@@ -762,6 +762,7 @@
       links: renderLinkLibraryApp,
       prompts: renderPromptLibraryApp,
       calculations: renderBusinessCalculationsApp,
+      timeTracking: renderTimeTrackingApp,
       automationEditor: renderAutomationEditorApp,
       shortcutEditor: renderShortcutEditorApp,
       itemSettings: renderItemSettingsApp,
@@ -2325,6 +2326,21 @@
     });
   }
   function renderCalendarEventEditorApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const planController = params.timeTrackingPlan ? window.ZETER_CALENDAR_UTILS.createCalendarPlanController({
+      getWorkspace: () => state.desktops.find(desk => desk.id === workspaceId)?.data || null,
+      createId: uid,
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, events) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.events = events;
+        syncLegacyWorkspaceAliases(snapshot);
+        return write(snapshot);
+      }
+    }) : null;
     return createCalendarEventEditorApp(params, winId, {
       document,
       getCalendar: () => ui.calendar,
@@ -2337,7 +2353,13 @@
       closeWindow,
       toast,
       todayISO,
-      objectLinksPanelFor
+      objectLinksPanelFor,
+      saveNewPlan: planController ? draft => planController.createPlan(draft) : null,
+      onPlanSaved: planController ? () => {
+        syncLegacyWorkspaceAliases(state);
+        writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+      } : null
     });
   }
   function renderLinkLibraryApp(params = {}, winId = "") {
@@ -2389,6 +2411,52 @@
         securityRuntimeController.scheduleProtectionCheck();
         [...ui.windows.entries()].forEach(([id, record]) => {
           if (id !== winId && record.appId === "prompts" && record.desktopId === workspaceId) record.el.querySelector(".prompt-library-app")?.refreshLibrary?.();
+        });
+      }
+    });
+  }
+
+  function renderTimeTrackingApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const getWorkspace = () => state.desktops.find(desk => desk.id === workspaceId)?.data || null;
+    const taskCreator = window.ZETER_TASK_APP_UI_UTILS.createTaskCreationController({
+      getWorkspace,
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, candidate) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        Object.assign(desktop.data, candidate);
+        syncLegacyWorkspaceAliases(snapshot);
+        return write(snapshot);
+      }
+    });
+    const controller = window.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({
+      getWorkspace, createId: uid,
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, tracking) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.timeTracking = tracking;
+        return write(snapshot);
+      }
+    });
+    return window.ZETER_TIME_TRACKING_UI_UTILS.createTimeTrackingApp(params, {
+      documentRef: document, controller, taskCreator, getWorkspace, confirm: text => confirm(text),
+      onPlan: initialEvent => {
+        if (!getWorkspace() || getDesktopRoot() !== workspaceId) throw new Error("Вернитесь на рабочий стол этого занятия и откройте планирование заново.");
+        openApp("calendaredit", { timeTrackingPlan: true, initialEvent, date: initialEvent.date });
+      },
+      exportReport: rows => downloadBlob(`ZeTer-time-${todayISO()}.csv`, new Blob(["\uFEFF", window.ZETER_EXPORT_UTILS.tablePageToCSV({ rows })], { type: "text/csv;charset=utf-8" })),
+      onChange: change => {
+        if (change?.tasksChanged) { syncLegacyWorkspaceAliases(state); refreshOpenTaskBoards(); }
+        writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+        [...ui.windows.entries()].forEach(([id, record]) => {
+          if (id !== winId && record.appId === "timetracking" && record.desktopId === workspaceId) record.el.querySelector(".time-tracking-app")?.refreshTimeTracking?.();
         });
       }
     });

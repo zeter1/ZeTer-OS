@@ -16,6 +16,7 @@
     links: Object.freeze({ name: "Ссылки", icon: "🔗", w: 980, h: 660, pinned: false, render: "links" }),
     calculations: Object.freeze({ name: "Подсчёты", icon: "∑", w: 980, h: 740, pinned: false, render: "calculations" }),
     prompts: Object.freeze({ name: "Промпты", icon: "✦", w: 980, h: 700, pinned: false, render: "prompts" }),
+    timetracking: Object.freeze({ name: "Учёт времени", icon: "⏱️", w: 1040, h: 760, pinned: false, render: "timeTracking" }),
     automationedit: Object.freeze({ name: "Новая автоматизация", icon: "⚡", w: 940, h: 720, pinned: false, hidden: true, render: "automationEditor", title: "automationEditor" }),
     shortcutedit: Object.freeze({ name: "Создание ярлыка", icon: "🔗", w: 680, h: 500, pinned: false, hidden: true, render: "shortcutEditor", title: "shortcutEditor" }),
     itemsettings: Object.freeze({ name: "Настройка объекта", icon: "⚙️", w: 720, h: 640, pinned: false, hidden: true, render: "itemSettings", title: "itemSettings" }),

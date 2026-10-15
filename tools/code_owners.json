@@ -45,6 +45,13 @@
   ],
   "scenarios": [
     {
+      "id": "time-tracking", "title": "Учёт времени задач и занятий", "keywords": ["timetracking", "учёт времени", "таймер", "пауза", "сессия"],
+      "js": ["app/js/core/time-tracking-utils.js", "app/js/core/time-tracking-ui-utils.js", "app/js/core/calendar-utils.js", "app/js/core/calendar-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js"],
+      "app_anchors": ["renderTimeTrackingApp"], "css": ["app/css/68-time-tracking.css"], "state": ["workspace.timeTracking", "workspace.events"],
+      "smokes": ["tools/smoke_time_tracking.js", "tools/smoke_time_tracking_upgrade.js", "tools/smoke_time_tracking_management.js", "tools/smoke_time_tracking_clarity.js", "tools/smoke_state_migration.js"],
+      "manual": "Таймер/ручная запись → паузы → metadata edit без потери интервалов; notes, repeat, цель/график; фильтр дня через полночь → одинаковая выборка журнала/CSV; проект→его задачи → таймер; выполненная работа→журнал, будущее занятие→календарь без роста итогов; delete → reload → restore/purge с подтверждением; stale edit, отказ/retry, два окна, recovery с продолжением и ширины 1140/760/460/390."
+    },
+    {
       "id": "business-calculations",
       "title": "Подсчёты и порядок карточек",
       "keywords": [
@@ -350,6 +357,12 @@
   ],
   "ui_contracts": [
     {
+      "id": "time-tracking-app", "title": "Таймер и история работы", "scenario": "time-tracking", "keywords": ["учёт времени", "timetracking UI", "таймер"],
+      "files": ["app/js/core/time-tracking-utils.js", "app/js/core/time-tracking-ui-utils.js", "app/js/core/calendar-utils.js", "app/js/core/calendar-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/app-catalog.js", "app/js/app.js", "app/css/68-time-tracking.css"],
+      "hooks": ["time-tracking-app", "data-time-start", "data-time-recovery", "data-time-edit", "data-time-manual", "data-time-goal-form", "data-time-create", "data-time-purge", "data-time-end-preview", "data-plan-status", "data-time-action", "data-time-id", "data-time-clock", "data-time-status", "data-time-day", "data-time-results", "data-time-row", "data-time-pending-id", "time-entry-pending", "time-row-error", "time-entry", "time-entry-kind", "time-entry-context", "time-entry-duration", "time-task-picker"],
+      "smokes": ["tools/smoke_time_tracking.js", "tools/smoke_time_tracking_upgrade.js", "tools/smoke_time_tracking_management.js", "tools/smoke_time_tracking_clarity.js"]
+    },
+    {
       "id": "business-calculations-app",
       "title": "Приложение Подсчёты",
       "scenario": "business-calculations",
@@ -550,6 +563,17 @@
     }
   ],
   "state_lifecycle": [
+    {
+      "id": "time-tracking", "title": "История, корзина, цель и активный таймер рабочего стола", "state_paths": ["workspace.timeTracking.entries[]", "workspace.timeTracking.active", "workspace.timeTracking.dailyGoalMinutes"],
+      "stages": {
+        "defaults": [{"path": "app/js/core/workspace-utils.js", "anchors": ["workspaceDefaults"]}],
+        "normalizers": [{"path": "app/js/core/time-tracking-utils.js", "anchors": ["normalizeTimeTracking"]}],
+        "migration": [{"path": "app/js/core/workspace-utils.js", "anchors": ["normalizeWorkspaceData"]}],
+        "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedStateForImport"]}],
+        "serializer": [{"path": "app/js/core/export-utils.js", "anchors": ["buildDownloadOsDataZipModel"]}],
+        "storage": [{"path": "app/js/core/storage-utils.js", "anchors": ["createPrimaryStateSaveQueue"]}]
+      }, "smokes": ["tools/smoke_time_tracking.js", "tools/smoke_time_tracking_upgrade.js", "tools/smoke_time_tracking_management.js", "tools/smoke_time_tracking_clarity.js", "tools/smoke_state_migration.js"]
+    },
     {
       "id": "business-calculations",
       "title": "Подсчёты рабочего стола",

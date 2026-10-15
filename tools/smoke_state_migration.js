@@ -48,7 +48,7 @@ function loadCore(name) {
   "system-settings-utils.js",
   "shortcut-utils.js",
   "link-library-utils.js",
-  "prompt-library-utils.js", "business-calculations-utils.js",
+  "prompt-library-utils.js", "business-calculations-utils.js", "time-tracking-utils.js",
   "pinning-utils.js",
   "trash-utils.js",
   "asset-utils.js",
@@ -617,7 +617,42 @@ async function smokePromptWorkspacePersistence() {
   console.log("prompt workspace smoke: ok (normalized refusal/retry, exact text, desktop ZIP snapshot, retained archive/selective removal)");
 }
 
-smokeSelectiveDesktopDeletion().then(smokeScopedLibraryRollbackWithNormalization).then(smokePromptWorkspacePersistence).then(smokePersistedDeletion).then(() => {
+async function smokeTimeTrackingWorkspace() {
+  const workspace = sandbox.ZETER_WORKSPACE_UTILS;
+  const tracking = { dailyGoalMinutes: 0, entries: [{ id: "time1", title: "Работа", taskId: "oldtask", projectId: "oldproject", projectName: "Старый проект", createdAt: 1000,
+    segments: [{ start: 1000, end: 61000 }], runningSince: null, finishedAt: 61000, runtimeId: "oldboot" }], active: null };
+  for (const selected of [[], ["timeTracking"]]) {
+    const target = { fs: {}, currentDesktop: "desktop", desktops: [
+      { id: "desktop", name: "Основной", data: workspace.workspaceDefaults() },
+      { id: "second", name: "Второй", data: workspace.workspaceDefaults({ timeTracking: tracking }) }
+    ] };
+    workspace.syncLegacyWorkspaceAliases(target);
+    assert.deepEqual(plain(target.desktops[0].data.timeTracking), { entries: [], active: null, dailyGoalMinutes: 0 });
+    const snapshot = workspace.desktopBackupSnapshot(target, "second");
+    assert.deepEqual(plain(snapshot.desktop.data.timeTracking), tracking);
+    const queue = sandbox.ZETER_STORAGE_UTILS.createPrimaryStateSaveQueue({ getState: () => target, nativeStorage: true, writePrimaryRecord: async () => ({ updatedAt: 1 }) });
+    const deletion = workspace.createVirtualDesktopController({ getState: () => target,
+      requestDeletion: (model, execute) => execute(selected), persistTransaction: operation => queue.transaction(operation), saveState: () => queue.queue() });
+    await deletion.remove("second");
+    if (selected.length) assert.equal(target.archivedDesktops?.[0]?.desktop.data.timeTracking, undefined);
+    else assert.deepEqual(plain(target.archivedDesktops[0].desktop.data.timeTracking), tracking);
+  }
+  const goalOnly = { fs: {}, currentDesktop: "desktop", desktops: [
+    { id: "desktop", name: "Основной", data: workspace.workspaceDefaults() },
+    { id: "second", name: "Цель", data: workspace.workspaceDefaults({ timeTracking: { entries: [], active: null, dailyGoalMinutes: 90 } }) }
+  ] };
+  workspace.syncLegacyWorkspaceAliases(goalOnly);
+  const deletionModel = workspace.desktopDeletionModel(goalOnly, "second");
+  assert.equal(deletionModel.groups.find(group => group.id === "timeTracking").count, 1);
+  const goalQueue = sandbox.ZETER_STORAGE_UTILS.createPrimaryStateSaveQueue({ getState: () => goalOnly, nativeStorage: true, writePrimaryRecord: async () => ({ updatedAt: 1 }) });
+  const goalDeletion = workspace.createVirtualDesktopController({ getState: () => goalOnly,
+    requestDeletion: (model, execute) => execute(model.groups.map(group => group.id).filter(id => id !== "timeTracking")),
+    persistTransaction: operation => goalQueue.transaction(operation), saveState: () => goalQueue.queue() });
+  await goalDeletion.remove("second"); assert.equal(goalOnly.archivedDesktops[0].desktop.data.timeTracking.dailyGoalMinutes, 90);
+  console.log("time workspace: defaults, normalization, desktop backup, goal-only retention and selective archive PASS");
+}
+
+smokeSelectiveDesktopDeletion().then(smokeScopedLibraryRollbackWithNormalization).then(smokePromptWorkspacePersistence).then(smokeTimeTrackingWorkspace).then(smokePersistedDeletion).then(() => {
   console.log(`state migration smoke: ok (${fs.existsSync(MIGRATION_PATH) ? "core" : "app baseline"})`);
 }).catch(error => {
   console.error(error);

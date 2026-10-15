@@ -442,6 +442,7 @@
       if (desk?.data?.library != null) window.ZETER_LINK_LIBRARY_UTILS.validateLinkLibrary(desk.data.library);
       if (desk?.data?.calculations != null) window.ZETER_BUSINESS_CALCULATIONS_UTILS.validateBusinessCalculations(desk.data.calculations);
       if (desk?.data?.promptLibrary != null) window.ZETER_PROMPT_LIBRARY_UTILS.validatePromptLibrary(desk.data.promptLibrary);
+      if (desk?.data?.timeTracking != null) window.ZETER_TIME_TRACKING_UTILS.validateTimeTracking(desk.data.timeTracking);
       validateImportString(desk?.id, `Рабочий стол #${index + 1}: ID`, 220);
       validateImportSafeId(desk?.id, `Рабочий стол #${index + 1}: ID`);
       validateImportString(desk?.name, `Рабочий стол #${index + 1}: имя`, 300);
