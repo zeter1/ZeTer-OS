@@ -30,7 +30,7 @@ async function readRelease(base) {
   const text = await response.text();
   if (text.length > 16384) throw new Error("Слишком большой release.json");
   const release = JSON.parse(text);
-  if (release.schema !== 1 || !/^[0-9A-Za-z.+-]+-[0-9a-f]{16}$/.test(release.build || "") ||
+  if (release.schema !== 1 || !/^[0-9A-Za-z_-]+-[0-9a-f]{16}$/.test(release.build || "") ||
       release.entry !== "releases/" + release.build + "/index.html") {
     throw new Error("Некорректный release.json");
   }
@@ -223,6 +223,23 @@ def collect_app(root: Path) -> dict[str, bytes]:
     return files
 
 
+def validate_ucoz_paths(files: dict[str, bytes]) -> None:
+    """Match file-manager limits; a valid local ZIP is not necessarily uploadable."""
+    children: dict[str, set[str]] = {}
+    for name in files:
+        parts = name.split("/")
+        if 2 + len(parts) - 1 > 10:
+            raise ReleaseBuildError(f"Превышена глубина 10 папок uCoz: {name}")
+        for index, part in enumerate(parts):
+            pattern = r"[A-Za-z0-9_-]+" if index < len(parts) - 1 else r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*"
+            if len(part) > 45 or not re.fullmatch(pattern, part):
+                raise ReleaseBuildError(f"Недопустимое имя для файлового менеджера uCoz: {part} ({name})")
+            children.setdefault("/".join(parts[:index]), set()).add(part)
+    for parent, names in children.items():
+        if len(names) > 1000:
+            raise ReleaseBuildError(f"Более 1000 элементов в каталоге uCoz: {parent}")
+
+
 def prepare_files(root: Path) -> tuple[str, str, dict[str, bytes]]:
     version = read_project_version(root)
     source = collect_app(root)
@@ -230,7 +247,7 @@ def prepare_files(root: Path) -> tuple[str, str, dict[str, bytes]]:
     digest = hashlib.sha256(Path(__file__).read_bytes())
     for name, data in sorted(source.items()):
         digest.update(name.encode("utf-8") + b"\0" + len(data).to_bytes(8, "big") + data)
-    build_id = version + "-" + digest.hexdigest()[:16]
+    build_id = "v" + re.sub(r"[^A-Za-z0-9_-]", "-", version) + "-" + digest.hexdigest()[:16]
     prefix = f"releases/{build_id}/"
     files = {prefix + name: data for name, data in source.items() if name != "service-worker.js"}
     shell_name = prefix + "js/core/shell-ui-utils.js"
@@ -255,6 +272,7 @@ def prepare_files(root: Path) -> tuple[str, str, dict[str, bytes]]:
     worker = "const BUILD = " + json.dumps(build_id) + ";\nconst ASSETS = " + json.dumps(assets) + ";\n" + WORKER
     files["service-worker.js"] = worker.encode("utf-8")
     validate_resources(files)
+    validate_ucoz_paths(files)
     return version, build_id, files
 
 

@@ -1,5 +1,5 @@
-const ZETER_CACHE_REVISION = "ucoz-build-1";
-const ZETER_CACHE = "zeter-os-4.0.20-ucoz-build-1";
+const ZETER_CACHE_REVISION = "ucoz-paths-1";
+const ZETER_CACHE = "zeter-os-4.0.21-ucoz-paths-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",

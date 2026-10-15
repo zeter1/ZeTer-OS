@@ -48,7 +48,7 @@ class UcozBuildTests(unittest.TestCase):
             self.assertIn("release.json", names)
             meta = json.loads(archive.read("release.json"))
             prefix = meta["entry"].removesuffix("index.html")
-            self.assertTrue(prefix.startswith("releases/9.8.7-"))
+            self.assertTrue(prefix.startswith("releases/v9-8-7-"))
             html = archive.read(meta["entry"]).decode()
             self.assertLess(html.index("js/core/version.js"), html.index("js/app.js"))
             self.assertEqual(html.count('src="js/app.js"'), 1)
@@ -64,6 +64,11 @@ class UcozBuildTests(unittest.TestCase):
         with self.assertRaises(builder.ReleaseBuildError):
             self.build()
         self.assertEqual((self.root / "dist/ZeTer-OS-uCoz-FTP-9.8.7.zip").read_bytes(), old)
+
+    def test_release_directory_is_accepted_by_ucoz(self):
+        result = self.build()
+        self.assertRegex(result.build_id, r"^[A-Za-z0-9_-]+$")
+        self.assertLessEqual(len(result.build_id), 45)
 
     def test_changed_content_changes_build_address_and_keeps_old_zip(self):
         old = self.build()
@@ -98,7 +103,7 @@ const vm = require("node:vm");
 const fs = require("node:fs");
 const assert = require("node:assert/strict");
 const base = "https://example.test/portfolio/ZeTerOS/";
-const buildA = "9.8.7-aaaaaaaaaaaaaaaa", buildB = "9.8.7-bbbbbbbbbbbbbbbb";
+const buildA = "v9-8-7-aaaaaaaaaaaaaaaa", buildB = "v9-8-7-bbbbbbbbbbbbbbbb";
 const entryA = new URL("releases/" + buildA + "/index.html", base).href;
 const entryB = new URL("releases/" + buildB + "/index.html", base).href;
 const sandbox = { URL, Request, Response, Date, Math, Set, console,
