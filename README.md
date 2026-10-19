@@ -10,7 +10,7 @@
 
 ![ZeTer OS — рабочее пространство с задачами, календарём и текстовым редактором](docs/images/zeter-os-banner.png)
 
-🌐 **Веб-версия:** https://dkl.do.am/portfolio/ZeTerOS/index.html
+🌐 **Веб-версия:** https://dkl.do.am/zeteros/index.html 
 
 **Актуальная версия исходного кода: 4.0.30 (15 октября 2026).** Изменения по версиям — в [CHANGELOG.md](CHANGELOG.md). Версия готовой Windows-сборки в Releases может отличаться от исходников; устройство канала обновлений описано в [docs/UPDATES.md](docs/UPDATES.md).
 
@@ -61,7 +61,7 @@ Python и зависимости проекта входят в portable-дис�
 
 Чтобы посмотреть интерфейс и основные возможности, откройте веб-версию:
 
-**https://dkl.do.am/portfolio/ZeTerOS/index.html**
+**https://dkl.do.am/zeteros/index.html**
 
 ### Вариант 2 — desktop-версия из исходников
 
