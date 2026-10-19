@@ -6,7 +6,7 @@
 
 The project combines a Python desktop shell with a modular web interface and focuses on local data storage, backup, recovery, and understandable architecture.
 
-🌐 **Web version:** https://dkl.do.am/portfolio/ZeTerOS/index.html
+🌐 **Web version:** https://dkl.do.am/zeteros/index.html
 
 ## What the project demonstrates
 
@@ -37,7 +37,7 @@ The project combines a Python desktop shell with a modular web interface and foc
 
 To inspect the interface and main features, open:
 
-**https://dkl.do.am/portfolio/ZeTerOS/index.html**
+**https://dkl.do.am/zeteros/index.html**
 
 ### Option 2 — local desktop version
 
