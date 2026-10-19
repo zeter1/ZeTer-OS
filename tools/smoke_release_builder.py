@@ -4,12 +4,14 @@ import hashlib
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
+from unittest.mock import patch
 
 from build_release import (
     ARCHIVE_ROOT,
     ReleaseBuildError,
     build_release,
     is_forbidden_release_path,
+    _ensure_source_file,
 )
 
 
@@ -67,6 +69,28 @@ def main() -> None:
         temp_root = Path(temp_dir)
         project_root = temp_root / "Проект ZeTer OS"
         make_project(project_root)
+
+        # Windows 8.3 aliases (RUNNER~1) must resolve to the same directory.
+        # Also retain rejection of files that escape that canonical root.
+        alternate_root = temp_root / "RUNNER~1"
+        source = project_root / "app/index.html"
+        original_resolve = Path.resolve
+
+        def simulated_resolve(self, *, strict=False):
+            if self == alternate_root:
+                return original_resolve(project_root, strict=True)
+            return original_resolve(self, strict=strict)
+
+        with patch.object(Path, "resolve", simulated_resolve):
+            assert _ensure_source_file(source, alternate_root) == source.read_bytes()
+            outside = temp_root / "outside.txt"
+            outside.write_text("not part of the project", encoding="utf-8")
+            try:
+                _ensure_source_file(outside, alternate_root)
+            except ReleaseBuildError:
+                pass
+            else:
+                raise AssertionError("an outside file passed the canonical-root guard")
 
         first = build_release(project_root, temp_root / "Первая сборка")
         second = build_release(project_root, temp_root / "Вторая сборка")

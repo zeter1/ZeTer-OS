@@ -1,0 +1,2 @@
+# The web integrity manifest hashes exact app bytes; Windows checkout must not rewrite LF/CRLF.
+app/** -text

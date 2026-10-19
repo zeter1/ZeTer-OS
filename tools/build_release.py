@@ -140,7 +140,9 @@ def _ensure_source_file(path: Path, project_root: Path) -> bytes:
     if not path.is_file():
         raise ReleaseBuildError(f"Ожидался обычный файл: {path}")
     try:
-        path.resolve(strict=True).relative_to(project_root)
+        # Windows may expose the same directory as RUNNER~1 and runneradmin.
+        # Canonicalize both paths before checking containment.
+        path.resolve(strict=True).relative_to(project_root.resolve(strict=True))
     except ValueError as exc:
         raise ReleaseBuildError(f"Файл выходит за пределы проекта: {path}") from exc
 
