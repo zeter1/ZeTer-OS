@@ -1,3 +1,40 @@
+/* Shared interaction colors for primary actions in the shell and applications. */
+:is(
+  .app-btn.primary, .boot-retry, .boot-recovery-action.primary,
+  .lock-card button, .quick-tile.active, .quick-actions button.active,
+  .calc-grid .eq, .help-hero-actions .primary, .choice-row button,
+  .about-update-actions button[data-update-install], .notification-update-action,
+  .monitor-actions button.primary, .first-run-create,
+  .first-run-setup-actions .first-run-primary, .item-settings-footer button.primary
+):not(:disabled):hover {
+  background: var(--button-primary-hover);
+  color: var(--button-primary-text);
+}
+
+:is(
+  .app-btn.primary, .boot-retry, .boot-recovery-action.primary,
+  .lock-card button, .quick-tile.active, .quick-actions button.active,
+  .calc-grid .eq, .help-hero-actions .primary, .choice-row button,
+  .about-update-actions button[data-update-install], .notification-update-action,
+  .monitor-actions button.primary, .first-run-create,
+  .first-run-setup-actions .first-run-primary, .item-settings-footer button.primary
+):not(:disabled):active {
+  background: var(--button-primary-active);
+  color: var(--button-primary-text);
+}
+
+:is(
+  .app-btn.primary, .boot-retry, .boot-recovery-action.primary,
+  .lock-card button, .quick-tile.active, .quick-actions button.active,
+  .calc-grid .eq, .help-hero-actions .primary, .choice-row button.active,
+  .about-update-actions button[data-update-install], .notification-update-action,
+  .monitor-actions button.primary, .first-run-create,
+  .first-run-setup-actions .first-run-primary, .item-settings-footer button.primary
+):disabled {
+  background: var(--button-primary);
+  color: var(--button-primary-text);
+}
+
 /* v3.7 fix: контрастные выпадающие списки в редакторе документов */
 select {
   color: var(--text);
@@ -35,28 +72,3 @@ select option:hover {
   color: #ffffff !important;
   background-color: #8ea2ff !important;
 }
-
-body.light select {
-  color: #101523;
-  background-color: rgba(255,255,255,.88);
-}
-
-body.light select option,
-body.light select optgroup {
-  color: #101523;
-  background-color: #eef3ff;
-}
-
-body.light .rich-toolbar select,
-body.light .formatting-toolbar select {
-  color: #101523 !important;
-  background: #f4f7ff !important;
-}
-
-body.light .rich-toolbar select option,
-body.light .formatting-toolbar select option {
-  color: #101523 !important;
-  background-color: #eef3ff !important;
-}
-
-

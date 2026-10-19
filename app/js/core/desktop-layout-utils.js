@@ -6,15 +6,15 @@
 
   const { clamp } = coreUtils;
 
-  const DESKTOP_ICON_WIDTH = 106;
-  const DESKTOP_ICON_HEIGHT = 104;
-  const DESKTOP_ICON_GAP = 6;
+  const DESKTOP_ICON_WIDTH = 80;
+  const DESKTOP_ICON_HEIGHT = 82;
+  const DESKTOP_ICON_GAP = 4;
   const DESKTOP_FORBIDDEN_GAP = 8;
   const DESKTOP_POSITION_NUDGE_GAP = 10;
-  const DESKTOP_ICON_STEP = 108;
+  const DESKTOP_ICON_STEP = 84;
   const DESKTOP_MARGIN_X = 24;
   const DESKTOP_MARGIN_Y = 18;
-  const DESKTOP_CLIENT_OFFSET_X = 48;
+  const DESKTOP_CLIENT_OFFSET_X = 40;
   const DESKTOP_CLIENT_OFFSET_Y = 40;
   const FOLDER_ITEM_WIDTH = 150;
   const FOLDER_ITEM_HEIGHT = 138;
@@ -36,6 +36,21 @@
       a.y + a.h + gap <= b.y ||
       b.y + b.h + gap <= a.y
     );
+  }
+
+  // Use rendered dimensions: long labels and large icons can exceed nominal cells.
+  // Grow downwards when full instead of returning an occupied position.
+  function resolveIconPosition(rect, occupied = [], { width = 980, gap = DESKTOP_ICON_GAP } = {}) {
+    const maxX = Math.max(0, width - rect.w - gap);
+    const preferred = { x: clamp(rect.x || 0, 0, maxX), y: Math.max(0, rect.y || 0) };
+    const free = p => !occupied.some(other => rectsOverlap({ ...rect, ...p }, other, gap));
+    if (free(preferred)) return preferred;
+    const xs = [...new Set([preferred.x, gap, ...occupied.map(other => other.x + other.w + gap)])]
+      .filter(x => x >= 0 && x <= maxX);
+    const ys = [...new Set([preferred.y, gap, ...occupied.map(other => other.y + other.h + gap)])]
+      .filter(y => y >= 0).sort((a, b) => a - b);
+    for (const y of ys) for (const x of xs) if (free({ x, y })) return { x, y };
+    return { x: 0, y: Math.max(0, ...occupied.map(other => other.y + other.h + gap)) };
   }
 
   function desktopMaxPosition(viewportWidth = window.innerWidth, viewportHeight = window.innerHeight) {
@@ -100,24 +115,27 @@
 
   function desktopGroupMovePlan(items = [], deltaX = 0, deltaY = 0, options = {}) {
     const forbiddenRects = Array.isArray(options.forbiddenRects) ? options.forbiddenRects : [];
-    const layoutOptions = {
-      forbiddenRects,
-      viewportWidth: options.viewportWidth,
-      viewportHeight: options.viewportHeight
-    };
+    const width = options.viewportWidth ?? window.innerWidth;
+    const height = options.viewportHeight ?? window.innerHeight;
+    const gap = Number.isFinite(options.gap) ? Math.max(0, options.gap) : 0;
+    const forbiddenGap = Math.max(DESKTOP_FORBIDDEN_GAP, gap);
     const members = items
       .filter(item => item?.id)
-      .map(item => {
-        const position = clampDesktopPosition(item.x ?? 0, item.y ?? 0, layoutOptions);
-        return { id: item.id, x: position.x, y: position.y };
-      });
+      .map(item => ({
+        id: item.id,
+        x: Number.isFinite(item.x) ? item.x : 0,
+        y: Number.isFinite(item.y) ? item.y : 0,
+        w: Number.isFinite(item.w) && item.w > 0 ? item.w : DESKTOP_ICON_WIDTH,
+        h: Number.isFinite(item.h) && item.h > 0 ? item.h : DESKTOP_ICON_HEIGHT
+      }));
     if (!members.length) return { valid: false, dx: 0, dy: 0, positions: [] };
 
-    const { maxX, maxY } = desktopMaxPosition(options.viewportWidth, options.viewportHeight);
     const minDx = -Math.min(...members.map(item => item.x));
-    const maxDx = Math.min(...members.map(item => maxX - item.x));
+    const maxDx = Math.min(...members.map(item => width - item.w - gap - item.x));
     const minDy = -Math.min(...members.map(item => item.y));
-    const maxDy = Math.min(...members.map(item => maxY - item.y));
+    const maxDy = Math.min(...members.map(item => height - item.h - gap - item.y));
+    const unchanged = () => ({ valid: false, dx: 0, dy: 0, positions: members.map(({ id, x, y }) => ({ id, x, y })) });
+    if (minDx > maxDx || minDy > maxDy) return unchanged();
     const desired = {
       dx: clamp(Number.isFinite(deltaX) ? deltaX : 0, minDx, maxDx),
       dy: clamp(Number.isFinite(deltaY) ? deltaY : 0, minDy, maxDy)
@@ -127,16 +145,17 @@
       dy: clamp(Number.isFinite(candidate?.dy) ? candidate.dy : 0, minDy, maxDy)
     });
     const collides = candidate => members.some(item => (
-      overlapsForbiddenDesktopArea(item.x + candidate.dx, item.y + candidate.dy, forbiddenRects)
+      forbiddenRects.some(bad => rectsOverlap({ ...item, x: item.x + candidate.dx, y: item.y + candidate.dy }, bad, forbiddenGap))
     ));
     const candidates = [desired, { dx: 0, dy: 0 }];
 
     forbiddenRects.forEach(bad => {
       members.forEach(item => {
-        const left = bad.x - DESKTOP_ICON_WIDTH - DESKTOP_POSITION_NUDGE_GAP - item.x;
-        const right = bad.x + bad.w + DESKTOP_POSITION_NUDGE_GAP - item.x;
-        const above = bad.y - DESKTOP_ICON_HEIGHT - DESKTOP_POSITION_NUDGE_GAP - item.y;
-        const below = bad.y + bad.h + DESKTOP_POSITION_NUDGE_GAP - item.y;
+        const clearance = Math.max(DESKTOP_POSITION_NUDGE_GAP, forbiddenGap);
+        const left = bad.x - item.w - clearance - item.x;
+        const right = bad.x + bad.w + clearance - item.x;
+        const above = bad.y - item.h - clearance - item.y;
+        const below = bad.y + bad.h + clearance - item.y;
         candidates.push(
           { dx: left, dy: desired.dy },
           { dx: right, dy: desired.dy },
@@ -159,7 +178,8 @@
       ((a.dx - desired.dx) ** 2 + (a.dy - desired.dy) ** 2)
       - ((b.dx - desired.dx) ** 2 + (b.dy - desired.dy) ** 2)
     ));
-    const chosen = validCandidates[0] || desired;
+    const chosen = validCandidates[0];
+    if (!chosen) return unchanged();
 
     return {
       valid: true,
@@ -269,7 +289,7 @@
       }
     }
 
-    return { x: px, y: py };
+    return { x: FOLDER_MARGIN, y: Math.max(FOLDER_MARGIN, ...occupied.map(rect => rect.y + rect.h + FOLDER_ITEM_GAP)) };
   }
 
   function positionInFolderGrid(items = [], parent, gridMetrics = {}, clientX, clientY, itemId = null) {
@@ -294,12 +314,14 @@
     const getItems = typeof options.getItems === "function" ? options.getItems : () => [];
     const getDesktopRoot = typeof options.getDesktopRoot === "function" ? options.getDesktopRoot : () => "desktop";
     const getForbiddenElements = typeof options.getForbiddenElements === "function" ? options.getForbiddenElements : () => [];
+    const getScrollOffset = typeof options.getScrollOffset === "function" ? options.getScrollOffset : () => ({ x: 0, y: 0 });
     const getViewportSize = typeof options.getViewportSize === "function"
       ? options.getViewportSize
       : () => ({ width: window.innerWidth, height: window.innerHeight });
 
     function forbiddenRects() {
-      return desktopForbiddenRects(getForbiddenElements());
+      const offset = getScrollOffset();
+      return desktopForbiddenRects(getForbiddenElements()).map(rect => ({ ...rect, x: rect.x + offset.x, y: rect.y + offset.y }));
     }
 
     function layoutOptions() {
@@ -325,15 +347,19 @@
     }
 
     function clientToPosition(clientX, clientY) {
-      return clientToDesktopPosition(clientX, clientY, layoutOptions());
+      const offset = getScrollOffset();
+      return clientToDesktopPosition(clientX + offset.x, clientY + offset.y, layoutOptions());
     }
 
     function findFreePosition(parent = getDesktopRoot(), preferredX = null, preferredY = null, excludeId = null) {
-      return findFreeDesktopPosition(getItems(), parent, preferredX, preferredY, excludeId, layoutOptions());
+      const offset = getScrollOffset();
+      return findFreeDesktopPosition(getItems(), parent,
+        Number.isFinite(preferredX) ? preferredX + offset.x : preferredX,
+        Number.isFinite(preferredY) ? preferredY + offset.y : preferredY, excludeId, layoutOptions());
     }
 
-    function groupMovePlan(items = [], deltaX = 0, deltaY = 0) {
-      return desktopGroupMovePlan(items, deltaX, deltaY, layoutOptions());
+    function groupMovePlan(items = [], deltaX = 0, deltaY = 0, movementOptions = {}) {
+      return desktopGroupMovePlan(items, deltaX, deltaY, { ...layoutOptions(), gap: movementOptions.gap });
     }
 
     return Object.freeze({
@@ -355,6 +381,7 @@
     DESKTOP_ICON_STEP,
     desktopIconRect,
     rectsOverlap,
+    resolveIconPosition,
     desktopMaxPosition,
     overlapsForbiddenDesktopArea,
     clampDesktopPosition,

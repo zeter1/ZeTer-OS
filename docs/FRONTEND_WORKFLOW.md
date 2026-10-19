@@ -54,5 +54,6 @@
 - Новый core: `index.html`, `service-worker.js`, `REQUIRED_SCRIPT_ORDER`, `tools/code_owners.json`, ручная карта `CODEMAP.md` и generated docs.
 - Новый CSS: `style.css`, PWA-кэш и CSS-карта `CODEMAP.md`.
 - PWA cache-name меняется только вместе с версией интерфейса.
+- После изменения любого файла `app` выполните `python -B tools/prepare_web.py --write`, затем проверку без `--write`: generated `app/web-release.json` должен соответствовать точным байтам. Скрипты core/app в HTML сохраняют `type="application/zeter-script"`; их последовательный запуск принадлежит `js/web-bootstrap.js`.
 
 Точные рецепты находятся в [EDITING_GUIDE.md](EDITING_GUIDE.md), команды и матрица проверок — в [TESTING.md](TESTING.md).

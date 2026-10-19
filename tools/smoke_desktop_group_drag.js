@@ -73,8 +73,43 @@ const bounded = layout.desktopGroupMovePlan([
   { id: "left", x: 100, y: 100 },
   { id: "right", x: 1100, y: 300 }
 ], 200, 500, { viewportWidth: 1280, viewportHeight: 720 });
-assert.equal(bounded.dx, 74, "the whole group must stop when its rightmost icon reaches the desktop edge");
-assert.equal(bounded.dy, 316, "the whole group must stop when its lowest icon reaches the desktop edge");
+assert.equal(bounded.dx, 100, "the whole group must stop when its rightmost icon reaches the desktop edge");
+assert.equal(bounded.dy, 338, "the whole group must stop when its lowest icon reaches the desktop edge");
+
+const measuredMembers = [
+  { id: "large-long", x: 80, y: 160, w: 104, h: 152 },
+  { id: "large-short", x: 260, y: 160, w: 104, h: 106 }
+];
+const measuredBounds = layout.desktopGroupMovePlan(measuredMembers, 1400, 900, {
+  viewportWidth: 1440, viewportHeight: 800, gap: 16
+});
+assert.equal(measuredBounds.dx, 1060, "measured 104px tile plus 16px render clearance bounds the whole group");
+assert.equal(measuredBounds.dy, 472, "the real 152px long label bounds the whole group vertically");
+assert.equal(measuredBounds.positions[1].x - measuredBounds.positions[0].x, 180);
+assert.equal(measuredBounds.positions[1].y - measuredBounds.positions[0].y, 0);
+const reRendered = [];
+measuredBounds.positions.forEach((position, index) => {
+  const rect = { ...measuredMembers[index], ...position };
+  const resolved = layout.resolveIconPosition(rect, reRendered, { width: 1440, gap: 16 });
+  assert.equal(resolved.x, position.x, "post-drop render cannot move either member independently");
+  assert.equal(resolved.y, position.y);
+  reRendered.push(rect);
+});
+const partiallyOutside = layout.desktopGroupMovePlan([
+  { id: "left", x: 1200, y: 160, w: 104, h: 152 },
+  { id: "right", x: 1380, y: 160, w: 104, h: 106 }
+], 0, 0, { viewportWidth: 1440, viewportHeight: 800, gap: 16 });
+assert.equal(partiallyOutside.positions[1].x - partiallyOutside.positions[0].x, 180,
+  "initial member normalization must use one delta even if a member starts beyond the boundary");
+const tallObstacle = [{ x: 300, y: 250, w: 100, h: 100 }];
+const tallAvoided = layout.desktopGroupMovePlan(measuredMembers.map(item => ({ ...item, y: 100 })), 120, 0, {
+  viewportWidth: 1440, viewportHeight: 800, forbiddenRects: tallObstacle
+});
+assert.equal(tallAvoided.valid, true);
+tallAvoided.positions.forEach((position, index) => {
+  assert.equal(layout.rectsOverlap({ ...measuredMembers[index], ...position }, tallObstacle[0], 8), false,
+    "forbidden-area avoidance must include measured label height");
+});
 
 const forbiddenRects = [{ x: 390, y: 0, w: 320, h: 190 }];
 const avoided = layout.desktopGroupMovePlan(baseItems, 310, -140, {

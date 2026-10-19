@@ -24,9 +24,29 @@
   const DESKTOP_ICON_MAX_SOURCE_BYTES = 6 * 1024 * 1024;
   const DESKTOP_ICON_MAX_DATA_URL_CHARS = 650000;
   const DESKTOP_ICON_SIZE = 256;
+  const ACCENT_PRESETS = Object.freeze([
+    Object.freeze({ id: "blue", label: "Синий", color: "#7aa8ff", primary: "#2563eb", hover: "#1d4ed8", active: "#1e40af" }),
+    Object.freeze({ id: "violet", label: "Фиолетовый", color: "#b8a0ff", primary: "#7c3aed", hover: "#6d28d9", active: "#5b21b6" }),
+    Object.freeze({ id: "emerald", label: "Изумрудный", color: "#5ee6b8", primary: "#047857", hover: "#065f46", active: "#064e3b" }),
+    Object.freeze({ id: "rose", label: "Розовый", color: "#ffa0c7", primary: "#be185d", hover: "#9d174d", active: "#831843" }),
+    Object.freeze({ id: "amber", label: "Янтарный", color: "#f5cc7d", primary: "#92400e", hover: "#78350f", active: "#713f12" })
+  ]);
 
   function baseDesktopSettings() {
-    return { theme: "dark", wallpaper: "aurora", accent: "blue", blur: 0, brightness: 100, volume: 74, iconSize: 1 };
+    return { theme: "dark", wallpaper: "aurora", accent: "blue", blur: 0, brightness: 100, volume: 74, iconSize: 1, desktopAppearance: normalizeDesktopAppearance() };
+  }
+
+  function normalizeDesktopAppearance(value = {}) {
+    const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    return {
+      ...source,
+      iconSize: ["small", "medium", "large"].includes(source.iconSize) ? source.iconSize : "medium",
+      density: ["compact", "comfortable"].includes(source.density) ? source.density : "compact",
+      extensions: typeof source.extensions === "boolean" ? source.extensions : true,
+      labelSize: ["small", "medium", "large"].includes(source.labelSize) ? source.labelSize : "medium",
+      labelLines: [0, 1, 2, 3].includes(Number(source.labelLines)) ? Number(source.labelLines) : 0,
+      openMode: source.openMode === "single" ? "single" : "double"
+    };
   }
 
   function normalizeDesktopIcon(icon = null) {
@@ -118,6 +138,7 @@
   function normalizeVisualSettings(settings = {}) {
     const clean = settings && typeof settings === "object" ? settings : {};
     clean.theme = "dark";
+    clean.accent = ACCENT_PRESETS.some(preset => preset.id === clean.accent) ? clean.accent : "blue";
     clean.blur = 0;
     clean.wallpaper = ["aurora", "silk", "mint", "graphite", "custom"].includes(clean.wallpaper) ? clean.wallpaper : "aurora";
     clean.customWallpaper = normalizeCustomWallpaper(clean.customWallpaper);
@@ -125,6 +146,7 @@
     if (clean.wallpaper === "custom" && !clean.customWallpaper) clean.wallpaper = "aurora";
     clean.brightness = 100;
     clean.volume = clamp(Number(clean.volume) || 74, 0, 100);
+    clean.desktopAppearance = normalizeDesktopAppearance(clean.desktopAppearance);
     return clean;
   }
 
@@ -241,7 +263,9 @@
   }
 
   window.ZETER_VISUAL_UTILS = Object.freeze({
+    ACCENT_PRESETS,
     baseDesktopSettings,
+    normalizeDesktopAppearance,
     normalizeDesktopIcon,
     defaultDesktopDescription,
     normalizeDesktopRecord,

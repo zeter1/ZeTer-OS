@@ -353,6 +353,7 @@
     const cleanupRemovedItemReferences = typeof options.cleanupRemovedItemReferences === "function" ? options.cleanupRemovedItemReferences : () => {};
     const nativeStorageCall = typeof options.nativeStorageCall === "function" ? options.nativeStorageCall : async () => null;
     const openShortcutTarget = typeof options.openShortcutTarget === "function" ? options.openShortcutTarget : async () => false;
+    const openDocument = typeof options.openDocument === "function" ? options.openDocument : null;
     const nativeMode = typeof options.nativeMode === "function" ? options.nativeMode : () => false;
     const toast = typeof options.toast === "function" ? options.toast : () => {};
     const confirmUser = typeof options.confirm === "function" ? options.confirm : () => true;
@@ -809,6 +810,7 @@
       if (normalized.kind === "shortcut") return openShortcutTarget(normalized.shortcutTarget, normalized.name);
       if (EXECUTABLE_EXTENSIONS.has(normalized.extension) && !confirmUser(`Запустить потенциально исполняемый файл «${normalized.name}» из ZeTer OS\\data?`)) return false;
       try {
+        if (["doc", "docx"].includes(normalized.extension) && openDocument) return await openDocument(normalized);
         await nativeStorageCall("open_managed_file", { managedPath: normalized.managedPath });
         return true;
       } catch (error) {

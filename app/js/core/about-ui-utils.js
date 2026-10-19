@@ -29,7 +29,7 @@
         <span class="about-eyebrow">Личное рабочее пространство</span>
         <div class="about-brand"><img src="assets/icons/zeter-logo.svg" alt="" width="64" height="64" /><h2>ZeTer <span>OS</span></h2></div>
         <p>ZeTer OS — рабочая среда для ваших повседневных дел, проектов и материалов. На отдельных рабочих столах можно собирать документы, заметки, задачи, события календаря, ссылки, промпты и подсчёты — и работать с ними в привычных окнах.</p>
-        <p class="muted">Изменения сохраняются автоматически. Центр безопасности данных помогает создавать резервные копии и восстанавливать рабочее пространство. ZeTer OS работает как приложение для Windows и в браузере.</p>
+        <p><button type="button" class="about-guide-link" data-about-guide>${escapeHtml(window.ZETER_APP_CATALOG.APP_CATALOG_DEFINITIONS.help.name)}</button> — пошаговые инструкции по работе с файлами, рабочими столами, задачами и другими возможностями системы.</p>
       </section>
       <section class="setting-card about-release">
         <div class="about-release-heading"><h3>Версия и обновления</h3><strong class="about-version">${escapeHtml(config.OS_VERSION)}</strong></div>
@@ -49,11 +49,17 @@
       </section>`;
   }
 
-  function aboutAppElement({ documentRef = document, getSelection = () => window.getSelection(), showContext = () => {}, copyText = async () => false, openExternalLink = async () => false, toast = () => {} } = {}) {
+  function aboutAppElement({ documentRef = document, getSelection = () => window.getSelection(), showContext = () => {}, copyText = async () => false, openExternalLink = async () => false, openApp = () => {}, toast = () => {} } = {}) {
     const root = documentRef.createElement("div");
     root.className = "about-app";
     root.innerHTML = aboutAppHTML();
     root.addEventListener("click", event => {
+      const guide = event.target.closest?.("[data-about-guide]");
+      if (guide && root.contains(guide)) {
+        event.preventDefault();
+        openApp("help");
+        return;
+      }
       const link = event.target.closest?.("[data-about-link]");
       if (!link || !root.contains(link)) return;
       event.preventDefault();

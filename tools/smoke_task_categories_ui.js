@@ -1,0 +1,104 @@
+"use strict";
+const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
+// Explicit runner only. Separate browser profile, synthetic state, local app assets only.
+async function runTaskCategoriesSmoke({ chromium, startPreview, outputDir }) {
+  const root = path.resolve(__dirname, ".."), out = outputDir || path.join(root, "work/task-categories-qa");
+  fs.mkdirSync(out, { recursive: true });
+  const preview = await startPreview({ root: path.join(root, "app"), allow: ["index.html", "js", "css", "assets", "manifest.json", "service-worker.js"], ttlSeconds: 600 });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: false, chromiumSandbox: true });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: "block" });
+    await context.addInitScript(() => { window.__ZETER_UI_PREVIEW__ = true; });
+    const page = await context.newPage(), errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    const seed = `const realStorage=window.ZETER_STORAGE_UTILS; window.ZETER_STORAGE_UTILS={...realStorage,createPrimaryStateSaveQueue:options=>{const queue=realStorage.createPrimaryStateSaveQueue(options);return {...queue,transaction:operation=>queue.transaction(write=>operation(async snapshot=>{if(window.__refuseCategoryWrite)throw new Error('Проверка: запись недоступна');if(window.__holdCategoryWrite)await new Promise(resolve=>window.__releaseCategoryWrite=resolve);return write(snapshot);} ))};}}; if(!localStorage.getItem('category-fixture')){const s=ZETER_INITIAL_STATE_UTILS.defaultState();s.firstRunCompleted=true;const taskProjects=[{id:'p',name:'Учёба',categories:[{id:'c',name:'Чтение'}]},{id:'q',name:'Работа'}],tasks=[{id:'old',projectId:'p',title:'Прежняя задача',status:'todo',indefinite:true,categoryId:'c'},{id:'none',projectId:'p',title:'Без категории',status:'todo',indefinite:true}];s.desktops[0].data={...ZETER_WORKSPACE_UTILS.workspaceDefaults(),tasks,taskProjects,activeTaskProjectId:'p'};Object.assign(s,{tasks,taskProjects,activeTaskProjectId:'p'});localStorage.setItem('zeter_os_state_v3',JSON.stringify(s));localStorage.setItem('category-fixture','1');}`;
+    await page.route("**/*", route => {
+      const url = route.request().url();
+      if (!url.startsWith(preview.url)) return route.abort();
+      if (new URL(url).pathname === "/js/app.js") return route.fulfill({ contentType: "application/javascript", body: seed + "\n" + fs.readFileSync(path.join(root, "app/js/app.js"), "utf8") });
+      return route.continue();
+    });
+    try {
+      await page.goto(preview.url); await page.waitForSelector("#boot", { state: "hidden" });
+      await page.locator('#taskbar [data-app="tasks"]').click();
+      const app = page.locator(".tasks-app"), filter = app.locator("[data-filter-category]");
+      await app.waitFor();
+      const checkRows = async () => assert.equal(await app.locator('.task-workspace').evaluate(el => {
+        const rows = [...el.children].filter(child => !child.hidden).map(child => child.getBoundingClientRect());
+        return rows.every((row, i) => !i || row.top >= rows[i - 1].bottom - 1);
+      }), true, 'header, categories, filters and content must not overlap');
+      await page.locator('.window[data-app-id="tasks"]').evaluate(el => Object.assign(el.style, { width: "1380px", height: "880px", left: "20px", top: "10px" }));
+      await app.locator('[data-project-view="overview"]').click();
+      await checkRows();
+      await filter.selectOption("c");
+      assert.equal(await app.locator('.project-stat-grid progress').getAttribute('aria-label'), 'Выполнено 0% задач');
+      assert.equal(await app.locator('[data-project-task="none"]').count(), 0, "overview filters tasks");
+      await app.locator('[data-project-view="list"]').click();
+      await checkRows();
+      assert.equal(await app.locator(".task-card").count(), 1);
+      await filter.selectOption("none");
+      assert.equal(await app.locator('[data-task-id="none"]').count(), 1);
+      await app.locator("[data-category-add]").click();
+      const dialog = page.locator("[data-task-category-dialog]"), input = dialog.locator("input");
+      await input.fill('Разработка <web>');
+      await page.evaluate(() => { window.__refuseCategoryWrite = true; });
+      await dialog.locator('[type="submit"]').click();
+      await dialog.locator('[role="alert"]:not([hidden])').waitFor();
+      assert.equal(await input.inputValue(), 'Разработка <web>');
+      assert.equal(await filter.locator('option').count(), 3, "failed creation preserves categories");
+      await page.evaluate(() => { window.__refuseCategoryWrite = false; window.__holdCategoryWrite = true; });
+      await dialog.locator('[type="submit"]').click();
+      await page.waitForFunction(() => !!window.__releaseCategoryWrite);
+      assert.equal(await filter.locator('option').count(), 3, "pending save cannot add category");
+      await page.evaluate(() => { window.__holdCategoryWrite = false; window.__releaseCategoryWrite(); });
+      await dialog.waitFor({ state: "detached" });
+      const categoryId = await filter.inputValue();
+      assert.ok(categoryId.startsWith('category_'));
+      await app.locator("[data-category-add]").click(); await input.fill(' разработка <WEB> '); await input.press('Enter');
+      await dialog.locator('[role="alert"]:not([hidden])').waitFor(); assert.match(await dialog.locator('[role="alert"]').textContent(), /существует/);
+      await input.press('Escape'); await dialog.waitFor({ state: 'detached' });
+      await app.locator("[data-open-task-create]").first().click();
+      let editor = page.locator(".task-editor-app");
+      assert.equal(await editor.locator('[data-task-category]').inputValue(), categoryId);
+      await editor.locator('[data-task-title]').fill('Проверка категории');
+      await editor.locator('[data-task-project]').selectOption('q');
+      assert.equal(await editor.locator('[data-task-category]').inputValue(), '', 'project change resets category without losing title');
+      assert.equal(await editor.locator('[data-task-title]').inputValue(), 'Проверка категории');
+      await editor.locator('[data-task-project]').selectOption('p'); await editor.locator('[data-task-category]').selectOption(categoryId);
+      await editor.locator('[data-save]').click(); await editor.waitFor({ state: 'detached' });
+      const card = app.locator('.task-card').filter({ hasText: 'Проверка категории' }); await card.waitFor();
+      assert.equal(await app.locator('.task-card').count(), 1);
+      await card.locator('[data-edit]').last().click(); editor = page.locator('.task-editor-app');
+      assert.equal(await editor.evaluate(el => { const rows = [...el.children].map(child => child.getBoundingClientRect()); return rows.every((row, i) => !i || row.top >= rows[i - 1].bottom - 1); }), true, 'edit category field must not overlap description or actions');
+      assert.equal(await editor.locator('[data-task-category]').inputValue(), categoryId);
+      await editor.locator('[data-task-category]').selectOption(''); await editor.locator('[data-save]').click(); await editor.waitFor({ state: 'detached' });
+      assert.equal(await app.locator('.task-card').count(), 0);
+      await filter.selectOption('none'); assert.equal(await app.locator('.task-card').count(), 2);
+      await app.locator('[data-project-id="q"]').click(); assert.equal(await filter.inputValue(), 'all');
+      assert.equal(await filter.locator('option').count(), 2, 'other project does not inherit categories');
+      await app.locator('[data-project-id="p"]').click();
+      await page.reload(); await page.waitForSelector('#boot', { state: 'hidden' });
+      if (!await app.count()) await page.locator('#taskbar [data-app="tasks"]').click();
+      await app.waitFor();
+      await app.locator('[data-project-id="p"]').click();
+      assert.equal(await filter.locator(`option[value="${categoryId}"]`).textContent(), 'Разработка <web>');
+      await filter.selectOption('none'); await app.locator('[data-project-view="board"]').click();
+      assert.equal(await app.locator('.task-card').count(), 2, 'assignment survives reload');
+      await checkRows();
+      await page.screenshot({ path: path.join(out, 'categories-wide.png') });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.locator('.window[data-app-id="tasks"]').evaluate(el => Object.assign(el.style, { width: '374px', height: '760px', left: '8px', top: '8px' }));
+      const geometry = await app.locator('.task-category-bar').evaluate(el => { const s = el.querySelector('select').getBoundingClientRect(), b = el.querySelector('button').getBoundingClientRect(), r = el.getBoundingClientRect(); return { fits: s.left >= r.left - 1 && s.right <= r.right + 1 && b.right <= r.right + 1, separate: s.bottom <= b.top + 1 || s.right <= b.left + 1, overflow: el.scrollWidth > el.clientWidth + 1 }; });
+      assert.deepEqual(geometry, { fits: true, separate: true, overflow: false });
+      await checkRows();
+      await app.locator('[data-category-add]').click(); await dialog.waitFor();
+      await page.screenshot({ path: path.join(out, 'categories-390.png') });
+      assert.equal(await input.evaluate(el => el === document.activeElement), true);
+      await input.press('Escape'); assert.equal(await app.locator('[data-category-add]').evaluate(el => el === document.activeElement), true);
+      assert.deepEqual(errors, []);
+      console.log('TASK_CATEGORIES_UI_PASS: create/refusal/pending/retry/duplicate; forms; all views; projects; reload; 1440/390; keyboard');
+    } catch (error) { await page.screenshot({ path: path.join(out, 'failure.png') }).catch(() => {}); throw error; }
+  } finally { await browser?.close(); await preview.close(); }
+}
+module.exports = { runTaskCategoriesSmoke };

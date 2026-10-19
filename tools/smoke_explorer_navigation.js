@@ -59,10 +59,58 @@ const explorer = sandbox.window.ZETER_EXPLORER_UTILS;
 const explorerUi = sandbox.window.ZETER_EXPLORER_UI_UTILS;
 const itemDrag = sandbox.window.ZETER_ITEM_DRAG_UI_UTILS;
 
+const sortFixture = [
+  { id: "10", type: "text", name: "Файл 10.txt", updatedAt: 300, createdAt: 100, bytes: 20 },
+  { id: "2", type: "text", name: "Файл 2.txt", updatedAt: 200, createdAt: 300, bytes: 5 },
+  { id: "1", type: "text", name: "Файл 1.txt", updatedAt: 100, createdAt: 200, bytes: 20 }
+];
+const sortIds = (items, options) => Array.from(explorer.sortExplorerItems(items, options, item => item.bytes), item => item.id);
+assert.deepEqual(sortIds(sortFixture, { sortBy: "name", sortDirection: "asc" }), ["1", "2", "10"]);
+assert.deepEqual(sortIds(sortFixture, { sortBy: "name", sortDirection: "desc" }), ["10", "2", "1"]);
+assert.deepEqual(sortIds(sortFixture, { sortBy: "created", sortDirection: "desc" }), ["2", "1", "10"]);
+assert.deepEqual(sortIds(sortFixture, { sortBy: "size", sortDirection: "asc" }), ["2", "1", "10"]);
+const mixed = [...sortFixture, { id: "folder", type: "folder", name: "Я" }, { id: "pin", type: "text", name: "Я", pinnedInExplorer: true, bytes: 1 }];
+assert.deepEqual(sortIds(mixed, { sortBy: "name", sortDirection: "desc" }).slice(0, 2), ["pin", "folder"]);
+assert.equal(sortIds(mixed, { sortBy: "name", sortDirection: "asc", pinnedFirst: false, foldersFirst: false }).at(-1), "pin");
+assert.deepEqual(sortIds([{ id: "none", name: "без даты" }, ...sortFixture], { sortBy: "updated", sortDirection: "asc" }), ["1", "2", "10", "none"]);
+assert.deepEqual(sortFixture.map(item => item.id), ["10", "2", "1"], "sorting never mutates source order");
+assert.equal(explorerUi.normalizeExplorerView({ sortBy: "bad", sortDirection: "bad" }).sortBy, "name");
+assert.equal(explorerUi.normalizeExplorerView({ sortBy: "size" }).sortDirection, "desc");
+assert.equal(explorerUi.normalizeExplorerView({ pinnedFirst: false }).pinnedFirst, false);
+const sortMenuHTML = explorerUi.explorerSortMenuHTML({ sortBy: "updated" }, "fixture-sort");
+assert.match(sortMenuHTML, /value="updated" checked/);
+assert.match(sortMenuHTML, /value="desc" checked/);
+assert.ok(sortMenuHTML.includes("Дата создания") && sortMenuHTML.includes("Папки сверху"));
+const extensionFixture = [{ id: "b", type: "text", name: "b.TXT" }, { id: "a", type: "table", name: "a.table" }, { id: "dot", type: "text", name: ".config" }];
+assert.deepEqual(sortIds(extensionFixture, { sortBy: "extension", sortDirection: "asc" }), ["dot", "a", "b"]);
+assert.deepEqual(sortIds(extensionFixture, { sortBy: "extension", sortDirection: "desc" }), ["b", "a", "dot"]);
+assert.equal(explorer.explorerItemSize({ type: "managedFile", managedFile: { size: 4096 } }), 4096);
+
 assert.equal(explorerUi.explorerGridLayoutMode({ viewMode: "icons", orderedRootMode: true }), "ordered");
 assert.equal(explorerUi.explorerGridLayoutMode({ viewMode: "large", orderedRootMode: true }), "ordered");
 assert.equal(explorerUi.explorerGridLayoutMode({ viewMode: "list", orderedRootMode: true }), "flow");
-assert.equal(explorerUi.explorerGridLayoutMode({ viewMode: "icons", orderedRootMode: true, searchMode: true }), "free");
+assert.equal(explorerUi.explorerGridLayoutMode({ viewMode: "icons", orderedRootMode: true, searchMode: true }), "ordered");
+for (const mode of ["huge", "large", "medium", "small", "icons", "content"]) {
+  assert.equal(explorerUi.explorerGridLayoutMode({ viewMode: mode }), mode === "content" ? "flow" : "ordered", "folder items use a regular layout without changing desktop coordinates");
+}
+assert.equal(explorerUi.normalizeExplorerView({ mode: "unknown", compact: "yes", navigation: false }).mode, "icons");
+assert.equal(explorerUi.normalizeExplorerView({ compact: "yes" }).compact, false);
+assert.equal(explorerUi.normalizeExplorerView({ navigation: false }).navigation, false);
+assert.equal(explorerUi.normalizeExplorerView(null).preview, true);
+assert.deepEqual(JSON.parse(JSON.stringify(explorerUi.normalizeExplorerView({ columnWidths: { name: 380, type: 120, size: -1, date: Infinity, other: 5 } }).columnWidths)), { name: 380, type: 120, size: 64 });
+assert.deepEqual(JSON.parse(JSON.stringify(explorerUi.normalizeExplorerView({ columnWidths: 'bad' }).columnWidths)), {});
+assert.equal(explorerUi.normalizeExplorerView({ columnWidths: { name: 5000 } }).columnWidths.name, 1600);
+assert.equal(explorerUi.normalizeExplorerView({ columnWidths: { name: null } }).columnWidths.name, undefined);
+const gridHandlers = {};
+const headerGrid = { dataset: {}, addEventListener: (name, fn) => { gridHandlers[name] = fn; } };
+explorerUi.bindExplorerSelectionBox(headerGrid);
+gridHandlers.pointerdown({ button: 0, target: { closest: selector => selector === ".explorer-table-header" ? {} : null }, preventDefault() { assert.fail("column headers must not start rectangle selection"); } });
+const viewMenu = explorerUi.explorerViewMenuHTML({ mode: "table", compact: true }, "fixture");
+for (const label of ["Огромные значки", "Крупные значки", "Обычные значки", "Мелкие значки", "Список", "Таблица", "Плитка", "Содержимое", "Область навигации", "Область просмотра", "Компактное представление"]) assert.ok(viewMenu.includes(label), label);
+assert.match(viewMenu, /value="table" checked/);
+assert.equal(explorerUi.explorerDisplayName({ name: "Отчёт.final.txt", type: "text" }, false), "Отчёт.final");
+assert.equal(explorerUi.explorerDisplayName({ name: "Папка.2026", type: "folder" }, false), "Папка.2026");
+assert.equal(explorerUi.explorerDisplayName({ name: ".config", type: "text" }, false), ".config");
 const state = {
   explorerRoot: { id: "explorerRoot", type: "folder", parent: "desktop", name: "Скрытый корень", systemRole: "explorerRoot" },
   project: { id: "project", type: "folder", parent: "desktop", name: "Дела по развитию" },

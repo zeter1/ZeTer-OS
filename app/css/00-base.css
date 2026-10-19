@@ -14,6 +14,10 @@
   --accent: #7aa8ff;
   --accent2: #c179ff;
   --accent3: #5ee6b8;
+  --button-primary: #2563eb;
+  --button-primary-hover: #1d4ed8;
+  --button-primary-active: #1e40af;
+  --button-primary-text: #fff;
   --danger: #ff5f79;
   --warning: #ffc261;
   --radius: 22px;
@@ -25,21 +29,6 @@
   color-scheme: dark;
 }
 
-body.light {
-  --bg0: #eef5ff;
-  --bg1: #dceaff;
-  --bg2: #fff0fb;
-  --text: #121727;
-  --muted: rgba(18,23,39,.66);
-  --muted2: rgba(18,23,39,.45);
-  --glass: rgba(255,255,255,.66);
-  --glass-2: rgba(255,255,255,.82);
-  --glass-3: rgba(255,255,255,.92);
-  --stroke: rgba(28,43,82,.16);
-  --stroke-strong: rgba(28,43,82,.28);
-  --shadow: 0 26px 110px rgba(54,88,148,.18);
-  color-scheme: light;
-}
 
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
@@ -83,12 +72,12 @@ body.zeter-reduced-motion *::after {
 .boot-progress span { display: block; width: 45%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent2)); animation: boot 1.4s ease-in-out infinite; }
 .boot.failed .boot-progress { display: none; }
 .boot-error-detail { max-width: min(620px, calc(100vw - 48px)); margin-top: 8px !important; color: #ffb8c0 !important; overflow-wrap: anywhere; }
-.boot-retry { min-width: 150px; margin-top: 10px; padding: 10px 18px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.boot-retry { min-width: 150px; margin-top: 10px; padding: 10px 18px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: var(--button-primary); color: var(--button-primary-text); font: inherit; font-weight: 700; cursor: pointer; }
 .boot-retry:hover { filter: brightness(1.08); }
 .boot-retry:focus-visible { outline: 3px solid rgba(255,255,255,.8); outline-offset: 3px; }
 .boot-recovery-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: min(680px, calc(100vw - 32px)); margin-top: 10px; }
 .boot-recovery-action { min-height: 42px; padding: 9px 14px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: rgba(255,255,255,.08); color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
-.boot-recovery-action.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+.boot-recovery-action.primary { background: var(--button-primary); color: var(--button-primary-text); }
 .boot-recovery-action:hover:not(:disabled) { filter: brightness(1.1); }
 .boot-recovery-action:focus-visible { outline: 3px solid rgba(255,255,255,.8); outline-offset: 3px; }
 .boot-recovery-action:disabled { opacity: .55; cursor: wait; }
@@ -106,7 +95,6 @@ body.wall-custom .os {
   background-repeat: no-repeat;
 }
 body.wall-custom .wallpaper-lights { opacity: .42; }
-body.light.wall-aurora .os { background: radial-gradient(circle at 78% 10%, rgba(137,193,255,.72), transparent 32%), radial-gradient(circle at 15% 72%, rgba(255,188,242,.58), transparent 34%), linear-gradient(135deg, #eaf3ff, #fff0fb); }
 .wallpaper-lights { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .wallpaper-lights i, .wallpaper-lights b, .wallpaper-lights em { position: absolute; border-radius: 999px; filter: blur(26px); opacity: .44; }
 .wallpaper-lights i { width: 300px; height: 300px; right: 8vw; top: 12vh; background: rgba(122,168,255,.45); }

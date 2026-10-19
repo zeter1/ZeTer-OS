@@ -76,6 +76,8 @@ vm.createContext(editorSandbox);
 runScript("app/js/core/editor-ui-utils.js", editorSandbox);
 
 const editor = editorSandbox.window.ZETER_EDITOR_UI_UTILS;
+assert.match(editor.notesFileCardHTML({ name: "<script>" }, '<svg class="item-custom-icon"></svg>'), /<svg class="item-custom-icon"><\/svg>/);
+assert.match(editor.notesFileCardHTML({ name: "<script>" }), /&lt;script&gt;/);
 
 const markerChild = { nodeType: 3, textContent: "цвет затем размер" };
 const marker = {

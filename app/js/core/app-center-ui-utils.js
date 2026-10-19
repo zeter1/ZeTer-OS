@@ -9,7 +9,14 @@
 
   function appCenterCardHTML(entry = {}) {
     const installed = Boolean(entry.installed);
-    return `<article class="app-center-card ${installed ? "installed" : ""}"><b>${escapeHtml(entry.icon)} ${escapeHtml(entry.name)}</b><p class="muted">${installed ? "Установлено на этом рабочем столе" : "Не установлено на этом рабочем столе"}</p><div class="app-center-actions">${installed ? `<button class="app-btn" data-open-app="${safeAttr(entry.id)}">Открыть</button><button class="danger-btn" data-uninstall-app="${safeAttr(entry.id)}">Удалить</button>` : `<button class="app-btn primary" data-install-app="${safeAttr(entry.id)}">Установить</button>`}</div></article>`;
+    return `<article class="app-center-card ${installed ? "installed" : ""}" data-catalog-app="${safeAttr(entry.id)}">
+      <header class="app-center-card-heading"><span class="app-center-icon" aria-hidden="true">${escapeHtml(entry.icon)}</span><h2>${escapeHtml(entry.name)}</h2></header>
+      <p class="app-center-description">${escapeHtml(entry.description || "")}</p>
+      <div class="app-center-footer">
+        <span class="app-center-status ${installed ? "installed" : "available"}"><i aria-hidden="true"></i>${installed ? "На рабочем столе" : "Доступно для установки"}</span>
+        <div class="app-center-actions">${installed ? `<button type="button" class="app-btn primary" data-open-app="${safeAttr(entry.id)}">Открыть</button><button type="button" class="danger-btn" data-uninstall-app="${safeAttr(entry.id)}" aria-label="${safeAttr(`Удалить ярлык: ${entry.name || ""}`)}">Удалить</button>` : `<button type="button" class="app-btn primary" data-install-app="${safeAttr(entry.id)}">Установить</button>`}</div>
+      </div>
+    </article>`;
   }
 
   function appCenterEntries(appEntries = [], isInstalled = () => false) {
@@ -17,12 +24,19 @@
       id,
       icon: app.icon,
       name: app.name,
+      description: app.description || "",
       installed: Boolean(isInstalled(id))
     }));
   }
 
   function appCenterHTML(entries = []) {
-    return `<h1>Приложения</h1><p class="muted">Устанавливай приложения на текущий рабочий стол. Установка создаёт ярлык, удаление убирает ярлык с рабочего стола.</p><div class="browser-cards app-center-grid">${entries.map(appCenterCardHTML).join("")}</div>`;
+    const installedCount = entries.filter(entry => entry.installed).length;
+    return `<header class="app-center-heading">
+      <div class="app-center-heading-copy"><span class="app-center-eyebrow">Каталог ZeTer OS</span><h1>Приложения</h1><p>Инструменты для работы, идей и планов.<br>Выберите, что добавить на этот рабочий стол.</p></div>
+      <dl class="app-center-summary"><div><dt>В каталоге</dt><dd>${entries.length}</dd></div><div><dt>На рабочем столе</dt><dd>${installedCount}</dd></div></dl>
+    </header>
+    <p class="app-center-hint">Установка добавляет ярлык. Удаление ярлыка сохраняет ваши файлы и данные.</p>
+    <div class="browser-cards app-center-grid">${entries.map(appCenterCardHTML).join("")}</div>`;
   }
 
   function appCenterAction(target) {

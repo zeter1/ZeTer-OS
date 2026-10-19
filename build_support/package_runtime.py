@@ -26,6 +26,7 @@ def run_packaged_self_test() -> int:
         raise RuntimeError("Packaged ZeTer OS web assets are missing: " + ", ".join(missing))
 
     import webview  # noqa: F401 - import itself validates pywebview packaging
+    import security_backup  # noqa: F401 - full backup vault and recovery payload support
     import problem_logs  # noqa: F401 - validate the native launcher dependency
     from app_updater import read_manifest, verify_file
     manifest = read_manifest(root)

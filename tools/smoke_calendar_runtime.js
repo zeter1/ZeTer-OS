@@ -35,6 +35,81 @@ assert.ok(calendarUi, "calendar UI runtime must load");
 assert.equal(calendar.moveCalendarState({ view: "month", date: "2026-01-31", selected: "2026-01-31" }, "next").date, "2026-02-28");
 assert.equal(calendar.moveCalendarState({ view: "month", date: "2026-03-31", selected: "2026-03-31" }, "previous").date, "2026-02-28");
 
+// Catch a missing week-start parameter at the real date, grid and controller boundaries.
+const isoDate = value => sandbox.ZETER_CORE_UTILS.dateISO(value);
+const wednesday = new Date(2026, 6, 15, 12);
+assert.equal(isoDate(calendar.startOfWeek(wednesday)), "2026-07-13", "legacy callers must keep Monday");
+assert.equal(isoDate(calendar.startOfWeek(wednesday, "sunday")), "2026-07-12", "Sunday week must include the preceding Sunday");
+assert.equal(wednesday.getDate(), 15, "week alignment must not change its input date");
+for (const invalid of [null, "", "Saturday", {}, 0]) {
+  assert.equal(isoDate(calendar.startOfWeek(wednesday, invalid)), "2026-07-13", "invalid preferences must safely use Monday");
+}
+assert.equal(calendar.calendarTitleText({ view: "week", date: "2026-07-15" }, isoDate), "Неделя 2026-07-13 — 2026-07-19");
+assert.equal(calendar.calendarTitleText({ view: "week", date: "2026-07-15" }, isoDate, "sunday"), "Неделя 2026-07-12 — 2026-07-18");
+
+class CalendarElement {
+  constructor() { this.children = []; this.dataset = {}; this.attributes = {}; this.listeners = {}; this._html = ""; }
+  set innerHTML(value) {
+    this._html = value;
+    this.children = [];
+    this.firstElementChild = value.startsWith('<div class="weekday">') ? { innerHTML: value } : null;
+  }
+  get innerHTML() { return this._html; }
+  appendChild(child) { this.children.push(child); return child; }
+  setAttribute(name, value) { this.attributes[name] = value; }
+  addEventListener(type, listener) { this.listeners[type] = listener; }
+  querySelector(selector) { return this.controls?.[selector] || null; }
+}
+const calendarDocument = { createElement: () => new CalendarElement() };
+sandbox.document = calendarDocument;
+const daysOf = grid => grid.children.filter(child => child.dataset?.day).map(child => child.dataset.day);
+const headerNames = grid => grid.children.slice(0, 7).map(child => child.innerHTML.match(/>([^<]+)</)[1]);
+const expectedMondayWeek = ["2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-18", "2026-07-19"];
+const expectedSundayWeek = ["2026-07-12", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-18"];
+assert.deepEqual(daysOf(calendarUi.calendarWeekViewElement("2026-07-15")), expectedMondayWeek);
+assert.deepEqual(daysOf(calendarUi.calendarWeekViewElement("2026-07-15", () => [], "sunday")), expectedSundayWeek);
+const sundayEvent = { id: "week-start-event", title: "Воскресная встреча", date: "2026-11-01", start: "10:00", end: "11:00", repeat: "none" };
+const eventSnapshot = JSON.stringify(sundayEvent);
+const monthDates = "2026-10-26 2026-10-27 2026-10-28 2026-10-29 2026-10-30 2026-10-31 2026-11-01 2026-11-02 2026-11-03 2026-11-04 2026-11-05 2026-11-06 2026-11-07 2026-11-08 2026-11-09 2026-11-10 2026-11-11 2026-11-12 2026-11-13 2026-11-14 2026-11-15 2026-11-16 2026-11-17 2026-11-18 2026-11-19 2026-11-20 2026-11-21 2026-11-22 2026-11-23 2026-11-24 2026-11-25 2026-11-26 2026-11-27 2026-11-28 2026-11-29 2026-11-30 2026-12-01 2026-12-02 2026-12-03 2026-12-04 2026-12-05 2026-12-06 2026-12-07 2026-12-08 2026-12-09 2026-12-10 2026-12-11 2026-12-12".split(" ");
+for (const [weekStart, expectedOffset, headers] of [
+  [undefined, 0, ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]],
+  ["monday", 0, ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]],
+  ["sunday", 6, ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"]],
+  ["invalid", 0, ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]]
+]) {
+  const month = calendarUi.calendarMonthViewElement({
+    calendarDateISO: "2026-11-01", selectedISO: sundayEvent.date, weekStart,
+    eventsForDate: iso => calendar.calendarEventsForDate([sundayEvent], iso)
+  });
+  assert.deepEqual(headerNames(month), headers, "headers must follow the selected week start");
+  assert.deepEqual(daysOf(month), monthDates.slice(expectedOffset, expectedOffset + 42), "month must contain 42 consecutive correctly aligned dates");
+  const eventCells = month.children.filter(child => child.innerHTML?.includes(sundayEvent.title));
+  assert.equal(eventCells.length, 1);
+  assert.equal(eventCells[0].dataset.day, "2026-11-01", "week preference must not move an event to a different date");
+}
+assert.equal(JSON.stringify(sundayEvent), eventSnapshot, "rendering must not mutate event data");
+assert.deepEqual(Array.from(calendarUi.CALENDAR_WEEKDAY_NAMES), ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"], "legacy weekday export must remain Monday-based");
+
+const liveRoot = new CalendarElement();
+liveRoot.controls = Object.fromEntries(["[data-view]", ".calendar-title", ".calendar-board", ".event-list"].map(selector => [selector, new CalendarElement()]));
+let liveCalendar = { view: "week", date: "2026-07-15", selected: "2026-07-15" };
+let weekPreference = "sunday", weekPreferenceReads = 0;
+calendarUi.createCalendarApp({
+  document: { createElement: () => liveRoot },
+  getCalendar: () => liveCalendar,
+  setCalendar: value => { liveCalendar = value; },
+  getWeekStart: () => { weekPreferenceReads++; return weekPreference; },
+  formatDate: isoDate
+});
+const liveBoard = liveRoot.controls[".calendar-board"];
+assert.equal(liveRoot.controls[".calendar-title"].textContent, "Неделя 2026-07-12 — 2026-07-18");
+assert.deepEqual(daysOf(liveBoard.children[0]), expectedSundayWeek, "controller must use the same preference for title and grid");
+weekPreference = "monday";
+liveRoot.listeners.change({ target: { matches: selector => selector === "[data-view]", value: "week" } });
+assert.equal(liveRoot.controls[".calendar-title"].textContent, "Неделя 2026-07-13 — 2026-07-19");
+assert.deepEqual(daysOf(liveBoard.children[0]), expectedMondayWeek, "next draw must read the current preference");
+assert.equal(weekPreferenceReads, 2, "one consistent preference snapshot is required for each draw");
+
 const shell = calendarUi.calendarShellHTML("Основной");
 assert.match(shell, /calendar-selected-day-card/, "selected-day panel must occupy the calendar side column");
 assert.doesNotMatch(shell, /data-ev-title/, "event form must not remain inside the calendar window");

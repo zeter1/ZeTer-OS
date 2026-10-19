@@ -19,6 +19,8 @@ FIXED_ZIP_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
 RELEASE_ROOT_FILES = (
     "README_PYTHON.md",
     "problem_logs.py",
+    "document_converter.py",
+    "security_backup.py",
     "app_updater.py",
     "update_runner.py",
     "requirements.txt",

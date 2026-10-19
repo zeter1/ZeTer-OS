@@ -109,10 +109,33 @@
     (Array.isArray(store?.taskProjects) ? store.taskProjects : []).forEach((project, index) => {
       if (project?.id) validateImportSafeId(project.id, `${label}: ID проекта #${index + 1}`);
       validateImportString(project?.name, `${label}: имя проекта #${index + 1}`, 160);
+      validateImportString(project?.description, `${label}: описание проекта #${index + 1}`, 2000);
+      if (project?.color !== undefined && !["default", "blue", "green", "orange", "pink", "purple"].includes(project.color) && !(typeof project.color === "string" && /^#[0-9a-fA-F]{6}$/.test(project.color))) throw new Error(`${label}: неверный цвет проекта.`);
+      for (const [key, values] of Object.entries({ defaultView: ["overview", "board", "list"], sortBy: ["created", "due", "priority", "title"], defaultPriority: ["low", "medium", "high"] })) {
+        if (project?.[key] !== undefined) validateImportEnum(project[key], new Set(values), `${label}: настройка проекта ${key}`);
+      }
+      if (project?.hideCompleted !== undefined && typeof project.hideCompleted !== "boolean") throw new Error(`${label}: настройка скрытия выполненных задач должна быть логическим значением.`);
+      validateImportArrayLimit(project?.categories, `${label}: категории проекта #${index + 1}`, 200);
+      (project?.categories || []).forEach(category => {
+        if (!category?.id) throw new Error(`${label}: отсутствует ID категории задачи.`);
+        validateImportSafeId(category.id, `${label}: ID категории задачи`);
+        validateImportString(category.name, `${label}: название категории задачи`, 160);
+        if (typeof category.name !== "string" || !category.name.trim()) throw new Error(`${label}: пустое название категории задачи.`);
+      });
+      if (project?.attachments !== undefined) {
+        if (!Array.isArray(project.attachments)) throw new Error(`${label}: связи проекта должны быть массивом.`);
+        validateImportArrayLimit(project.attachments, `${label}: связи проекта #${index + 1}`, 200);
+        project.attachments.forEach(ref => {
+          if (!ref || typeof ref !== "object" || !["fs", "event"].includes(ref.kind)) throw new Error(`${label}: неверный тип связи проекта.`);
+          if (!ref.id) throw new Error(`${label}: отсутствует ID связи проекта.`);
+          validateImportSafeId(ref.id, `${label}: ID связи проекта`);
+        });
+      }
     });
     (Array.isArray(store?.tasks) ? store.tasks : []).forEach((task, index) => {
       if (task?.id) validateImportSafeId(task.id, `${label}: ID задачи #${index + 1}`);
       if (task?.projectId) validateImportSafeId(task.projectId, `${label}: ID проекта задачи #${index + 1}`);
+      if (task?.categoryId) validateImportSafeId(task.categoryId, `${label}: ID категории задачи #${index + 1}`);
       validateImportEnum(task?.status || "todo", new Set(["todo", "doing", "review", "done"]), `${label}: статус задачи #${index + 1}`);
       validateImportEnum(task?.priority || "medium", new Set(["low", "medium", "high"]), `${label}: приоритет задачи #${index + 1}`);
       validateImportString(task?.title, `${label}: название задачи #${index + 1}`, TASK_TITLE_MAX_CHARS);

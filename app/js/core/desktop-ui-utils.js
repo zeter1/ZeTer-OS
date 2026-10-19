@@ -73,6 +73,7 @@
     items = [],
     selectedId = "",
     selectedIds = new Set(),
+    appearance = {},
     clampPosition = () => ({ x: 20, y: 20 }),
     itemIcon = () => "",
     onSelect = () => {},
@@ -81,32 +82,61 @@
     onEnableDrag = () => {}
   } = {}) {
     if (!container) return;
+    const visualUtils = window.ZETER_VISUAL_UTILS;
+    const view = visualUtils?.normalizeDesktopAppearance
+      ? visualUtils.normalizeDesktopAppearance(appearance)
+      : { iconSize: "medium", density: "compact", extensions: true };
+    container.dataset.iconSize = view.iconSize;
+    const minimumSize = { small: { w: 64, h: 68 }, medium: { w: 80, h: 82 }, large: { w: 104, h: 106 } }[view.iconSize];
+    const gap = view.density === "comfortable" ? 16 : 4;
+    const scrollLeft = container.scrollLeft || 0;
+    const scrollTop = container.scrollTop || 0;
+    const preferredPositions = new Map(items.map(item => [item.id, clampPosition(item.x ?? 20, item.y ?? 20)]));
     container.innerHTML = "";
-
+    const occupied = desktopLayoutUtils.desktopForbiddenRects([
+      document.querySelector?.(".top-menu"), document.querySelector?.(".taskbar")
+    ]).map(rect => ({ ...rect, x: rect.x + scrollLeft, y: rect.y + scrollTop }));
     items.forEach(item => {
       const icon = document.createElement("button");
       const selected = selectedId === item.id || selectedIds?.has(item.id);
       icon.className = "desktop-icon" + (selected ? " selected" : "");
       icon.dataset.itemId = item.id;
+      icon.dataset.iconSize = view.iconSize;
+      icon.dataset.labelSize = view.labelSize || "medium";
+      icon.dataset.labelLines = String(view.labelLines || 0);
       if (item.type === "folder") icon.dataset.folderTarget = item.id;
-      const position = clampPosition(item.x ?? 20, item.y ?? 20);
+      const position = preferredPositions.get(item.id);
       icon.style.left = position.x + "px";
       icon.style.top = position.y + "px";
-      icon.innerHTML = desktopIconHTML({ icon: itemIcon(item), name: item.name });
+      const displayName = window.ZETER_EXPLORER_UI_UTILS?.explorerDisplayName?.(item, view.extensions) ?? item.name;
+      icon.innerHTML = desktopIconHTML({ icon: itemIcon(item), name: displayName });
       icon.addEventListener("click", event => {
         event.stopPropagation();
         if (icon.dataset.dragJustEnded === "1") return;
         onSelect(item.id, event);
+        if ((view.openMode === "single" || event.detail === 0) && (event.detail || 0) <= 1 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) onOpen(item.id);
       });
       icon.addEventListener("dblclick", event => {
         event.preventDefault();
         event.stopPropagation();
+        if (view.openMode === "single" || icon.dataset.dragJustEnded === "1" || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         onOpen(item.id);
       });
       icon.addEventListener("contextmenu", event => onShowMenu(event, item.id));
       onEnableDrag(icon, item.id);
       container.appendChild(icon);
+      const placed = desktopLayoutUtils.resolveIconPosition({
+        ...position, w: icon.offsetWidth || minimumSize.w, h: icon.offsetHeight || minimumSize.h
+      }, occupied, { width: container.clientWidth || window.innerWidth, gap });
+      icon.style.left = placed.x + "px";
+      icon.style.top = placed.y + "px";
+      item.x = placed.x;
+      item.y = placed.y;
+      icon.title = item.name;
+      occupied.push({ ...placed, w: icon.offsetWidth || minimumSize.w, h: icon.offsetHeight || minimumSize.h });
     });
+    container.scrollLeft = scrollLeft;
+    container.scrollTop = scrollTop;
   }
 
   function createDesktopSurfaceController(options = {}) {
@@ -115,6 +145,7 @@
     const getContainer = typeof options.getContainer === "function" ? options.getContainer : () => null;
     const getRootId = typeof options.getRootId === "function" ? options.getRootId : () => "desktop";
     const getItems = typeof options.getItems === "function" ? options.getItems : () => [];
+    const getSettings = typeof options.getSettings === "function" ? options.getSettings : () => ({});
     const getSelectedId = typeof options.getSelectedId === "function" ? options.getSelectedId : () => null;
     const setSelectedId = typeof options.setSelectedId === "function" ? options.setSelectedId : () => {};
     const getSelectedIds = typeof options.getSelectedIds === "function" ? options.getSelectedIds : () => new Set();
@@ -152,6 +183,7 @@
       renderDesktopIcons({
         container,
         items: getItems(),
+        appearance: getSettings().desktopAppearance,
         selectedId: getSelectedId(),
         selectedIds: getSelectedIds(),
         clampPosition,
@@ -287,7 +319,16 @@
       getItems: () => Object.values(getState().fs),
       getDesktopRoot,
       getForbiddenElements: () => [documentRef.querySelector("#top-menu"), documentRef.querySelector("#taskbar")],
-      getViewportSize: () => ({ width: windowRef.innerWidth, height: windowRef.innerHeight })
+      getScrollOffset: () => {
+        const surface = documentRef.querySelector("#desktop-items");
+        return { x: surface?.scrollLeft || 0, y: surface?.scrollTop || 0 };
+      },
+      getViewportSize: () => {
+        const surface = documentRef.querySelector("#desktop-items");
+        const bottoms = Object.values(getState().fs).filter(item => item.parent === getDesktopRoot() && !item.deletedAt && !item.hiddenFromDesktop)
+          .map(item => (item.y || 0) + 216);
+        return { width: surface?.clientWidth || windowRef.innerWidth, height: Math.max(windowRef.innerHeight, surface?.scrollHeight || 0, ...bottoms) };
+      }
     });
 
     function addDesktopShortcut(appId, parent, x, y) {
@@ -457,7 +498,7 @@
 
       function preview(deltaX, deltaY) {
         if (!session) return null;
-        const plan = layoutController.groupMovePlan(session.items, deltaX, deltaY);
+        const plan = layoutController.groupMovePlan(session.items, deltaX, deltaY, { gap: session.gap });
         if (!plan.valid) return null;
         session.plan = plan;
         return plan;
@@ -505,15 +546,20 @@
             const current = fs[id];
             const renderedX = Number.parseFloat(source?.style?.left);
             const renderedY = Number.parseFloat(source?.style?.top);
+            const rect = source?.getBoundingClientRect?.();
             return {
               id,
               x: Number.isFinite(renderedX) ? renderedX : (current?.x || 0),
-              y: Number.isFinite(renderedY) ? renderedY : (current?.y || 0)
+              y: Number.isFinite(renderedY) ? renderedY : (current?.y || 0),
+              w: source?.offsetWidth || rect?.width,
+              h: source?.offsetHeight || rect?.height
             };
           });
           const origin = element.getBoundingClientRect();
           const ghost = documentRef.querySelector?.("#drag-ghost");
-          session = { ids, items, elements, origin, ghost, plan: null, committed: false, dropKind: null };
+          const appearance = currentWorkspace()?.settings?.desktopAppearance;
+          const gap = appearance?.density === "comfortable" ? 16 : 4;
+          session = { ids, items, elements, origin, ghost, gap, plan: null, committed: false, dropKind: null };
           getRuntimeUi().drag = { itemId, itemIds: [...ids], source: "desktop" };
           if (ghost) {
             showDragGhost(ghost, "");

@@ -41,7 +41,7 @@
       else if (property === "font-family") {
         const name = text.replace(/^["']|["']$/g, "");
         safe = fonts.find(font => font.toLowerCase() === name.toLowerCase()) || "";
-      } else if (property === "text-align" && ["p", "div", "li", "h1", "h2", "h3", "blockquote"].includes(tag)) {
+      } else if (property === "text-align" && ["p", "div", "li", "h1", "h2", "h3", "blockquote", "td", "th"].includes(tag)) {
         if (/^(left|center|right|justify)$/.test(text)) safe = text;
       } else if (property === "font-weight" && /^(normal|bold|[1-9]00)$/.test(text)) safe = text;
       else if (property === "font-style" && /^(normal|italic)$/.test(text)) safe = text;
@@ -87,11 +87,13 @@
     const box = document.createElement("div");
     box.innerHTML = String(html || "");
     const dangerous = new Set(["script", "iframe", "object", "embed", "style", "link", "meta", "base", "form", "input", "button", "textarea", "select", "svg", "math"]);
-    const allowed = new Set(["b", "i", "u", "s", "p", "div", "br", "ul", "ol", "li", "h1", "h2", "h3", "blockquote", "span", "img", "a"]);
+    const allowed = new Set(["b", "i", "u", "s", "strong", "em", "sub", "sup", "p", "div", "br", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "blockquote", "span", "img", "a", "table", "thead", "tbody", "tfoot", "tr", "td", "th"]);
     const allowedAttrs = {
       img: new Set(["src", "alt", "title", "width", "height"]),
       span: new Set(["style", "data-managed-file-inline", "data-managed-file-inline-x"]),
-      a: new Set(["href", "title"])
+      a: new Set(["href", "title"]),
+      td: new Set(["colspan", "rowspan"]),
+      th: new Set(["colspan", "rowspan"])
     };
     const safeImageUrl = value => {
       const raw = String(value || "").trim();
@@ -138,7 +140,11 @@
             el.removeAttribute(attr.name);
             return;
           }
-          if (name === "src") {
+          if (name === "colspan" || name === "rowspan") {
+            const span = Number(attr.value);
+            if (Number.isInteger(span) && span >= 1 && span <= 100) el.setAttribute(name, String(span));
+            else el.removeAttribute(name);
+          } else if (name === "src") {
             const src = safeImageUrl(attr.value);
             if (!src) el.removeAttribute(attr.name);
             else el.setAttribute("src", src);

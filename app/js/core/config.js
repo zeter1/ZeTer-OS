@@ -12,6 +12,7 @@
       STORAGE_KEY,
       OS_VERSION,
       OS_VERSION_NUMBER,
+      DEFAULT_DESKTOP_APP_IDS: Object.freeze(["tasks", "calendar", "links", "settings", "about", "security", "monitor", "appcenter", "help"]),
       DEVELOPER: Object.freeze({
         name: "Дмитрий Колесниченко",
         email: "zeter11@gmail.com"

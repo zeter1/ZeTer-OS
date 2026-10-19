@@ -138,7 +138,7 @@
   }
 
   function makeTaskProject(name = DEFAULT_TASK_PROJECT_NAME) {
-    return { id: uid("project"), name: String(name || DEFAULT_TASK_PROJECT_NAME).trim() || DEFAULT_TASK_PROJECT_NAME, createdAt: Date.now(), updatedAt: Date.now() };
+    return { id: uid("project"), name: String(name || DEFAULT_TASK_PROJECT_NAME).trim() || DEFAULT_TASK_PROJECT_NAME, ...normalizeTaskProjectSettings(), categories: [], createdAt: Date.now(), updatedAt: Date.now() };
   }
 
   function makeTask(input = {}, options = {}) {
@@ -152,6 +152,7 @@
       priority: input.priority || "medium",
       due: input.indefinite ? "" : (input.due || ""),
       tag: input.tag || "",
+      categoryId: input.categoryId || "",
       projectId: input.projectId || fallbackProjectId,
       pinned: false,
       pinnedAt: 0,
@@ -218,12 +219,43 @@
     return setTaskReminder(task, "", 0, now);
   }
 
+  function normalizeTaskProjectColor(value) {
+    const color = typeof value === "string" ? value.trim().toLowerCase() : "";
+    return ["default", "blue", "green", "orange", "pink", "purple"].includes(color) || /^#[0-9a-f]{6}$/.test(color) ? color : "default";
+  }
+
+  function taskProjectColorCSS(value) {
+    const color = normalizeTaskProjectColor(value);
+    return ({ default: "var(--accent)", blue: "#70aeef", green: "#74c99b", orange: "#edb36a", pink: "#e997bb", purple: "#b59bef" })[color] || color;
+  }
+
+  function normalizeTaskProjectSettings(project = {}) {
+    return {
+      description: String(project.description || "").trim().slice(0, 2000),
+      color: normalizeTaskProjectColor(project.color),
+      defaultView: ["overview", "board", "list"].includes(project.defaultView) ? project.defaultView : "overview",
+      sortBy: ["created", "due", "priority", "title"].includes(project.sortBy) ? project.sortBy : "created",
+      hideCompleted: project.hideCompleted === true,
+      defaultPriority: TASK_PRIORITIES.has(project.defaultPriority) ? project.defaultPriority : "medium"
+    };
+  }
+
   function normalizeTaskProject(project, fallbackName = DEFAULT_TASK_PROJECT_NAME) {
     const clean = project && typeof project === "object" ? project : {};
     clean.id = normalizeSafeId(clean.id, "project");
     clean.name = truncateText(String(clean.name || fallbackName).trim() || fallbackName, 160);
+    Object.assign(clean, normalizeTaskProjectSettings(clean));
     clean.createdAt = Number(clean.createdAt) || Date.now();
     clean.updatedAt = Number(clean.updatedAt) || clean.createdAt;
+    const categoryIds = new Set();
+    clean.categories = (Array.isArray(clean.categories) ? clean.categories : []).slice(0, 200).flatMap(category => {
+      if (!category || typeof category !== "object" || !isSafeId(String(category.id || "")) || categoryIds.has(category.id)) return [];
+      const name = String(category.name || "").trim().slice(0, 160);
+      if (!name) return [];
+      categoryIds.add(category.id);
+      return [{ id: category.id, name }];
+    });
+    if (clean.attachments !== undefined) clean.attachments = window.ZETER_PROJECT_OVERVIEW_UTILS.normalizeProjectAttachments(clean.attachments);
     return clean;
   }
 
@@ -236,6 +268,7 @@
     clean.priority = TASK_PRIORITIES.has(clean.priority) ? clean.priority : "medium";
     clean.due = clean.due || "";
     clean.tag = truncateText(clean.tag || "", TASK_TAG_MAX_CHARS);
+    clean.categoryId = isSafeId(String(clean.categoryId || "")) ? String(clean.categoryId) : "";
     clean.checklist = Array.isArray(clean.checklist)
       ? clean.checklist.slice(0, TASK_CHECKLIST_MAX_ITEMS).map(sub => ({
         id: normalizeSafeId(sub?.id, "sub"),
@@ -269,7 +302,11 @@
     const fallbackProjectId = store.taskProjects[0].id;
     const projectIds = new Set(store.taskProjects.map(project => project.id));
     store.tasks = store.tasks.map(task => normalizeTask(task, fallbackProjectId));
-    store.tasks.forEach(task => { if (!projectIds.has(task.projectId)) task.projectId = fallbackProjectId; });
+    const categoriesByProject = new Map(store.taskProjects.map(project => [project.id, new Set(project.categories.map(category => category.id))]));
+    store.tasks.forEach(task => {
+      if (!projectIds.has(task.projectId)) task.projectId = fallbackProjectId;
+      if (!categoriesByProject.get(task.projectId)?.has(task.categoryId)) task.categoryId = "";
+    });
     if (!projectIds.has(store.activeTaskProjectId)) store.activeTaskProjectId = fallbackProjectId;
     delete store.projects;
     return store;
@@ -409,6 +446,9 @@
       setTaskReminder,
       clearTaskReminder,
       normalizeTaskProject,
+      normalizeTaskProjectSettings,
+      normalizeTaskProjectColor,
+      taskProjectColorCSS,
       normalizeTask,
       normalizeTaskStore,
       normalizeTaskListsData,

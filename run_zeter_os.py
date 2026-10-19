@@ -40,6 +40,8 @@ from urllib.parse import urlsplit
 
 from problem_logs import DailyProblemLogs, ProblemLogs, diagnosed, plain_path
 from app_updater import UpdateError, UpdateManager, normal_instance_lock
+import document_converter
+from security_backup import SecurityBackupStore
 
 APP_NAME = "ZeTer OS"
 WINDOWS_RUN_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -203,6 +205,57 @@ def _windows_uptime_ms() -> Optional[int]:
 
 def json_bytes(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def _restore_point_summary(point: Any) -> Dict[str, Any]:
+    """Project a restore card without copying/normalizing its full snapshot."""
+    point = point if isinstance(point, dict) else {}
+    card = {}
+    for key in ("id", "app", "name", "reason", "osVersion"):
+        if isinstance(point.get(key), str):
+            card[key] = point[key]
+    for key in ("createdAt", "sizeBytes", "stateBytes"):
+        value = point.get(key)
+        if type(value) in (int, float) and 0 <= value < float("inf"):
+            card[key] = value
+    if isinstance(point.get("verified"), bool):
+        card["verified"] = point["verified"]
+    counters = ("desktops", "files", "folders", "notes", "tables", "images", "tasks", "events", "notifications")
+    state = point.get("state")
+    card["stateAvailable"] = isinstance(state, dict)
+    stored = point.get("summary")
+    if isinstance(stored, dict):
+        card["summary"] = {
+            key: value for key in counters
+            if type(value := stored.get(key)) in (int, float) and 0 <= value < float("inf")
+        }
+    elif isinstance(state, dict):
+        summary = dict.fromkeys(counters, 0)
+        desktops = state.get("desktops")
+        desktops = desktops if isinstance(desktops, list) else []
+        summary["desktops"] = len(desktops)
+        fs = state.get("fs")
+        if isinstance(fs, dict):
+            summary["files"] = len(fs)
+            kinds = {"folder": "folders", "note": "notes", "text": "notes", "markdown": "notes",
+                     "table": "tables", "image": "images"}
+            for item in fs.values():
+                kind = item.get("type") if isinstance(item, dict) else None
+                counter = kinds.get(kind) if isinstance(kind, str) else None
+                if counter:
+                    summary[counter] += 1
+        for key in ("tasks", "events", "notifications"):
+            entries = state.get(key)
+            summary[key] = len(entries) if isinstance(entries, list) else 0
+            for desktop in desktops:
+                data = desktop.get("data") if isinstance(desktop, dict) else None
+                entries = data.get(key) if isinstance(data, dict) else None
+                if isinstance(entries, list):
+                    summary[key] += len(entries)
+        card["summary"] = summary
+    else:
+        card["summary"] = {}
+    return card
 
 
 def normalize_portable_state_metadata(state: Any) -> int:
@@ -1420,6 +1473,26 @@ def _write_windows_readable_data(
             counters["tasks"] += len(tasks)
             continue
 
+        managed = item.get("managedFile")
+        managed_relative = managed.get("managedPath") if isinstance(managed, dict) else None
+        if isinstance(managed_relative, str) and Path(managed_relative).suffix.lower() in {".doc", ".docx"}:
+            # These are real managed documents, not note text with a Word suffix.
+            # Keep the working bytes intact in the staged Windows mirror.
+            source = document_converter.checked_managed_path(DATA_DIR, MANAGED_FILE_ROOT_DIR, managed_relative)
+            source = managed_file_path(managed_relative, require_file=True)
+            expected_size = source.stat().st_size
+            if not 0 < expected_size <= document_converter.MAX_DOCUMENT_BYTES:
+                raise ValueError("Документ Windows-копии превышает 32 МБ или пуст.")
+            with source.open("rb") as handle:
+                document_bytes = handle.read(document_converter.MAX_DOCUMENT_BYTES + 1)
+            if len(document_bytes) != expected_size:
+                raise ValueError("Документ изменился во время создания Windows-копии.")
+            files_dir = ddir(desk_id, "Файлы", *trail)
+            mirror_name = safe_windows_name(Path(item_name).stem, "Документ", 80) + source.suffix.lower()
+            atomic_write_bytes(safe_base_file(files_dir / mirror_name, "Документ"), document_bytes)
+            counters["files"] += 1
+            continue
+
         text_content = ""
         if isinstance(item.get("richContent"), str) and item.get("richContent"):
             text_content = html_to_plain_text(item.get("richContent") or "")
@@ -1499,6 +1572,63 @@ def file_stat_totals(paths: Iterable[Path]) -> tuple[int, int]:
             files += 1
             total_bytes += info.st_size
     return files, total_bytes
+
+
+def storage_stat_totals() -> Dict[str, tuple[int, int]]:
+    """Observe each data entry once and share its size between categories."""
+    totals = {name: (0, 0) for name in (
+        "data", "state", "restore", "backup", "log", "managed", "assets", "readable",
+    )}
+    recursive_roots = {
+        MANAGED_FILE_ROOT_DIR: "managed",
+        ITEM_ASSET_ROOT_DIR: "assets",
+        READABLE_ROOT_DIR: "readable",
+    }
+    direct_roots = {BACKUP_DIR: "backup", LOG_DIR: "log"}
+    pending = [(DATA_DIR, True, True)]
+    while pending:
+        directory, count_data, recursive = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    path = Path(entry.path)
+                    try:
+                        info = path.stat()
+                    except FileNotFoundError:
+                        continue
+                    if stat.S_ISDIR(info.st_mode):
+                        if not recursive:
+                            continue
+                        if entry.is_symlink():
+                            # rglob does not follow nested directory links. An
+                            # explicitly selected category root was traversed
+                            # separately before; preserve only that exception.
+                            if path in recursive_roots or path in direct_roots:
+                                pending.append((path, False, path in recursive_roots))
+                        else:
+                            pending.append((path, count_data, True))
+                        continue
+                    if not stat.S_ISREG(info.st_mode):
+                        continue
+                    categories = ["data"] if count_data else []
+                    if path == STATE_FILE:
+                        categories.append("state")
+                    if path == RESTORE_FILE:
+                        categories.append("restore")
+                    direct_category = direct_roots.get(path.parent)
+                    if direct_category:
+                        categories.append(direct_category)
+                    for category_root, category in recursive_roots.items():
+                        if category_root in path.parents:
+                            if category != "managed" or MANAGED_FILE_INCOMING_DIR not in path.parents:
+                                categories.append(category)
+                    for category in categories:
+                        files, size = totals[category]
+                        totals[category] = files + 1, size + info.st_size
+        except FileNotFoundError:
+            # The directory can also disappear between discovery and scandir.
+            continue
+    return totals
 
 
 def _readable_files_match(source: Path, target: Path) -> bool:
@@ -1854,6 +1984,81 @@ class NativeStorageApi:
             raise ValueError(error_message)
         return payload
 
+    def _security_backup_store(self) -> SecurityBackupStore:
+        # Resolve DATA_DIR at each operation, including isolated native smokes.
+        return SecurityBackupStore(self, sys.modules[__name__])
+
+    def _choose_security_backup_folder(self) -> Optional[Path]:
+        if self._window is None:
+            raise RuntimeError("Окно ZeTer OS ещё не готово для выбора папки бэкапов.")
+        import webview  # type: ignore
+        dialogs = getattr(webview, "FileDialog", None)
+        kind = getattr(dialogs, "FOLDER", None) if dialogs is not None else None
+        if kind is None:
+            kind = getattr(webview, "FOLDER_DIALOG", None)
+        if kind is None:
+            raise RuntimeError("Эта версия pywebview не поддерживает выбор папки.")
+        selection = self._window.create_file_dialog(kind)
+        if not selection:
+            return None
+        return Path(str(selection[0] if isinstance(selection, (tuple, list)) else selection))
+
+    @guard_native_operation
+    def get_security_backup_status(self) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().status()
+        except Exception as exc:
+            return self._error(exc)
+
+    @guard_native_operation
+    def configure_security_backups(self, payload: Any) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().configure(payload)
+        except Exception as exc:
+            return self._error(exc)
+
+    @guard_native_operation
+    def create_security_backup(self, record: Any) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().create(record)
+        except Exception as exc:
+            return self._error(exc)
+
+    @guard_native_operation
+    def pin_security_backup(self, payload: Any) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().pin(payload)
+        except Exception as exc:
+            return self._error(exc)
+
+    @guard_native_operation
+    def read_security_backup(self, payload: Any) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().read(payload)
+        except Exception as exc:
+            return self._error(exc)
+
+    @guard_native_operation
+    def build_security_backup(self, record: Any) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().build(record)
+        except Exception as exc:
+            return self._error(exc)
+
+    @guard_native_operation
+    def stage_security_restore(self, payload: Any) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().stage(payload)
+        except Exception as exc:
+            return self._error(exc)
+
+    @guard_native_operation
+    def release_security_restore(self, payload: Any) -> Dict[str, Any]:
+        try:
+            return self._security_backup_store().release(payload)
+        except Exception as exc:
+            return self._error(exc)
+
     def get_app_update_status(self) -> Dict[str, Any]:
         return self._app_updater.get_status()
 
@@ -1973,6 +2178,11 @@ class NativeStorageApi:
                 except Exception as exc:
                     errors.append(f"backup {backup_path.name}: {exc}")
 
+        try:
+            add_source("security restore leases", self._security_backup_store().restore_leases())
+        except Exception as exc:
+            errors.append(f"security restore leases: {exc}")
+
         archive_root = DATA_DIR / "Архив рабочих столов"
         try:
             archive_root.lstat()
@@ -2049,6 +2259,19 @@ class NativeStorageApi:
     def _prune_unreferenced_managed_files(self, referenced: set[str]) -> Dict[str, int]:
         now = time.time()
         with self._file_upload_lock:
+            # Document versions stay recoverable across process restarts. A marker
+            # is consumed only after the confirmed primary state references it.
+            document_pending = document_converter.pending_documents(DATA_DIR, MANAGED_FILE_ROOT_DIR)
+            document_protected: set[str] = set()
+            primary = read_json_file(STATE_FILE) if STATE_FILE.exists() else None
+            primary_refs = collect_managed_file_paths(primary) if primary else set()
+            for marker, target, record in document_pending:
+                relative = record["managedPath"].casefold()
+                if relative in primary_refs and target.is_file():
+                    marker.unlink()
+                else:
+                    document_protected.add(relative)
+                    document_protected.add(managed_file_relative_path(marker).casefold())
             for relative in list(self._uncommitted_file_paths):
                 if relative in referenced:
                     self._uncommitted_file_paths.pop(relative, None)
@@ -2057,6 +2280,7 @@ class NativeStorageApi:
                 for relative, created_at in self._uncommitted_file_paths.items()
                 if now - created_at < MANAGED_FILE_UPLOAD_TTL_SECONDS
             }
+            protected.update(document_protected)
             self._uncommitted_file_paths = {
                 relative: created_at
                 for relative, created_at in self._uncommitted_file_paths.items()
@@ -2269,16 +2493,15 @@ class NativeStorageApi:
     @guard_native_operation
     def get_storage_info(self) -> Dict[str, Any]:
         try:
-            state_files, state_bytes = file_stat_totals((STATE_FILE,))
-            _, restore_bytes = file_stat_totals((RESTORE_FILE,))
-            _, data_bytes = file_stat_totals(DATA_DIR.rglob("*"))
-            backup_files, backup_bytes = file_stat_totals(BACKUP_DIR.glob("*"))
-            log_files, log_bytes = file_stat_totals(LOG_DIR.glob("*"))
-            managed_files, managed_bytes = file_stat_totals(
-                path for path in MANAGED_FILE_ROOT_DIR.rglob("*") if MANAGED_FILE_INCOMING_DIR not in path.parents
-            )
-            item_assets, item_asset_bytes = file_stat_totals(ITEM_ASSET_ROOT_DIR.rglob("*"))
-            readable_files, readable_bytes = file_stat_totals(READABLE_ROOT_DIR.rglob("*"))
+            totals = storage_stat_totals()
+            state_files, state_bytes = totals["state"]
+            _, restore_bytes = totals["restore"]
+            _, data_bytes = totals["data"]
+            backup_files, backup_bytes = totals["backup"]
+            log_files, log_bytes = totals["log"]
+            managed_files, managed_bytes = totals["managed"]
+            item_assets, item_asset_bytes = totals["assets"]
+            readable_files, readable_bytes = totals["readable"]
             return self._ok(
                 dataDir=str(DATA_DIR),
                 stateFile=str(STATE_FILE),
@@ -2677,6 +2900,62 @@ class NativeStorageApi:
             self._platform_opener.open_path(path)
             log(f"FILE_OPEN file={json.dumps(str(path), ensure_ascii=False)}")
             return self._ok(filePath=str(path))
+        except Exception as exc:
+            return self._error(exc)
+
+    @diagnosed("read_managed_document")
+    @guard_native_operation
+    def read_managed_document(self, payload: Any) -> Dict[str, Any]:
+        """Read a safe Word copy without modifying its bytes or opening Word."""
+        try:
+            data = self._payload_dict(payload, "Некорректные данные документа.")
+            with self._state_save_lock, self._file_upload_lock:
+                path = document_converter.checked_managed_path(DATA_DIR, MANAGED_FILE_ROOT_DIR, data.get("managedPath"))
+                path = managed_file_path(managed_file_relative_path(path), require_file=True)
+                result = document_converter.read_document(path)
+            return self._ok(**result)
+        except document_converter.LibreOfficeNotFoundError as exc:
+            return {**self._error(exc), "code": "DOCUMENT_CONVERTER_MISSING"}
+        except Exception as exc:
+            return self._error(exc)
+
+    @diagnosed("save_managed_document")
+    @guard_native_operation
+    def save_managed_document(self, payload: Any) -> Dict[str, Any]:
+        """Publish a new immutable DOCX version with durable pending ownership."""
+        try:
+            data = self._payload_dict(payload, "Некорректные данные документа.")
+            with self._state_save_lock, self._file_upload_lock:
+                path = document_converter.checked_managed_path(DATA_DIR, MANAGED_FILE_ROOT_DIR, data.get("managedPath"))
+                path = managed_file_path(managed_file_relative_path(path), require_file=True)
+                if path.suffix.lower() not in {".doc", ".docx"} or path.stat().st_size > document_converter.MAX_DOCUMENT_BYTES:
+                    raise ValueError("Поддерживаются DOC/DOCX размером до 32 МБ.")
+                expected = str(data.get("expectedSha256") or "")
+                if not re.fullmatch(r"[a-f0-9]{64}", expected) or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                    raise ValueError("Документ изменился на диске. Откройте его заново; ваши правки оставлены в редакторе.")
+                pending = document_converter.pending_documents(DATA_DIR, MANAGED_FILE_ROOT_DIR)
+                if len(pending) >= 32:
+                    raise ValueError("Сохраните состояние перед новой версией: имеется 32 незавершённых документа.")
+                raw = document_converter.build_document(data.get("richHtml"))
+                if not plain_path(DATA_DIR, path) or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                    raise ValueError("Исходник изменился во время преобразования. Откройте документ заново; ваши правки оставлены в редакторе.")
+                if sum(target.stat().st_size for _, target, _ in pending if target.is_file()) + len(raw) > 128 * 1024 * 1024:
+                    raise ValueError("Незавершённые документы превышают 128 МБ. Сохраните состояние перед повтором.")
+                if shutil.disk_usage(DATA_DIR).free < len(raw) + 16 * 1024 * 1024:
+                    raise OSError("Недостаточно места для новой версии документа.")
+                name = safe_managed_file_name(Path(str(data.get("name") or path.name)).stem + ".docx")
+                target = path.parent / (Path(name).stem[:100] + "-" + secrets.token_hex(12) + ".docx")
+                relative = managed_file_relative_path(target)
+                marker = target.with_name("." + target.name + document_converter.PENDING_SUFFIX)
+                if not plain_path(DATA_DIR, target) or not plain_path(DATA_DIR, marker) or target.exists() or marker.exists():
+                    raise ValueError("Небезопасный или занятый путь новой версии документа.")
+                digest = hashlib.sha256(raw).hexdigest()
+                atomic_write_json(marker, {"owner": document_converter.PENDING_OWNER, "managedPath": relative, "sha256": digest})
+                atomic_write_bytes(target, raw)
+                if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                    raise OSError("Не удалось подтвердить новую версию документа. Recovery-маркер сохранён.")
+                result = {"id": "file-" + secrets.token_hex(8), "name": name, "managedPath": relative, "size": len(raw), "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "extension": "docx", "importedAt": now_ms()}
+            return self._ok(file=result, sha256=digest)
         except Exception as exc:
             return self._error(exc)
 
@@ -3207,19 +3486,28 @@ class NativeStorageApi:
 
     @diagnosed("load_restore_points")
     @guard_native_operation
-    def load_restore_points(self) -> Dict[str, Any]:
+    def load_restore_points(self, query: Any = None) -> Dict[str, Any]:
         try:
+            if query is not None and (
+                not isinstance(query, dict) or set(query) != {"summariesOnly"}
+                or not isinstance(query["summariesOnly"], bool)
+            ):
+                raise ValueError("Ожидается параметр summariesOnly со значением true или false.")
+            summaries_only = query is not None and query["summariesOnly"]
             with self._restore_points_lock:
                 points = read_json_file(RESTORE_FILE) or []
                 if not isinstance(points, list):
                     points = []
-                for point in points:
-                    if isinstance(point, dict):
-                        state = point.get("state")
-                        changed = normalize_portable_state_metadata(state) + sync_legacy_workspace_aliases(state)
-                        if changed and isinstance(state, dict):
-                            point["stateBytes"] = json_bytes(state)
+                if not summaries_only:
+                    for point in points:
+                        if isinstance(point, dict):
+                            state = point.get("state")
+                            changed = normalize_portable_state_metadata(state) + sync_legacy_workspace_aliases(state)
+                            if changed and isinstance(state, dict):
+                                point["stateBytes"] = json_bytes(state)
                 points.sort(key=lambda item: int(item.get("createdAt") or 0) if isinstance(item, dict) else 0, reverse=True)
+                if summaries_only:
+                    return self._ok(points=[_restore_point_summary(point) for point in points[:RESTORE_LIMIT]])
                 return self._ok(points=points[:RESTORE_LIMIT])
         except Exception as exc:
             return self._error(exc)

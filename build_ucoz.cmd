@@ -5,7 +5,7 @@ set "PYTHONUTF8=1"
 cd /d "%~dp0"
 
 set "NO_PAUSE="
-if /i "%~1"=="--no-pause" set "NO_PAUSE=1"
+for %%A in (%*) do if /i "%%~A"=="--no-pause" set "NO_PAUSE=1"
 
 if defined ZETER_PYTHON if exist "%ZETER_PYTHON%" (
     set "PY_EXE=%ZETER_PYTHON%"
@@ -55,12 +55,12 @@ exit /b 1
 
 :have_python
 echo Building ZeTer OS static uCoz package...
-"%PY_EXE%" %PY_ARGS% -B tools\build_ucoz.py
+"%PY_EXE%" %PY_ARGS% -B tools\build_ucoz.py %*
 set "BUILD_EXIT=%ERRORLEVEL%"
 echo.
 if "%BUILD_EXIT%"=="0" (
     echo Release build finished successfully.
-    echo Open folder: dist\ucoz
+    echo Use the ZIP/output directory printed above.
 ) else (
     echo Release build failed. The previous verified ZIP was not replaced.
 )

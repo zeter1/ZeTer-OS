@@ -174,6 +174,9 @@
     Object.values(fs).forEach(item => {
       if (item?.type === "app" && item.appId === "notes") item.name = "Заметки";
       if (item?.type === "app" && item.appId === "appcenter") item.name = appCenterName;
+      if (item?.type === "app" && item.appId === "help" && item.name === "Справка" && options.helpName) {
+        item.name = options.helpName;
+      }
     });
 
     (target.desktops || []).forEach(desk => {

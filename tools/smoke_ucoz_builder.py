@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import build_ucoz as builder
+import prepare_web
 
 
 class UcozBuildTests(unittest.TestCase):
@@ -39,6 +40,28 @@ class UcozBuildTests(unittest.TestCase):
     def build(self):
         return builder.build_ucoz(self.root, self.root / "dist")
 
+    def test_direct_manifest_tracks_all_bytes_and_excludes_private_state(self):
+        html = self.root / "app/index.html"
+        html.write_text(html.read_text(encoding="utf-8").replace('<script src="', '<script type="application/zeter-script" src="'), encoding="utf-8")
+        (self.root / "app/js/web-bootstrap.js").write_text("// gate", encoding="utf-8")
+        rendered = prepare_web.render_manifest(self.root)
+        manifest = self.root / "app/web-release.json"
+        manifest.write_bytes(rendered)
+        self.assertTrue(prepare_web.check_manifest(self.root))
+        self.assertEqual(rendered, prepare_web.render_manifest(self.root))
+        paths = {file["path"] for file in json.loads(rendered)["files"]}
+        self.assertIn("assets/icon.svg", paths)
+        self.assertNotIn("web-release.json", paths)
+        self.assertNotIn("private.json", paths)
+        (self.root / "app/assets/icon.svg").write_text("<svg/>", encoding="utf-8")
+        self.assertFalse(prepare_web.check_manifest(self.root))
+        self.assertEqual((self.root / "data/private.json").read_text(encoding="utf-8"), "private")
+
+    def test_direct_manifest_rejects_application_script_before_gate(self):
+        (self.root / "app/js/web-bootstrap.js").write_text("// gate", encoding="utf-8")
+        with self.assertRaisesRegex(builder.ReleaseBuildError, "Скрипты приложения"):
+            prepare_web.render_manifest(self.root)
+
     def test_structure_original_order_and_deterministic_bytes(self):
         result = self.build()
         original = result.archive_path.read_bytes()
@@ -48,7 +71,7 @@ class UcozBuildTests(unittest.TestCase):
             self.assertIn("release.json", names)
             meta = json.loads(archive.read("release.json"))
             prefix = meta["entry"].removesuffix("index.html")
-            self.assertTrue(prefix.startswith("releases/v9-8-7-"))
+            self.assertRegex(prefix, r"^releases/v[0-9a-f]{14}/$")
             html = archive.read(meta["entry"]).decode()
             self.assertLess(html.index("js/core/version.js"), html.index("js/app.js"))
             self.assertEqual(html.count('src="js/app.js"'), 1)
@@ -79,7 +102,8 @@ class UcozBuildTests(unittest.TestCase):
 const vm=require("node:vm"), assert=require("node:assert/strict"), fs=require("node:fs");
 const code=fs.readFileSync(0,"utf8");
 for(const folder of ["/portfolio/ZeTerOS/", "/other/path/", "/"]){
- const release=folder+"releases/v9-8-7-aaaaaaaaaaaaaaaa/";
+ for (const id of ["v9-8-7-aaaaaaaaaaaaaaaa", "v0123456789abcd"]) {
+ const release=folder+"releases/"+id+"/";
  const base={href:"./"}, state={saved:"unchanged"}; let changed;
  const sandbox={URL, document:{currentScript:{src:"https://example.test"+release+"ucoz-entry.js"},querySelector:()=>base},
    location:new URL("https://example.test"+release+"index.html?probe=1#section"),
@@ -89,6 +113,7 @@ for(const folder of ["/portfolio/ZeTerOS/", "/other/path/", "/"]){
  assert.equal(base.href,"https://example.test"+release);
  assert.equal(new URL("css/style.css",base.href).pathname,release+"css/style.css");
  assert.equal(new URL("../../service-worker.js",base.href).pathname,folder+"service-worker.js");
+ }
 }
 '''
         executed = subprocess.run([shutil.which("node"), "-e", code], input=bootstrap,
@@ -98,7 +123,11 @@ for(const folder of ["/portfolio/ZeTerOS/", "/other/path/", "/"]){
     def test_release_directory_is_accepted_by_ucoz(self):
         result = self.build()
         self.assertRegex(result.build_id, r"^[A-Za-z0-9_-]+$")
-        self.assertLessEqual(len(result.build_id), 45)
+        self.assertLessEqual(len(result.build_id), 15)
+
+    def test_directory_names_over_panel_limit_are_rejected(self):
+        with self.assertRaises(builder.ReleaseBuildError):
+            builder.validate_ucoz_paths({"folder1234567890x/file.js": b""})
 
     def test_changed_content_changes_build_address_and_keeps_old_zip(self):
         old = self.build()
@@ -107,6 +136,60 @@ for(const folder of ["/portfolio/ZeTerOS/", "/other/path/", "/"]){
             self.build()
         new = builder.build_ucoz(self.root, self.root / "other-output")
         self.assertNotEqual(old.build_id, new.build_id)
+
+    def test_runtime_patch_keeps_existing_release_and_contains_only_worker(self):
+        old = self.build()
+        original = old.archive_path.read_bytes()
+        patched = builder.build_runtime_patch(old.archive_path, self.root / "runtime-patch")
+        self.assertEqual(patched.build_id, old.build_id)
+        self.assertEqual(patched.version, old.version)
+        self.assertEqual(old.archive_path.read_bytes(), original)
+        plan = json.loads((patched.archive_path.parent / "upload-plan.json").read_text(encoding="utf-8"))
+        self.assertEqual([item["path"] for item in plan["uploads"]], ["service-worker.js"])
+        with zipfile.ZipFile(patched.archive_path) as archive:
+            self.assertEqual(archive.namelist(), ["service-worker.js"])
+            worker = archive.read("service-worker.js").decode()
+        self.assertIn(json.dumps(old.build_id), worker)
+        self.assertIn('const RUNTIME = "2";', worker)
+
+    def test_runtime_patch_rejects_wrong_entry_and_keeps_output_absent(self):
+        old = self.build()
+        broken = self.root / "broken.zip"
+        with zipfile.ZipFile(old.archive_path) as source, zipfile.ZipFile(broken, "w") as target:
+            for name in source.namelist():
+                data = source.read(name)
+                if name == "release.json":
+                    meta = json.loads(data)
+                    meta["entry"] = "../private/index.html"
+                    data = json.dumps(meta).encode()
+                target.writestr(name, data)
+        output = self.root / "must-stay-absent"
+        with self.assertRaises(builder.ReleaseBuildError):
+            builder.build_runtime_patch(broken, output)
+        self.assertFalse(output.exists())
+
+    def test_runtime_patch_detects_outputs_created_during_zip_publication(self):
+        old = self.build()
+        output = self.root / "concurrent-output"
+        original = builder.publish_archive
+        def publish_with_competing_outputs(*args):
+            result = original(*args)
+            (output / "service-worker.js").write_bytes(b"foreign worker")
+            (output / "upload-plan.json").write_bytes(b"foreign plan")
+            return result
+        with patch.object(builder, "publish_archive", side_effect=publish_with_competing_outputs):
+            with self.assertRaises(builder.ReleaseBuildError):
+                builder.build_runtime_patch(old.archive_path, output)
+        self.assertEqual((output / "service-worker.js").read_bytes(), b"foreign worker")
+        self.assertEqual((output / "upload-plan.json").read_bytes(), b"foreign plan")
+
+    def test_release_address_is_payload_hash_not_root_runtime_hash(self):
+        with patch.object(builder, "__file__", str(self.root / "absent-runtime-source.py")):
+            first = builder.prepare_files(self.root)
+            with patch.object(builder, "WORKER", builder.WORKER + "\n// root-only revision\n"):
+                second = builder.prepare_files(self.root)
+        self.assertEqual(first[1], second[1])
+        self.assertNotEqual(first[2]["service-worker.js"], second[2]["service-worker.js"])
 
     def test_output_must_not_be_inside_source_or_data(self):
         for path in [self.root, self.root / "app/output", self.root / "data/output"]:
@@ -125,6 +208,12 @@ for(const folder of ["/portfolio/ZeTerOS/", "/other/path/", "/"]){
             with self.assertRaises(builder.ReleaseBuildError):
                 self.build()
         self.assertEqual((self.root / "dist/ZeTer-OS-uCoz-FTP-9.8.7.zip").read_bytes(), old)
+
+    @unittest.skipUnless(shutil.which("node"), "Node required for actual worker runtime regression")
+    def test_router_activation_is_independent_from_offline_download(self):
+        result = subprocess.run([shutil.which("node"), str(Path(__file__).with_name("smoke_ucoz_runtime.js"))],
+            input=builder.WORKER, text=True, encoding="utf-8", capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     @unittest.skipUnless(shutil.which("node"), "Node required for actual worker runtime regression")
     def test_worker_keeps_complete_A_if_new_entry_is_unavailable(self):

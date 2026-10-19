@@ -24,6 +24,22 @@ vm.createContext(sandbox);
 runScript("app/js/core/config.js", sandbox);
 runScript("app/js/core/utils.js", sandbox);
 runScript("app/js/core/app-center-ui-utils.js", sandbox);
+runScript("app/js/core/app-catalog.js", sandbox);
+const appCenterUI = sandbox.window.ZETER_APP_CENTER_UI_UTILS;
+const visibleApps = Object.entries(sandbox.window.ZETER_APP_CATALOG.APP_CATALOG_DEFINITIONS)
+  .filter(([id, app]) => id !== "search" && !app.hidden);
+for (const entry of appCenterUI.appCenterEntries(visibleApps, () => true)) {
+  assert.equal(entry.description?.split("\n").length, 3, `${entry.id} must explain its purpose in three short phrases`);
+  const card = appCenterUI.appCenterCardHTML(entry);
+  assert.ok(card.includes('class="app-center-description"'), `${entry.id} must render its description`);
+  assert.ok(card.includes(entry.description), `${entry.id} description must reach the card`);
+}
+assert.ok(appCenterUI.appCenterCardHTML({ description: "<img src=x onerror=alert(1)>" }).includes("&lt;img"), "descriptions must be escaped");
+const mixedCatalog = appCenterUI.appCenterEntries(visibleApps, id => id === "editor");
+const mixedCatalogHTML = appCenterUI.appCenterHTML(mixedCatalog);
+assert.ok(mixedCatalogHTML.includes('class="app-center-summary"'), "catalog must summarize installed and available apps");
+assert.ok(mixedCatalogHTML.includes('<dd>17</dd>') && mixedCatalogHTML.includes('<dd>1</dd>'), "summary must reflect the displayed apps and desktop installation state");
+assert.ok(appCenterUI.appCenterCardHTML(mixedCatalog[0]).includes('class="app-center-status installed"'), "installed state must have an explicit card label");
 
 async function testAppCenterRollback() {
   const state = { fs: {} };
@@ -114,6 +130,8 @@ function testTaskSnapshotRollbackContract() {
 }
 
 async function testTaskEditorRetry() {
+  runScript("app/js/core/time-tracking-utils.js", sandbox);
+  runScript("app/js/core/project-overview-utils.js", sandbox);
   runScript("app/js/core/data-normalizers.js", sandbox);
   runScript("app/js/core/task-ui-utils.js", sandbox);
   runScript("app/js/core/task-app-ui-utils.js", sandbox);

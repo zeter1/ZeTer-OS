@@ -13,7 +13,14 @@
 
   const HOTKEY_MODIFIERS = Object.freeze(["Ctrl", "Alt", "Shift", "Meta"]);
   const HOTKEY_ACTION_IDS = new Set(HOTKEY_DEFINITIONS.map(item => item.id));
-  const TEXT_SCALE_VALUES = Object.freeze([90, 100, 110, 120]);
+  const TEXT_SCALE_VALUES = Object.freeze([90, 100, 110, 120, 130, 140, 150]);
+  const POPUP_DURATION_VALUES = Object.freeze([3500, 5000, 8000, 12000]);
+  const WINDOW_SIZE_PRESETS = Object.freeze([
+    Object.freeze({ id: "full", label: "Вся рабочая область — 100%", scale: 1 }),
+    Object.freeze({ id: "large", label: "Большой — 85%", scale: 0.85 }),
+    Object.freeze({ id: "medium", label: "Средний — 70%", scale: 0.7 }),
+    Object.freeze({ id: "compact", label: "Компактный — 55%", scale: 0.55 })
+  ]);
   const BLOCKED_HOTKEYS = new Set([
     "Alt+Tab",
     "Ctrl+Alt+Delete",
@@ -29,6 +36,9 @@
   ]);
 
   const DEFAULT_SYSTEM_SETTINGS = Object.freeze({
+    windows: Object.freeze({ openingSize: "full", placement: "center", lastPositions: Object.freeze({}) }),
+    clock: Object.freeze({ format: "24h", showSeconds: false, showDate: true }),
+    calendar: Object.freeze({ weekStart: "monday" }),
     startup: Object.freeze({
       restoreWindows: true,
       desktop: "last",
@@ -41,7 +51,8 @@
       system: true,
       quietHoursEnabled: false,
       quietFrom: "22:00",
-      quietTo: "08:00"
+      quietTo: "08:00",
+      popupDuration: 3500
     }),
     accessibility: Object.freeze({
       textScale: 100,
@@ -54,6 +65,32 @@
 
   function booleanSetting(value, fallback) {
     return typeof value === "boolean" ? value : fallback;
+  }
+
+  function normalizeStartMenuPreferences(value = {}) {
+    const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const uniqueStrings = (items, predicate, limit) => [...new Set((Array.isArray(items) ? items : [])
+      .filter(item => typeof item === "string" && item.length <= 240 && predicate(item)))].slice(0, limit);
+    const recent = new Map();
+    (Array.isArray(source.recentItems) ? source.recentItems : []).forEach(entry => {
+      if (!entry || typeof entry.id !== "string" || !entry.id || entry.id.length > 240) return;
+      const openedAt = Number(entry.openedAt);
+      if (!Number.isFinite(openedAt) || openedAt <= 0) return;
+      if (!recent.has(entry.id) || recent.get(entry.id).openedAt < openedAt) recent.set(entry.id, { id: entry.id, openedAt });
+    });
+    return {
+      ...source,
+      layout: source.layout === "compact" ? "compact" : "balanced",
+      iconSize: source.iconSize === "large" ? "large" : "normal",
+      showPinned: booleanSetting(source.showPinned, true),
+      showRecent: booleanSetting(source.showRecent, true),
+      showDesktops: booleanSetting(source.showDesktops, true),
+      showQuickActions: booleanSetting(source.showQuickActions, true),
+      quickActions: uniqueStrings(source.quickActions === undefined ? ["note", "task", "explorer"] : source.quickActions,
+        item => ["note", "task", "explorer"].includes(item), 3),
+      pinOrder: uniqueStrings(source.pinOrder, item => /^(app|item):.+/.test(item), 1000),
+      recentItems: [...recent.values()].sort((a, b) => b.openedAt - a.openedAt).slice(0, 20)
+    };
   }
 
   function normalizeClockTime(value = "", fallback = "00:00") {
@@ -162,6 +199,10 @@
     const notificationSource = source.notifications && typeof source.notifications === "object" ? source.notifications : {};
     const accessibilitySource = source.accessibility && typeof source.accessibility === "object" ? source.accessibility : {};
     const hotkeySource = source.hotkeys && typeof source.hotkeys === "object" ? source.hotkeys : {};
+    const windowsSource = source.windows && typeof source.windows === "object" && !Array.isArray(source.windows) ? source.windows : {};
+    const clockSource = source.clock && typeof source.clock === "object" && !Array.isArray(source.clock) ? source.clock : {};
+    const calendarSource = source.calendar && typeof source.calendar === "object" && !Array.isArray(source.calendar) ? source.calendar : {};
+    const lastPositions = Object.fromEntries(Object.entries(windowsSource.lastPositions || {}).filter(([id, rect]) => /^[a-zA-Z0-9_-]{1,80}$/.test(id) && rect && ["left", "top", "width", "height"].every(key => Number.isFinite(parseFloat(rect[key])) && Math.abs(parseFloat(rect[key])) < 1000000) && parseFloat(rect.width) > 0 && parseFloat(rect.height) > 0).slice(-160).map(([id, rect]) => [id, Object.fromEntries(["left", "top", "width", "height"].map(key => [key, parseFloat(rect[key])]))]));
     const desktop = String(startupSource.desktop || DEFAULT_SYSTEM_SETTINGS.startup.desktop).slice(0, 120);
     const windowMode = startupSource.windowMode === "windowed" ? "windowed" : "maximized";
     const textScaleCandidate = Number(accessibilitySource.textScale);
@@ -174,6 +215,15 @@
     });
     return {
       ...source,
+      startMenu: normalizeStartMenuPreferences(source.startMenu),
+      windows: {
+        ...windowsSource,
+        openingSize: WINDOW_SIZE_PRESETS.some(preset => preset.id === windowsSource.openingSize) ? windowsSource.openingSize : "full",
+        placement: ["center", "cascade", "last"].includes(windowsSource.placement) ? windowsSource.placement : "center",
+        lastPositions
+      },
+      clock: { ...clockSource, format: clockSource.format === "12h" ? "12h" : "24h", showSeconds: booleanSetting(clockSource.showSeconds, false), showDate: booleanSetting(clockSource.showDate, true) },
+      calendar: { ...calendarSource, weekStart: calendarSource.weekStart === "sunday" ? "sunday" : "monday" },
       startup: {
         ...startupSource,
         restoreWindows: booleanSetting(startupSource.restoreWindows, DEFAULT_SYSTEM_SETTINGS.startup.restoreWindows),
@@ -188,7 +238,8 @@
         system: booleanSetting(notificationSource.system, DEFAULT_SYSTEM_SETTINGS.notifications.system),
         quietHoursEnabled: booleanSetting(notificationSource.quietHoursEnabled, DEFAULT_SYSTEM_SETTINGS.notifications.quietHoursEnabled),
         quietFrom: normalizeClockTime(notificationSource.quietFrom, DEFAULT_SYSTEM_SETTINGS.notifications.quietFrom),
-        quietTo: normalizeClockTime(notificationSource.quietTo, DEFAULT_SYSTEM_SETTINGS.notifications.quietTo)
+        quietTo: normalizeClockTime(notificationSource.quietTo, DEFAULT_SYSTEM_SETTINGS.notifications.quietTo),
+        popupDuration: POPUP_DURATION_VALUES.includes(Number(notificationSource.popupDuration)) ? Number(notificationSource.popupDuration) : 3500
       },
       accessibility: {
         ...accessibilitySource,
@@ -254,12 +305,15 @@
     HOTKEY_DEFINITIONS,
     HOTKEY_ACTION_IDS,
     TEXT_SCALE_VALUES,
+    POPUP_DURATION_VALUES,
+    WINDOW_SIZE_PRESETS,
     normalizeClockTime,
     normalizeHotkey,
     keyboardEventHotkey,
     isHotkeyAssignable,
     hotkeyDisplay,
     normalizeSystemSettings,
+    normalizeStartMenuPreferences,
     hotkeyConflict,
     hotkeyActionForEvent,
     quietHoursActive,

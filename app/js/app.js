@@ -64,7 +64,9 @@
   const firstRunUiUtils = window.ZETER_FIRST_RUN_UI_UTILS;
   if (!firstRunUiUtils) throw new Error("ZeTer OS first-run UI utils are not loaded.");
   const {
-    firstRunScreenHTML
+    firstRunScreenHTML,
+    startFirstRunSetup,
+    applyFirstRunDraft
   } = firstRunUiUtils;
 
   const contextMenuUiUtils = window.ZETER_CONTEXT_MENU_UI_UTILS;
@@ -589,7 +591,7 @@
     clientToDesktopPosition,
     findFreeDesktopPosition,
     addDesktopShortcut,
-    openItem,
+    openItem: openDesktopItem,
     renderDesktopStickies,
     canMoveInto,
     enableItemPointerDrag,
@@ -613,6 +615,7 @@
     downloadFile,
     downloadBlob,
     buildNoteDocx: buildDocxForNote,
+    nativeStorageCall,
     sanitizeExportPathPart,
     stripKnownExtension,
     toast,
@@ -622,6 +625,7 @@
     documentRef: document,
     itemInWorkspace,
     getWindowRecord: winId => ui.windows.get(winId),
+    hasOtherDocumentWindow: (itemId, winId) => [...ui.windows].some(([id, record]) => id !== winId && record.appId === "editor" && record.params?.itemId === itemId),
     persistOpenWindows: persistOpenWindowsForCurrentDesktop,
     refreshWindow,
     itemIcon,
@@ -654,7 +658,10 @@
     documentRef: document
   });
 
+  let securityRecoveryController = null;
   const securityRuntimeController = createSecurityRuntimeController({
+    getRecoveryController: () => securityRecoveryController,
+    isMutationBlocked: () => recoveryApplying,
     getState: () => state,
     currentWorkspace,
     shouldUseNativeStorage,
@@ -702,7 +709,7 @@
     transactionDone,
     readIndexedDbRecord,
     getAllIndexedDbRecords,
-    loadNativeRestorePoints: () => nativeStorageCall("load_restore_points"),
+    loadNativeRestorePoints: query => query ? nativeStorageCall("load_restore_points", query) : nativeStorageCall("load_restore_points"),
     preflightNativeRestorePoint: pointId => nativeStorageCall("preflight_restore_point", pointId),
     saveNativeRestorePoint: point => nativeStorageCall("save_restore_point", point),
     deleteNativeRestorePoint: pointId => nativeStorageCall("delete_restore_point", pointId),
@@ -735,7 +742,7 @@
     securityStorageMetersHTML,
     securityKvRowsHTML,
     exportBackup: options => exportOS({ source: "security", ...(options || {}) }),
-    buildBackupForState: target => buildDownloadOsDataZip(target),
+    buildBackupForState: target => buildFullSecurityBackup({state:cloneForBackup(target)}),
     verifyBackup: verifyBackupBlob,
     encryptBackup: encryptBackupBlob,
     downloadBlob,
@@ -896,7 +903,13 @@
     formatDate,
     promptUser: prompt,
     confirmUser: confirm,
-    closeWindow
+    closeWindow,
+    createProjectOverview: createTaskProjectOverview,
+    createProjectPersistence: createTaskProjectPersistence,
+    persistProjectView: () => {
+      syncOpenWindowsBeforeBackup();
+      void Promise.resolve(saveState()).catch(error => toast("Представление не сохранено", error?.message || "Повторите выбор после устранения ошибки хранения."));
+    }
   });
 
   const calendarUtils = window.ZETER_CALENDAR_UTILS;
@@ -938,10 +951,12 @@
 
   let state = defaultState();
   let appUpdateApplying = false;
+  let recoveryApplying = false;
   let updateUiController = null;
   const ui = {
     z: 100,
     windows: new Map(),
+    settingsSessions: new Map(),
     activeWindow: null,
     restoringWindows: false,
     explorerFolders: new Map(),
@@ -973,6 +988,10 @@
   });
 
   const windowRuntimeController = createWindowRuntimeController({
+    getOpeningSize: () => systemSettings().windows.openingSize,
+    getOpeningPlacement: () => systemSettings().windows.placement,
+    getLastOpeningRect: appId => systemSettings().windows.lastPositions[appId],
+    rememberOpeningRect: (appId, rect) => { const current = systemSettings(); current.windows.lastPositions = { ...current.windows.lastPositions, [appId]: rect }; setSystemSettings(current); },
     getWindows: () => ui.windows,
     getExplorerFolders: () => ui.explorerFolders,
     getActiveWindow: () => ui.activeWindow,
@@ -990,6 +1009,7 @@
     syncLiveEditors: syncLiveEditorsBeforeExport,
     maxWindows: OPEN_WINDOWS_MAX,
     createRunningTaskbarButton,
+    syncTaskbar: () => taskbarController.syncWindows(),
     showRunningTaskbarWindowMenu,
     buildSnapMenuEntries,
     showContext,
@@ -1011,6 +1031,9 @@
     getState: () => state,
     getApps: () => apps,
     getWindows: () => ui.windows,
+    getActiveWindow: () => ui.activeWindow,
+    minimizeWindow,
+    persistWindows: persistOpenWindowsForCurrentDesktop,
     saveState,
     renderStart,
     openByDataApp,
@@ -1043,7 +1066,7 @@
     closeFloating,
     openApp,
     showAppMenu: showStartAppMenu,
-    openItem,
+    openItem: openStartItem,
     buildItemMenuEntries: buildStartItemContextMenuEntries,
     showContextNearElement,
     ensureDesktops,
@@ -1054,7 +1077,26 @@
     desktopDescription,
     switchDesktop: switchVirtualDesktop,
     deleteDesktop: deleteVirtualDesktop,
-    createDesktop: createVirtualDesktop
+    createDesktop: createVirtualDesktop,
+    getPreferences: () => systemSettings().startMenu,
+    updatePreferences: updateStartPreferences,
+    searchResults: query => searchController.results(query, { ignoreFilters: true }),
+    searchResultsHTML: results => window.ZETER_SEARCH_UI_UTILS.searchResultsListHTML(results,
+      '<p class="start-empty">Ничего не найдено. Попробуйте другое слово.</p>'),
+    openSearchResult: element => searchResultNavigator.openResult(element),
+    getRecentItems: getStartRecentItems,
+    openRecent: openStartItem,
+    clearRecent: () => updateStartPreferences({ recentItems: [] }),
+    desktopAction: startDesktopAction,
+    quickAction: action => {
+      closeFloating();
+      if (action === "task") return openApp("taskedit", { mode: "create" });
+      if (action === "explorer") return openApp("folder", { folderId: getExplorerRoot() });
+      if (action === "note") {
+        const id = createItem("note", "Новая заметка", getDesktopRoot(), 120, 120, { content: "", richContent: "" });
+        return openItem(id);
+      }
+    }
   });
 
   const removedItemReferencesController = createRemovedItemReferencesController({
@@ -1069,7 +1111,10 @@
     itemTaskbarAppId,
     normalizeTaskbarPinnedApps,
     taskbarPinnedApps,
-    removeTaskbarButton: winId => $(`.taskbar-app[data-win-id="${cssEscape(winId)}"]`)?.remove()
+    removeTaskbarButton: winId => {
+      $(`.taskbar-app[data-win-id="${cssEscape(winId)}"]`)?.remove();
+      taskbarController.syncWindows();
+    }
   });
 
   const explorerRuntimeController = createExplorerRuntimeController({
@@ -1258,6 +1303,16 @@
     cleanupRemovedItemReferences,
     nativeStorageCall,
     openShortcutTarget: (target, name) => openShortcutTarget(target, name),
+    openDocument: async file => {
+      let item = Object.values(state.fs).find(entry => !entry.deletedAt && entry.type === "managedFile" && entry.managedFile?.managedPath === file.managedPath);
+      if (!item) {
+        const id = await createItem("managedFile", file.name, getDesktopRoot(), 80, 80, { extension: file.extension, managedFile: { ...file } });
+        item = state.fs[id];
+      }
+      if (!item) throw new Error("Не удалось открыть копию документа в data.");
+      openApp("editor", { itemId: item.id });
+      return true;
+    },
     nativeMode: shouldUseNativeStorage,
     toast,
     confirm: message => confirm(message),
@@ -1266,11 +1321,12 @@
   managedFileRuntimeController.bind();
 
   const desktopSurfaceController = createDesktopSurfaceController({
+    getSettings: deskSettings,
     getSurface: () => $("#desktop"),
     getSelectionBox: () => $("#selection-box"),
     getContainer: () => $("#desktop-items"),
     getRootId: getDesktopRoot,
-    getItems: () => Object.values(state.fs).filter(item => item.parent === getDesktopRoot() && !item.deletedAt && !item.hiddenFromDesktop && item.systemRole !== "explorerRoot"),
+    getItems: () => Object.values(state.fs).filter(item => item.parent === getDesktopRoot() && !item.deletedAt && !item.hiddenFromDesktop && item.systemRole !== "explorerRoot" && !(item.type === "app" && item.appId === "notes")),
     getSelectedId: () => ui.selectedDesktop,
     setSelectedId: itemId => { ui.selectedDesktop = itemId; },
     getSelectedIds: () => ui.multiSelected,
@@ -1305,6 +1361,8 @@
     resetSelection: () => {
       ui.selectedDesktop = null;
       ui.multiSelected?.clear();
+      const surface = $("#desktop-items");
+      if (surface) { surface.scrollLeft = 0; surface.scrollTop = 0; }
     },
     applySettings,
     saveState,
@@ -1629,6 +1687,92 @@
     state.systemSettings = normalizeSystemSettings(settings);
     return state.systemSettings;
   }
+
+  function updateStartPreferences(patch) {
+    return primaryStateSaveQueue.transaction(async write => {
+      syncLegacyWorkspaceAliases(state);
+      const current = systemSettings().startMenu;
+      const changes = typeof patch === "function" ? patch(current) : patch;
+      const next = systemSettingsUtils.normalizeStartMenuPreferences({ ...current, ...changes });
+      const snapshot = cloneForBackup(state);
+      snapshot.systemSettings = normalizeSystemSettings({ ...snapshot.systemSettings, startMenu: next });
+      const result = await write(snapshot);
+      if (!result?.saved) throw new Error("Настройки не сохранены. Проверьте доступность хранилища и повторите.");
+      state.systemSettings = { ...systemSettings(), startMenu: next };
+      return next;
+    });
+  }
+
+  function startItemDesktop(item) {
+    if (!item || item.deletedAt || item.parent === TRASH_ROOT) return null;
+    return state.desktops.find(desktop => itemInWorkspace(item, desktop.id)
+      || (desktop.data?.explorerRootId && itemInWorkspace(item, desktop.data.explorerRootId))) || null;
+  }
+
+  function getStartRecentItems() {
+    return systemSettings().startMenu.recentItems.flatMap(entry => {
+      const item = state.fs[entry.id];
+      const desktop = startItemDesktop(item);
+      return desktop ? [{ id: item.id, name: item.name, icon: itemIcon(item), desktopName: desktopName(desktop.id) }] : [];
+    }).slice(0, 4);
+  }
+
+  function recordStartRecentItem(id) {
+    const item = state.fs[id];
+    if (!item || !["text", "note", "markdown", "table", "tasklist", "managedFile", "image", "paint"].includes(item.type)
+      || !startItemDesktop(item) || !systemSettings().startMenu.showRecent) return;
+    const openedAt = Date.now();
+    void updateStartPreferences(current => current.showRecent ? {
+      recentItems: [{ id, openedAt }, ...current.recentItems.filter(entry => entry.id !== id)]
+    } : {}).catch(error => toast("История не сохранена", error?.message || "Повторите после восстановления хранилища."));
+  }
+
+  function openItem(id) {
+    const result = openDesktopItem(id);
+    if (state.fs[id]?.type === "managedFile") {
+      void Promise.resolve(result).then(value => { if (value === true) recordStartRecentItem(id); })
+        .catch(error => toast("Не удалось открыть файл", error?.message || state.fs[id]?.name || "Файл недоступен."));
+    }
+    return result;
+  }
+
+  function openStartItem(id) {
+    const desktop = startItemDesktop(state.fs[id]);
+    if (!desktop) return;
+    closeFloating();
+    if (desktop.id !== getDesktopRoot()) switchVirtualDesktop(desktop.id);
+    return openItem(id);
+  }
+
+  async function startDesktopAction(action, id) {
+    const desktop = state.desktops.find(entry => entry.id === id);
+    if (!desktop) return;
+    if (action === "rename") {
+      const name = prompt("Название рабочего стола:", desktopName(id));
+      if (name === null || !name.trim()) return;
+      try {
+        await primaryStateSaveQueue.transaction(async write => {
+          const live = state.desktops.find(entry => entry.id === id);
+          if (!live) throw new Error("Рабочий стол уже удалён.");
+          syncLegacyWorkspaceAliases(state);
+          const snapshot = cloneForBackup(state);
+          snapshot.desktops.find(entry => entry.id === id).name = name.trim().slice(0, 80);
+          const result = await write(snapshot);
+          if (!result?.saved) throw new Error("Хранилище ещё не готово к записи.");
+          const target = state.desktops.find(entry => entry.id === id);
+          if (target) target.name = name.trim().slice(0, 80);
+        });
+        renderDesktop();
+        renderStart();
+      } catch (error) { toast("Название не сохранено", error?.message || "Повторите попытку."); }
+      return;
+    }
+    if (action === "settings") {
+      closeFloating();
+      if (id !== getDesktopRoot()) switchVirtualDesktop(id);
+      openApp("settings");
+    }
+  }
   function applyStartupPreferences() {
     const target = systemSettings().startup.desktop;
     if (target !== "last" && state.desktops.some(desktop => desktop.id === target)) state.currentDesktop = target;
@@ -1931,12 +2075,13 @@
     refreshAppCenterWindows();
     renderTaskbarPinnedApps();
     renderStart($("#start-search-input")?.value || "");
+    refreshProjectOverviews();
   }
 
   function cleanupRemovedItemReferences(ids = []) { return removedItemReferencesController.cleanup(ids); }
 
   function normalizeNotesData(target = state) {
-    return normalizeNotesDataForTarget(target, { appCenterName: apps.appcenter?.name });
+    return normalizeNotesDataForTarget(target, { appCenterName: apps.appcenter?.name, helpName: apps.help?.name });
   }
 
 
@@ -2017,7 +2162,14 @@
   }
 
   function openByDataApp(id) { return shellRuntimeController.openByDataApp(id); }
-  function openApp(appId, params = {}, options = {}) { return windowRuntimeController.openApp(appId, params, options); }
+  function openApp(appId, params = {}, options = {}) {
+    const result = windowRuntimeController.openApp(appId, params, options);
+    if (params.itemId && !options.restoring && [...ui.windows.values()].some(record =>
+      record.appId === appId && record.params?.itemId === params.itemId && record.desktopId === getDesktopRoot())) {
+      recordStartRecentItem(params.itemId);
+    }
+    return result;
+  }
 
   function bindWindow(el, winId) { return windowRuntimeController.bindWindow(el, winId); }
   function addTaskbarApp(winId, app) { return windowRuntimeController.addTaskbarApp(winId, app); }
@@ -2048,6 +2200,7 @@
 
   function renderExplorer(params = {}, winId) {
     const rootId = getExplorerRoot();
+    const viewDesktopId = state.currentDesktop;
     createWorkspaceSystemFolders(rootId);
     const model = prepareExplorerAppModel({
       params, rootId,
@@ -2065,6 +2218,27 @@
       explorerFlowLayout, explorerSearchGridPosition, findFreeFolderPosition,
       explorerResultLocationText, explorerCardMeta, itemDescription, bytesToHuman, itemIcon,
       folderBackgroundDataURL,
+      itemKind: startItemKind,
+      desktopView: deskSettings().explorerView,
+      saveView: (folderId, patch) => primaryStateSaveQueue.transaction(async write => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = cloneForBackup(state);
+        const folder = snapshot.fs[folderId];
+        const settings = snapshot.desktops.find(desk => desk.id === viewDesktopId)?.data?.settings;
+        const previous = folder?.explorerView || (folder?.type === "folder" ? { ...settings?.explorerView, columnWidths: {} } : settings?.explorerView) || {};
+        const view = explorerUiUtils.normalizeExplorerView({ ...previous, ...patch, columnWidths: { ...previous.columnWidths, ...patch.columnWidths } });
+        if (folder?.type === "folder") folder.explorerView = view;
+        else if (isDesktopRoot(folderId)) snapshot.desktops.find(desk => desk.id === viewDesktopId).data.settings.explorerView = view;
+        else throw new Error("Папка больше недоступна.");
+        const result = await write(snapshot);
+        if (!result?.saved) throw new Error("Не удалось сохранить вид папки.");
+        if (state.fs[folderId]?.type === "folder") state.fs[folderId].explorerView = view;
+        else if (isDesktopRoot(folderId)) {
+          const desktop = state.desktops.find(desk => desk.id === viewDesktopId);
+          if (desktop?.data?.settings) desktop.data.settings.explorerView = view;
+        }
+        return view;
+      }),
       openItem,
       navigateFolder: (folderId, navigationOptions) => navigateFolderWindow(winId, params, folderId, navigationOptions),
       buildExplorerFolderMenuEntries, renameItem, duplicateItem, openItemSettings, showItemProperties, deleteItem,
@@ -2300,6 +2474,125 @@
   }
 
   function renderTasksApp(params = {}, winId) { return taskAppRuntimeController.renderTasksApp(params, winId); }
+  function refreshProjectOverviews(workspaceId = getDesktopRoot()) {
+    ui.windows.forEach(record => {
+      if (["tasks", "tasklist"].includes(record.appId) && record.desktopId === workspaceId) {
+        record.el.querySelector(".project-overview-content")?.refreshProjectOverview?.();
+      }
+    });
+  }
+  function createWorkspaceTimeController(workspaceId) {
+    return window.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({
+      getWorkspace: () => state.desktops.find(desk => desk.id === workspaceId)?.data || null,
+      createId: uid,
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, tracking) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.timeTracking = tracking;
+        return write(snapshot);
+      }
+    });
+  }
+  function createTaskProjectPersistence(store, params, winId) {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const original = store.item || state.desktops.find(desk => desk.id === workspaceId)?.data;
+    const getStore = () => {
+      if (getDesktopRoot() !== workspaceId) return null;
+      const source = store.item ? state.fs[store.item.id] : state.desktops.find(desk => desk.id === workspaceId)?.data;
+      if (source !== original || (store.item && (source.deletedAt || source.type !== "tasklist" || !itemInWorkspace(source, workspaceId)))) return null;
+      return source;
+    };
+    return {
+      getStore,
+      afterCreate: () => {
+        syncLegacyWorkspaceAliases(state); writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+        ui.windows.forEach(record => { if (record.appId === "timetracking" && record.desktopId === workspaceId) record.el.querySelector(".time-tracking-app")?.refreshTimeTracking?.(); });
+      },
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, candidate) => {
+        if (!getStore()) throw new Error("Список задач недоступен. Откройте приложение заново.");
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const target = store.item ? snapshot.fs[store.item.id] : snapshot.desktops.find(desk => desk.id === workspaceId)?.data;
+        if (!target) throw new Error("Список задач недоступен.");
+        Object.assign(target, candidate);
+        syncLegacyWorkspaceAliases(snapshot);
+        return write(snapshot);
+      }
+    };
+  }
+
+  function createTaskProjectOverview(store, params, winId, showBoard, getCategoryId = () => "all") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const getWorkspace = () => state.desktops.find(desk => desk.id === workspaceId)?.data || null;
+    const getStore = () => {
+      if (!getWorkspace() || getDesktopRoot() !== workspaceId) return null;
+      if (!store.item) return getWorkspace();
+      const item = state.fs[store.item.id];
+      return item && item.type === "tasklist" && !item.deletedAt && itemInWorkspace(item, workspaceId) ? item : null;
+    };
+    const resolveAttachment = ref => {
+      if (getDesktopRoot() !== workspaceId) return null;
+      if (ref.kind === "event") {
+        const event = getWorkspace()?.events?.find(item => item.id === ref.id);
+        return event ? { label: event.title || "Событие", typeLabel: `${formatDate(event.date)}${event.time ? ` · ${event.time}` : ""}${event.repeat && event.repeat !== "none" ? " · повторяется" : ""}` } : null;
+      }
+      const item = state.fs[ref.id];
+      if (!item || item.deletedAt || !itemInWorkspace(item, workspaceId) || ![...OBJECT_LINKABLE_FS_TYPES, "folder", "tasklist", "shortcut"].includes(item.type)) return null;
+      return { label: item.name || "Материал", typeLabel: OBJECT_LINK_FS_TYPE_LABELS[item.type] || (item.type === "folder" ? "Папка" : item.type === "tasklist" ? "Список задач" : "Ярлык") };
+    };
+    const controller = window.ZETER_TASK_APP_UI_UTILS.createTaskProjectAttachmentController({
+      getStore, resolveAttachment,
+      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      saveSnapshot: (write, projects) => {
+        if (!getStore()) throw new Error("Список задач недоступен.");
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const target = store.item ? snapshot.fs[store.item.id] : snapshot.desktops.find(desk => desk.id === workspaceId)?.data;
+        if (!target) throw new Error("Список задач недоступен.");
+        target.taskProjects = projects;
+        syncLegacyWorkspaceAliases(snapshot);
+        return write(snapshot);
+      }
+    });
+    const time = createWorkspaceTimeController(workspaceId);
+    const changed = () => {
+      syncLegacyWorkspaceAliases(state); writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+      securityRuntimeController.scheduleProtectionCheck();
+      refreshProjectOverviews(workspaceId);
+      ui.windows.forEach(record => { if (record.appId === "timetracking" && record.desktopId === workspaceId) record.el.querySelector(".time-tracking-app")?.refreshTimeTracking?.(); });
+    };
+    return window.ZETER_PROJECT_OVERVIEW_UI_UTILS.createProjectOverview({
+      documentRef: document, controller, isTaskList: store.kind === "tasklist", showBoard,
+      createTask: () => {
+        const source = getStore();
+        if (!source) return;
+        openApp("taskedit", { mode: "create", projectId: source.activeTaskProjectId, categoryId: ["all", "none"].includes(getCategoryId()) ? "" : getCategoryId(), ...(store.item ? { itemId: store.item.id } : {}) });
+      },
+      getContext: () => {
+        const source = getStore();
+        const project = source?.taskProjects?.find(item => item.id === source.activeTaskProjectId);
+        const candidates = getDesktopRoot() === workspaceId ? [
+          ...workspaceItems(workspaceId).filter(item => !item.deletedAt && resolveAttachment({ kind: "fs", id: item.id })).map(item => ({ endpoint: { kind: "fs", id: item.id }, ...resolveAttachment({ kind: "fs", id: item.id }) })),
+          ...(getWorkspace()?.events || []).map(event => ({ endpoint: { kind: "event", id: event.id }, ...resolveAttachment({ kind: "event", id: event.id }) }))
+        ] : [];
+        return { project, tasks: source?.tasks || [], categoryId: getCategoryId(), workspace: store.kind === "tasklist" ? {} : getWorkspace() || {}, candidates, resolveAttachment, needsRecovery: time.needsRecovery() };
+      },
+      openAttachment: ref => { if (resolveAttachment(ref)) openLinkedObject(ref); },
+      openTask: taskId => openApp("taskedit", { taskId, ...(store.item ? { itemId: store.item.id } : {}) }),
+      openTime: () => openApp("timetracking", { projectId: getStore()?.activeTaskProjectId }),
+      startTimer: (taskId, projectId) => {
+        const source = getStore();
+        if (store.kind === "tasklist" || !source?.tasks?.some(task => task.id === taskId && task.projectId === projectId)) throw new Error("Задача недоступна.");
+        return time.start({ taskId });
+      },
+      onChange: changed
+    });
+  }
   function refreshOpenTaskBoards(excludeWinId = "") { taskAppRuntimeController.refreshOpenTaskBoards(excludeWinId); }
   function renderTaskEditorApp(params = {}, winId) { return taskAppRuntimeController.renderTaskEditorApp(params, winId); }
   function refreshOpenCalendars(excludeWinId = "") {
@@ -2309,6 +2602,7 @@
   }
   function renderCalendarApp() {
     return createCalendarApp({
+      getWeekStart: () => systemSettings().calendar.weekStart,
       document,
       desktopTitle: desktopName(getDesktopRoot()),
       getCalendar: () => ui.calendar,
@@ -2455,6 +2749,7 @@
         if (change?.tasksChanged) { syncLegacyWorkspaceAliases(state); refreshOpenTaskBoards(); }
         writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
         securityRuntimeController.scheduleProtectionCheck();
+        refreshProjectOverviews(workspaceId);
         [...ui.windows.entries()].forEach(([id, record]) => {
           if (id !== winId && record.appId === "timetracking" && record.desktopId === workspaceId) record.el.querySelector(".time-tracking-app")?.refreshTimeTracking?.();
         });
@@ -2578,38 +2873,76 @@
     });
   }
 
-  function renderSettingsApp(params = {}, winId = ""){
+  function renderSettingsApp(params = {}, winId = "") {
+    const desktopId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const modelsFor = target => {
+      const desktop = target.desktops.find(record => record.id === desktopId);
+      if (!desktop) throw new Error("Рабочий стол больше не существует. Закрой его настройки.");
+      return { desktop, settings: desktop.data?.settings || {}, systemSettings: target.systemSettings };
+    };
+    let session = ui.settingsSessions.get(desktopId);
+    if (!session) {
+      session = {};
+      session.writer = window.ZETER_PREFERENCES_WRITER_UTILS.createPreferencesWriter({
+        keys: window.ZETER_SETTINGS_UI_UTILS.SETTINGS_PREFERENCE_KEYS,
+        getPreferences: () => window.ZETER_SETTINGS_UI_UTILS.settingsPreferences(modelsFor(state)),
+        requireAck: true,
+        save: patch => primaryStateSaveQueue.transaction(async write => {
+          syncLegacyWorkspaceAliases(state);
+          const snapshot = cloneForBackup(state);
+          const staged = window.ZETER_SETTINGS_UI_UTILS.applySettingsPreferencePatch(modelsFor(snapshot), patch);
+          const target = snapshot.desktops.find(record => record.id === desktopId);
+          target.data.settings = staged.settings;
+          for (const field of ["name", "description", "icon"]) if (Object.prototype.hasOwnProperty.call(patch, "profile." + field)) {
+            if (field === "icon" && !staged.desktop.icon) delete target.icon; else target[field] = staged.desktop[field];
+          }
+          snapshot.systemSettings = staged.systemSettings;
+          const result = await write(snapshot);
+          if (result?.saved !== true) throw new Error("Хранилище не подтвердило запись. Повтори сохранение.");
+          // Merge against live state again: another owner may have changed independent fields while writing.
+          const published = window.ZETER_SETTINGS_UI_UTILS.applySettingsPreferencePatch(modelsFor(state), patch);
+          const live = state.desktops.find(record => record.id === desktopId);
+          live.data.settings = published.settings;
+          for (const field of ["name", "description", "icon"]) if (Object.prototype.hasOwnProperty.call(patch, "profile." + field)) {
+            if (field === "icon" && !published.desktop.icon) delete live.icon; else live[field] = published.desktop[field];
+          }
+          state.systemSettings = published.systemSettings;
+          if (Object.prototype.hasOwnProperty.call(patch, "system.windows.openingSize")) {
+            const active = ui.windows.get(ui.activeWindow);
+            const previewId = active?.appId === "settings" && active.desktopId === desktopId ? active.winId : session.intentWindowId;
+            windowRuntimeController.applyOpeningSize(previewId, published.systemSettings.windows.openingSize);
+          }
+          applySettings();
+          if (desktopId === getDesktopRoot()) renderDesktop();
+          renderStart();
+          if (Object.prototype.hasOwnProperty.call(patch, "system.calendar.weekStart")) refreshOpenCalendars();
+          writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+          return result;
+        })
+      });
+      ui.settingsSessions.set(desktopId, session);
+    }
+    session.intentWindowId = winId;
     return settingsAppElement({
-      winId,
-      getSettings: deskSettings,
-      getSystemSettings: systemSettings,
-      setSystemSettings,
-      getDesktopRecord: currentDesktopRecord,
-      getDesktopOptions: startupDesktopOptions,
-      getStorageSummary: storageSettingsSummary,
-      getDesktopRoot,
-      normalizeDesktopIcon,
-      normalizeCustomWallpaper,
-      desktopAvatarHTML,
-      desktopName,
-      desktopDescription,
-      formatBytes: bytesToHuman,
-      windowsStartupAvailable: shouldUseNativeStorage(),
-      applySettings,
-      toast,
-      refreshWindow,
-      createCustomWallpaperFromFile,
-      createDesktopIconFromFile,
-      saveState,
+      winId, activeSection: params.settingsSection, searchQuery: params.settingsQuery,
+      onSectionChange: section => { (ui.windows.get(winId)?.params || params).settingsSection = section; },
+      onSearchChange: query => { (ui.windows.get(winId)?.params || params).settingsQuery = query; },
+      getModels: () => modelsFor(state), preferencesWriter: session.writer, preferencesSession: session,
+      getSettings: () => modelsFor(state).settings, getSystemSettings: systemSettings,
+      getDesktopRecord: () => modelsFor(state).desktop, getDesktopRoot: () => desktopId,
+      getDesktopOptions: startupDesktopOptions, getStorageSummary: storageSettingsSummary,
+      desktopAvatarHTML: (id, active, desktop) => desktopAvatarHTMLFromList(desktop ? [desktop] : state.desktops, id, active),
+      desktopName, desktopDescription, formatBytes: bytesToHuman,
+      windowsStartupAvailable: shouldUseNativeStorage(), toast, createCustomWallpaperFromFile, createDesktopIconFromFile, saveState,
       openDataFolder: () => nativeStorageCall("open_data_folder"),
       getWindowsStartupStatus: () => nativeStorageCall("get_windows_startup_status"),
       setWindowsStartupEnabled: enabled => nativeStorageCall("set_windows_startup_enabled", enabled),
-      openSecurity: () => openApp("security"),
-      renderStart
+      openSecurity: () => openApp("security")
     });
   }
   function renderAboutApp(){
     const root = window.ZETER_ABOUT_UI_UTILS.aboutAppElement({
+      openApp,
       showContext,
       copyText: copyTextToClipboard,
       openExternalLink: openExternalTarget,
@@ -3043,12 +3376,13 @@
   function saveStateWithCalendarAutomation(saveOptions = {}) {
     const eventsNow = automationEventRecords();
     const events = calendarAutomationEventsSinceBaseline(eventsNow);
-    return saveStateWithAutomationEvents(saveOptions, events, () => {
+    const saving = saveStateWithAutomationEvents(saveOptions, events, () => {
       replaceAutomationBaseline(automationEventBaseline, eventsNow, event => ({
         createdAt: Number(event.createdAt) || 0,
         updatedAt: Number(event.updatedAt) || 0
       }));
     });
+    return Promise.resolve(saving).then(result => { refreshProjectOverviews(); return result; });
   }
 
   function enqueueOverdueTaskAutomationEvents() {
@@ -3215,7 +3549,7 @@
   let automationCheckInFlight = false;
 
   async function runAutomationCheck() {
-    if (appUpdateApplying || automationCheckInFlight) return 0;
+    if (appUpdateApplying || recoveryApplying || automationCheckInFlight) return 0;
     automationCheckInFlight = true;
     try {
       return await queueAutomationMutation(async () => {
@@ -3351,7 +3685,7 @@
     refreshWorkspaceWindows,
     safeInitStep,
     now: Date.now,
-    setTimer: (callback, delay) => setInterval(() => { if (!appUpdateApplying) callback(); }, delay),
+    setTimer: (callback, delay) => setInterval(() => { if (!appUpdateApplying && !recoveryApplying) callback(); }, delay),
     clearTimer: timer => clearInterval(timer),
     intervalMs: TASK_REMINDER_CHECK_MS
   });
@@ -3371,7 +3705,7 @@
     refreshWorkspaceWindows,
     safeInitStep,
     now: Date.now,
-    setTimer: (callback, delay) => setInterval(() => { if (!appUpdateApplying) callback(); }, delay),
+    setTimer: (callback, delay) => setInterval(() => { if (!appUpdateApplying && !recoveryApplying) callback(); }, delay),
     clearTimer: timer => clearInterval(timer),
     intervalMs: TASK_REMINDER_CHECK_MS
   });
@@ -3430,6 +3764,27 @@
     switchRelativeDesktop,
     customWallpaperCssUrl,
     firstRunScreenHTML,
+    startFirstRunSetup: (dialog, onFinish) => startFirstRunSetup({
+      dialog,
+      osVersion: OS_VERSION,
+      initial: {
+        desktopName: currentDesktopRecord().name || desktopName(getDesktopRoot()),
+        wallpaper: deskSettings().wallpaper === "custom" ? "aurora" : (deskSettings().wallpaper || "aurora"),
+        systemSettings: normalizeSystemSettings(systemSettings()),
+        desktopAppearance: window.ZETER_VISUAL_UTILS.normalizeDesktopAppearance(deskSettings().desktopAppearance),
+        desktopId: getDesktopRoot(),
+        desktops: startupDesktopOptions(),
+        apps: installableAppEntries().map(([id, app]) => ({id,name:app.name,icon:app.icon})),
+        desktopApps: installableAppEntries().filter(([id]) => Object.values(state.fs).some(item => item.type === "app" && item.appId === id && item.parent === getDesktopRoot() && !item.deletedAt && !item.hiddenFromDesktop)).map(([id]) => id),
+        taskbarApps: taskbarPinnedApps().filter(id => apps[id] && !apps[id].hidden)
+      },
+      save: saveFirstRunSetup,
+      exportBackup: () => exportOS({source:"first-run"}),
+      getWindowsStartup: () => shouldUseNativeStorage() ? nativeStorageCall("get_windows_startup_status") : Promise.resolve({supported:false}),
+      setWindowsStartup: enabled => nativeStorageCall("set_windows_startup_enabled", enabled),
+      onFinish
+    }),
+    completeFirstRun: () => saveFirstRunSetup(),
     osVersion: OS_VERSION,
     initSteps: {
       shouldUseNativeStorage,
@@ -3447,7 +3802,7 @@
       startTaskReminderWatcher,
       restoreWindowsForCurrentDesktop
     },
-    purgeExpiredTrash: () => appUpdateApplying ? false : purgeExpiredTrashItemsFromTarget(state, { dropActionHistory: true }),
+    purgeExpiredTrash: () => (appUpdateApplying || recoveryApplying) ? false : purgeExpiredTrashItemsFromTarget(state, { dropActionHistory: true }),
     refreshRecycleBinWindows,
     updateClock,
     prepareCalendarForTray: () => {
@@ -3458,6 +3813,51 @@
     setInterval: (callback, delay) => setInterval(callback, delay),
     setTimeout: (callback, delay) => setTimeout(callback, delay)
   });
+
+  function saveFirstRunSetup(draft = null) {
+    const desktopId = getDesktopRoot();
+    return primaryStateSaveQueue.transaction(async write => {
+      syncLegacyWorkspaceAliases(state);
+      const snapshot = cloneForBackup(state);
+      const beforeAppIds = new Set(Object.keys(snapshot.fs));
+      applyFirstRunDraft(snapshot, draft, {
+        desktopId,
+        apps,
+        createId: uid,
+        normalizeSystemSettings,
+        normalizeDesktopAppearance: window.ZETER_VISUAL_UTILS.normalizeDesktopAppearance,
+        normalizeTaskbarPinnedApps
+      });
+      const desktop = snapshot.desktops.find(record => record.id === desktopId);
+      syncLegacyWorkspaceAliases(snapshot);
+      const result = await write(snapshot);
+      if (!result?.saved) throw new Error("Хранилище не подтвердило запись. Повтори попытку.");
+      if (draft) {
+        const current = state.desktops.find(record => record.id === desktopId);
+        current.name = desktop.name;
+        current.data.settings.wallpaper = draft.wallpaper;
+        current.data.settings.desktopAppearance = desktop.data.settings.desktopAppearance;
+        beforeAppIds.forEach(id => {
+          if (!snapshot.fs[id] && state.fs[id]?.type === "app" && state.fs[id].parent === desktopId) delete state.fs[id];
+        });
+        Object.entries(snapshot.fs).forEach(([id,item]) => {
+          if (!beforeAppIds.has(id)) state.fs[id] = item;
+          else if (item.type === "app" && item.parent === desktopId && state.fs[id] && !item.hiddenFromDesktop) delete state.fs[id].hiddenFromDesktop;
+        });
+        state.taskbarPinnedApps = snapshot.taskbarPinnedApps;
+        setSystemSettings(snapshot.systemSettings);
+        syncLegacyWorkspaceAliases(state);
+        applySettings();
+        renderDesktop();
+        renderStart();
+        renderTaskbarPinnedApps();
+        writeSmallSettingsToLocalStorage();
+      }
+      state.firstRunCompleted = true;
+      scheduleExternalBackup();
+      return result;
+    });
+  }
 
   function importNativeFiles(fileList, parent = "desktop", x = 80, y = 80){
     importNativeFilesBatch(fileList, {
@@ -3490,7 +3890,7 @@
   async function exportOS(options = {}){
     return runDownloadBackupAction({
       syncBeforeExport: syncLiveEditorsBeforeExport,
-      buildZip: buildDownloadOsDataZip,
+      buildZip: () => buildFullSecurityBackup(),
       fileName: securityBackupFileName,
       download: downloadBlob,
       markBackup: ({ name, size, verification }) => {
@@ -3540,6 +3940,62 @@
       logError: error => console.error("[ZeTer OS import]", error)
     });
   }
+
+  let securityVaultFolder = null;
+  const SECURITY_VAULT_DB = "zeter-security-vault-folder";
+  async function rememberSecurityVaultFolder(handle) {
+    const db = await openIndexedDb(SECURITY_VAULT_DB, "handles", {keyPath:"id"});
+    try { const tx=db.transaction("handles","readwrite");tx.objectStore("handles").put({id:"history",handle});await transactionDone(tx); }
+    finally { db.close(); }
+  }
+  async function loadSecurityVaultFolder() {
+    const row = await readIndexedDbRecord(SECURITY_VAULT_DB,"handles","history",{keyPath:"id"});
+    securityVaultFolder=row?.handle||null;
+  }
+  async function buildFullSecurityBackup(record = null) {
+    await syncLiveEditorsBeforeExport();
+    await primaryStateSaveQueue.pending();
+    syncLegacyWorkspaceAliases(state);
+    const snapshot=record?.state || cloneForBackup(state);
+    if (shouldUseNativeStorage()) {
+      const result=await nativeStorageCall("build_security_backup",{app:"ZeTer OS",state:snapshot,osVersion:OS_VERSION,versionNumber:OS_VERSION_NUMBER});
+      const binary=atob(result.base64),bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));
+      return new Blob([bytes],{type:"application/zip"});
+    }
+    if(window.ZETER_SECURITY_RECOVERY_UTILS.payloadPaths(snapshot).size) throw new Error("Полная копия содержит файлы Windows. Создай её в ZeTer OS через Python или EXE.");
+    const zip=await buildDownloadOsDataZip(snapshot);
+    await window.ZETER_SECURITY_RECOVERY_UTILS.inspectBackupFile(new File([zip],"check.zip",{type:"application/zip"}),{validate:validateImportedStateForImport,migrate});
+    return zip;
+  }
+  const browserSecurityVaultRaw = window.ZETER_SECURITY_VAULT_UTILS.createBrowserBackupVault({
+    getHandle:()=>securityVaultFolder,
+    chooseFolder:async()=>{if(!window.showDirectoryPicker)throw new Error("Браузер не поддерживает выбор папки. Открой ZeTer OS через Python/EXE либо актуальный Chrome/Edge.");const handle=await window.showDirectoryPicker({mode:"readwrite"});securityVaultFolder=handle;return handle;},
+    verifyPermission:async handle=>(await handle.queryPermission({mode:"readwrite"}))==="granted",
+    buildBackup:buildFullSecurityBackup
+  });
+  const browserSecurityVault = {...browserSecurityVaultRaw, configure:async payload=>{
+    const previous=securityVaultFolder;
+    try {const result=await browserSecurityVaultRaw.configure(payload);if(result.cancelled){securityVaultFolder=previous;return result;}if(payload.chooseFolder)await rememberSecurityVaultFolder(securityVaultFolder);return result;}
+    catch(error){securityVaultFolder=previous;throw error;}
+  }};
+  securityRecoveryController=window.ZETER_SECURITY_RECOVERY_UTILS.createRecoveryController({
+    getState:()=>state,transaction:operation=>primaryStateSaveQueue.transaction(operation),
+    validate:validateImportedStateForImport,migrate,nativeMode:shouldUseNativeStorage,nativeCall:nativeStorageCall,
+    browserVault:browserSecurityVault,buildBackup:buildFullSecurityBackup,
+    createSafetyPoint:snapshot=>securityRuntimeController.createRecoverySafetyPoint(snapshot),
+    syncEditors:syncLiveEditorsBeforeExport,
+    prepareApply:async()=>{await automationMutationChain;},
+    setLocked:locked=>{recoveryApplying=Boolean(locked);const os=document.querySelector("#os");if(os)os.inert=recoveryApplying||appUpdateApplying;},
+    hasOpenEditors:()=>[...ui.windows.values()].some(record=>!["security","help","about","monitor"].includes(record.appId)),
+    requestPassphrase:file=>prompt(`Пароль от «${file.name}» (не сохраняется):`,""),
+    confirm,notify:toast,
+    publish:candidate=>{
+      Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,candidate);
+      syncLegacyWorkspaceAliases(state);renderAllFileSurfaces();renderDesktop();renderStart();renderTaskbarPinnedApps();
+      // Restored documents become visible immediately; existing editors retain their draft until closed.
+    },
+    rememberFolder:rememberSecurityVaultFolder
+  });
 
   function nextWallpaper(){
     const settings = deskSettings();
@@ -3595,6 +4051,11 @@
     state = await storageStateRuntimeController.loadStateForBoot();
     bootInitialized = true;
     init();
+    if (!shouldUseNativeStorage()) {
+      try { await loadSecurityVaultFolder(); } catch (error) { console.warn("[ZeTer OS backup history folder]",error); }
+    }
+    securityRecoveryController.start();
+    window.addEventListener("pagehide",()=>securityRecoveryController.stop(),{once:true});
     void updateUiController.start();
   }
 
@@ -3625,5 +4086,6 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', bootZeTerOs);
+  if (document.readyState === "loading") document.addEventListener('DOMContentLoaded', bootZeTerOs);
+  else void bootZeTerOs();
 })();

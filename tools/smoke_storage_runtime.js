@@ -14,6 +14,13 @@ assert.match(appSource, /writesAllowed:\s*\(\)\s*=>\s*storageRuntime\.writesAllo
 assert.match(appSource, /showStorageRecovery[\s\S]*onRetry:\s*loadStorageAndInitialize/, "native boot failure must expose a retry that rereads storage");
 assert.match(appSource, /open_problem_logs_folder[\s\S]*close_app/, "native recovery must expose logs and safe close actions");
 
+async function smokeRecoveryPrimaryOnly() {
+  let fallbackCalls=0;
+  const queue=storage.createPrimaryStateSaveQueue({getState:()=>({}),cloneState:value=>JSON.parse(JSON.stringify(value)),byteSize:value=>value.length,runtime:{},writePrimaryRecord:async()=>{throw new Error("primary denied");},saveFallback:async()=>{fallbackCalls++;return true;},warn:()=>{}});
+  await assert.rejects(()=>queue.transaction(write=>write({selected:"candidate"},{requirePrimary:true})),/primary denied/);
+  assert.equal(fallbackCalls,0,"failed selective restore must not publish candidate through fallback");
+}
+
 async function smokePrimaryRecords() {
   const runtime = storage.createStorageRuntimeState();
   assert.strictEqual(runtime.mode, "Папка data");
@@ -514,6 +521,7 @@ async function smokeStagedQueue() {
   console.log("staged snapshot save coordination smoke: ok");
 }
 Promise.resolve()
+  .then(() => smokeRecoveryPrimaryOnly())
   .then(() => target === "primary" || target === "all" ? smokePrimaryRecords() : null)
   .then(() => target === "local" || target === "all" ? smokeLocalStoragePaths() : null)
   .then(() => target === "queue" || target === "all" ? smokePrimarySaveQueue() : null)

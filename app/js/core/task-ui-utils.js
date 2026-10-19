@@ -5,6 +5,7 @@
   if (!coreUtils) throw new Error("ZeTer OS task UI utils require core utils.");
 
   const { escapeHtml } = coreUtils;
+  const { validProjectDue } = window.ZETER_PROJECT_OVERVIEW_UTILS;
   const safeAttr = escapeHtml;
 
   const TASK_BOARD_COLUMNS = Object.freeze([
@@ -65,10 +66,23 @@
   }
 
   function taskMatchesBoardFilter(task = {}, filter = {}) {
+    if (filter.hideCompleted && task.status === "done") return false;
     const q = String(filter.q || "").toLowerCase();
     const priority = filter.priority || "all";
     const tag = filter.tag || "all";
+    if (filter.categoryId === "none" && task.categoryId) return false;
+    if (filter.categoryId && !["all", "none"].includes(filter.categoryId) && task.categoryId !== filter.categoryId) return false;
     const haystack = `${task.title || ""} ${task.description || ""} ${task.tag || ""}`.toLowerCase();
+    const today = filter.today || new Date().toLocaleDateString("sv-SE");
+    const hasDue = !task.indefinite && validProjectDue(task.due);
+    if (filter.deadline === "overdue" && (!hasDue || task.status === "done" || task.due >= today)) return false;
+    if (filter.deadline === "today" && (!hasDue || task.status === "done" || task.due !== today)) return false;
+    if (filter.deadline === "undated" && (hasDue || task.status === "done")) return false;
+    if (filter.deadline === "week") {
+      const end = new Date(`${today}T12:00:00`); end.setDate(end.getDate() + 6);
+      const lastDay = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+      if (!hasDue || task.status === "done" || task.due < today || task.due > lastDay) return false;
+    }
     return (!q || haystack.includes(q)) &&
       (priority === "all" || task.priority === priority) &&
       (tag === "all" || task.tag === tag);
@@ -78,16 +92,30 @@
     return (Array.isArray(tasks) ? tasks : []).filter(task => taskMatchesBoardFilter(task, filter));
   }
 
-  function sortTasksForBoard(tasks = []) {
+  function sortTasksForBoard(tasks = [], filter = {}) {
     return [...(Array.isArray(tasks) ? tasks : [])].sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (a.pinned && b.pinned) return (Number(b.pinnedAt) || 0) - (Number(a.pinnedAt) || 0);
+      let order = 0;
+      if (filter.sortBy === "due") {
+        const due = task => !task.indefinite && /^\d{4}-\d{2}-\d{2}$/.test(task.due || "") ? task.due : "9999-99-99";
+        order = due(a).localeCompare(due(b));
+      }
+      if (filter.sortBy === "priority") order = ({ high: 0, medium: 1, low: 2 }[a.priority] ?? 1) - ({ high: 0, medium: 1, low: 2 }[b.priority] ?? 1);
+      if (filter.sortBy === "title") order = String(a.title || "").localeCompare(String(b.title || ""), "ru", { numeric: true, sensitivity: "base" });
+      if (order) return order;
       return (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0);
     });
   }
 
   function taskBoardColumnTasks(tasks = [], status = "", filter = {}) {
-    return sortTasksForBoard(filterTasksForBoard(tasks, filter).filter(task => task.status === status));
+    return sortTasksForBoard(filterTasksForBoard(tasks, filter).filter(task => task.status === status), filter);
+  }
+
+  function taskBoardGroups(tasks = [], filter = {}, includeEmpty = true) {
+    const visible = sortTasksForBoard(filterTasksForBoard(tasks, filter), filter);
+    return TASK_BOARD_COLUMNS.map(([status, name]) => ({ status, name, tasks: visible.filter(task => task.status === status) }))
+      .filter(group => includeEmpty || group.tasks.length);
   }
 
   function taskTagOptionsHTML(tags = []) {
@@ -99,7 +127,8 @@
   function taskProjectTabsHTML(projects = [], activeId = "", tasks = []) {
     return projects.map(project => {
       const count = tasks.filter(task => task.projectId === project.id).length;
-      return `<button class="task-project-tab ${project.id === activeId ? "active" : ""}" data-project-id="${safeAttr(project.id)}"><span>${escapeHtml(project.name)}</span><b>${count}</b></button>`;
+      const completed = tasks.filter(task => task.projectId === project.id && task.status === "done").length;
+      return `<button type="button" class="task-project-tab ${project.id === activeId ? "active" : ""}" aria-pressed="${project.id === activeId}" data-project-color="${safeAttr(project.color || "default")}" data-project-id="${safeAttr(project.id)}"><span>${escapeHtml(project.name)}</span><b title="Всего задач: ${count}; выполнено: ${completed}">${count}</b></button>`;
     }).join("");
   }
 
@@ -109,20 +138,28 @@
       .join("");
   }
 
+  function taskCategoryOptionsHTML(categories = [], selectedId = "", filter = false) {
+    const options = filter ? [{ id: "all", name: "Все категории" }, { id: "none", name: "Без категории" }, ...categories] : [{ id: "", name: "Без категории" }, ...categories];
+    return options.map(category => `<option value="${safeAttr(category.id)}" ${category.id === selectedId ? "selected" : ""}>${escapeHtml(category.name)}</option>`).join("");
+  }
+
   function tasksAppShellHTML() {
     return `
-      <div class="task-projects">
-        <div class="task-projects-head"><b>Проекты</b><div class="task-project-actions"><button data-project-add>Создать новый проект</button><button data-project-rename>Переименовать</button><button data-project-delete>Удалить</button></div></div>
+      <aside class="task-projects" aria-label="Проекты">
+        <div class="task-projects-head"><b>Проекты</b><button type="button" data-project-add aria-label="Создать проект" title="Создать проект">Создать проект</button></div>
         <div class="task-project-list"></div>
-      </div>
-      <div class="task-add-row"><button class="app-btn primary" data-open-task-create>Добавить задачу</button></div>
-      <div class="toolbar">
-        <input data-filter-q placeholder="Поиск задач в проекте">
-        <select data-filter-priority><option value="all">Все приоритеты</option><option value="high">Высокий</option><option value="medium">Средний</option><option value="low">Низкий</option></select>
-        <select data-filter-tag><option value="all">Все теги</option></select>
-        <button data-export-tasks>Скачать задачи</button>
-      </div>
-      <div class="task-board"></div>`;
+      </aside>
+      <main class="task-workspace">
+        <header class="task-workspace-head"><div class="task-project-heading"><small>ТЕКУЩИЙ ПРОЕКТ</small><h2 data-current-project-name></h2><p data-current-project-summary></p><p class="task-project-description" data-project-description hidden></p></div><div class="task-header-actions"><details class="task-project-settings"><summary title="Настройки выбранного проекта">⚙ Настройки проекта</summary><div class="task-project-actions"><button type="button" data-project-configure>Все настройки…</button><button type="button" data-project-rename>Переименовать</button><button type="button" data-project-delete>Удалить проект</button></div></details><button class="app-btn primary" data-open-task-create>+ Добавить задачу</button></div></header>
+        <div class="task-view-bar"><div class="task-view-switch" role="group" aria-label="Представление проекта"><button type="button" data-project-view="overview" aria-pressed="false">Обзор</button><button type="button" data-project-view="board" aria-pressed="true">Доска</button><button type="button" data-project-view="list" aria-pressed="false">Список</button></div><button type="button" class="task-export" data-export-tasks title="Скачать все проекты и задачи этого списка">Скачать все задачи</button></div>
+        <div class="task-category-bar"><label>Категория задач<select data-filter-category aria-label="Категория задач"></select></label><button type="button" class="app-btn" data-category-add>+ Создать категорию</button></div>
+        <div class="task-filters" data-task-filters>
+          <div class="toolbar"><input type="search" data-filter-q aria-label="Поиск задач в проекте" placeholder="Найти задачу…"><select data-filter-priority aria-label="Фильтр приоритета"><option value="all">Все приоритеты</option><option value="high">Высокий</option><option value="medium">Средний</option><option value="low">Низкий</option></select><select data-filter-tag aria-label="Фильтр тега"><option value="all">Все теги</option></select></div>
+          <div class="task-deadline-filters" role="group" aria-label="Фильтр срока"><button type="button" data-task-deadline="all" aria-pressed="true">Все задачи</button><button type="button" data-task-deadline="today" aria-pressed="false">На сегодня</button><button type="button" data-task-deadline="week" aria-pressed="false">На 7 дней</button><button type="button" data-task-deadline="overdue" aria-pressed="false">Просрочено</button><button type="button" data-task-deadline="undated" aria-pressed="false">Без срока</button><span data-task-visible-count role="status"></span></div>
+        </div>
+        <div class="task-board" aria-label="Задачи проекта"></div>
+        <section class="project-overview" data-project-overview hidden aria-label="Обзор проекта"></section>
+      </main>`;
   }
 
   function taskColumnHeaderHTML(name, count) {
@@ -137,7 +174,7 @@
   }
 
   function taskCardPointerLocksDrag(target) {
-    return Boolean(target?.closest?.("button,input,select,label,.task-reminder-editor"));
+    return Boolean(target?.closest?.("button,input,select,label,summary,.task-reminder-editor"));
   }
 
   function taskCardClickAction(target) {
@@ -158,6 +195,7 @@
     if (target?.closest?.("[data-open-task-create]")) return { type: "open-create" };
     if (target?.closest?.("[data-project-add]")) return { type: "add-project" };
     if (target?.closest?.("[data-project-rename]")) return { type: "rename-project" };
+    if (target?.closest?.("[data-project-configure]")) return { type: "configure-project" };
     if (target?.closest?.("[data-project-delete]")) return { type: "delete-project" };
     if (target?.closest?.("[data-export-tasks]")) return { type: "export-tasks" };
     return null;
@@ -171,6 +209,7 @@
   function taskBoardChangeAction(target) {
     if (target?.matches?.("[data-filter-priority]")) return { type: "filter-priority", value: target.value || "all" };
     if (target?.matches?.("[data-filter-tag]")) return { type: "filter-tag", value: target.value || "all" };
+    if (target?.matches?.("[data-filter-category]")) return { type: "filter-category", value: target.value || "all" };
     return null;
   }
 
@@ -214,7 +253,8 @@
       .map(item => `<label><input type="checkbox" data-sub="${safeAttr(item.id)}" ${item.done ? "checked" : ""}>${escapeHtml(item.text)}</label>`)
       .join("");
 
-    return `<h4>${escapeHtml(task.title)}</h4><p>${escapeHtml(task.description || "")}</p><div class="task-meta">${task.pinned ? `<span class="pill pinned-pill">📌 Закреплена</span>` : ""}<span class="task-priority-wrap"><button type="button" class="pill task-priority-pill ${safeAttr(task.priority)}" data-priority-button title="Изменить приоритет">${escapeHtml(priorityName(task.priority))}</button><select class="task-priority-select hidden ${safeAttr(task.priority)}" data-priority-select aria-label="Приоритет задачи">${priorityOptions}</select></span>${task.due && !task.indefinite ? `<span class="pill">📅 ${escapeHtml(formatDate(task.due))}</span>` : ""}${indefinitePill}${reminderPill}${task.tag ? `<span class="pill">#${escapeHtml(task.tag)}</span>` : ""}</div>${progress}<div class="checklist">${checklistHTML}</div><div class="task-actions"><button data-edit>Редактировать</button><button data-pin>${task.pinned ? "Открепить" : "Закрепить"}</button><button data-toggle-indefinite>${task.indefinite ? "Поставить срок" : "Бессрочная"}</button><button data-reminder>${task.reminderAt ? "Изменить уведомление" : "Уведомить"}</button><button data-delete>Удалить</button></div><div class="task-reminder-editor hidden" data-reminder-editor><label>Дата и время уведомления<input type="datetime-local" data-reminder-input value="${escapeHtml(defaultTaskReminderValue(task))}"></label><label>Повтор через дней<input type="number" min="0" max="3650" step="1" data-reminder-repeat value="${escapeHtml(repeatInputValue)}" placeholder="0"></label><button data-reminder-save>Сохранить</button>${task.reminderAt ? `<button data-reminder-remove>Убрать</button>` : ""}</div>`;
+    const statusOptions = TASK_BOARD_COLUMNS.map(([id, label]) => `<option value="${id}" ${task.status === id ? "selected" : ""}>${label}</option>`).join("");
+    return `<h4><button type="button" class="task-card-title" data-edit>${escapeHtml(task.title)}</button></h4><select class="task-card-status" data-task-status aria-label="Статус задачи ${safeAttr(task.title)}">${statusOptions}</select><p>${escapeHtml(task.description || "")}</p><div class="task-meta">${task.pinned ? `<span class="pill pinned-pill">📌 Закреплена</span>` : ""}<span class="task-priority-wrap"><button type="button" class="pill task-priority-pill ${safeAttr(task.priority)}" data-priority-button title="Изменить приоритет">${escapeHtml(priorityName(task.priority))}</button><select class="task-priority-select hidden ${safeAttr(task.priority)}" data-priority-select aria-label="Приоритет задачи">${priorityOptions}</select></span>${task.due && !task.indefinite ? `<span class="pill">📅 ${escapeHtml(formatDate(task.due))}</span>` : ""}${indefinitePill}${reminderPill}${task.tag ? `<span class="pill">#${escapeHtml(task.tag)}</span>` : ""}</div>${subs ? `<small class="task-checklist-count">Чек-лист: ${doneSubs} из ${subs}</small>` : ""}${progress}<div class="checklist">${checklistHTML}</div><div class="task-actions" role="group" aria-label="Действия задачи"><button data-edit>Редактировать</button><button data-pin>${task.pinned ? "Открепить" : "Закрепить"}</button><button data-toggle-indefinite>${task.indefinite ? "Поставить срок" : "Бессрочная"}</button><button data-reminder>${task.reminderAt ? "Изменить уведомление" : "Уведомить"}</button><button data-delete>Удалить</button></div><div class="task-reminder-editor hidden" data-reminder-editor><label>Дата и время уведомления<input type="datetime-local" data-reminder-input value="${escapeHtml(defaultTaskReminderValue(task))}"></label><label>Повтор через дней<input type="number" min="0" max="3650" step="1" data-reminder-repeat value="${escapeHtml(repeatInputValue)}" placeholder="0"></label><button data-reminder-save>Сохранить</button>${task.reminderAt ? `<button data-reminder-remove>Убрать</button>` : ""}</div>`;
   }
 
   function taskMissingStoreHTML(title, text, closeLabel = "Закрыть") {
@@ -236,7 +276,7 @@
           <label class="task-editor-field">Срок
             <div class="task-due-control">
               <input data-task-due type="date" value="${escapeHtml(defaultDue)}">
-              <button type="button" data-create-indefinite title="Сделать задачу бессрочной">Бессрочная</button>
+              <button type="button" data-create-indefinite aria-pressed="false" title="Сделать задачу бессрочной">Бессрочная</button>
             </div>
           </label>
           <label class="task-editor-field">Статус
@@ -245,6 +285,7 @@
           <label class="task-editor-field full">Тег
             <input data-task-tag value="" placeholder="Тег">
           </label>
+          <label class="task-editor-field full">Категория<select data-task-category></select></label>
           <label class="task-editor-field full">Описание задачи
             <textarea data-task-description placeholder="Описание задачи"></textarea>
           </label>
@@ -258,9 +299,10 @@
         </div>`;
   }
 
-  function taskEditEditorHTML(task = {}) {
+  function taskEditEditorHTML(task = {}, categories = []) {
     return `
       <input class="editor-title task-editor-title" data-task-title value="${escapeHtml(task.title || "")}" placeholder="Название задачи">
+      <label class="task-editor-category">Категория<select data-task-category>${taskCategoryOptionsHTML(categories, task.categoryId)}</select></label>
       <textarea class="editor-area task-editor-description" data-task-description placeholder="Описание задачи">${escapeHtml(task.description || "")}</textarea>
       <div class="editor-status task-editor-status">
         <span>Ctrl+Enter — сохранить · Esc — отменить</span>
@@ -281,6 +323,7 @@
       priority: find("[data-task-priority]")?.value || "medium",
       due: indefinite ? "" : (find("[data-task-due]")?.value || ""),
       tag: String(find("[data-task-tag]")?.value || "").trim(),
+      categoryId: find("[data-task-category]")?.value || "",
       status: find("[data-task-status]")?.value || "todo",
       indefinite
     };
@@ -290,7 +333,8 @@
     const find = selector => root?.querySelector?.(selector);
     return {
       title: String(find("[data-task-title]")?.value || "").trim(),
-      description: find("[data-task-description]")?.value || ""
+      description: find("[data-task-description]")?.value || "",
+      categoryId: find("[data-task-category]")?.value || ""
     };
   }
 
@@ -307,16 +351,19 @@
     return null;
   }
 
-  function toggleTaskCreateIndefinite(root, fallbackDue = "") {
+  function toggleTaskCreateIndefinite(root, fallbackDue = "", nextActive = null) {
     const button = root?.querySelector?.("[data-create-indefinite]");
     const dueInput = root?.querySelector?.("[data-task-due]");
     if (!button) return false;
-    const active = button.dataset.active !== "1";
+    const wasActive = button.dataset.active === "1";
+    const active = nextActive === null ? !wasActive : Boolean(nextActive);
     button.dataset.active = active ? "1" : "0";
     button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
     if (dueInput) {
-      dueInput.disabled = active;
-      dueInput.value = active ? "" : (dueInput.value || fallbackDue);
+      if (active && !wasActive && dueInput.value) dueInput.dataset.lastDue = dueInput.value;
+      dueInput.disabled = false;
+      dueInput.value = active ? "" : (dueInput.value || dueInput.dataset.lastDue || fallbackDue);
       if (!active) dueInput.focus();
     }
     return active;
@@ -331,9 +378,11 @@
     filterTasksForBoard,
     sortTasksForBoard,
     taskBoardColumnTasks,
+    taskBoardGroups,
     taskTagOptionsHTML,
     taskProjectTabsHTML,
     taskProjectOptionsHTML,
+    taskCategoryOptionsHTML,
     tasksAppShellHTML,
     taskColumnHeaderHTML,
     taskPriorityOptionsHTML,

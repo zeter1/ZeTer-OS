@@ -4,7 +4,7 @@
 .toolbar input, .toolbar select, .toolbar textarea, .form-card input, .form-card select, .form-card textarea, .editor-title { border: 1px solid var(--stroke); background: rgba(255,255,255,.1); border-radius: 14px; padding: 10px 12px; outline: 0; user-select: text; }
 .toolbar button, .app-btn, .danger-btn, .ghost-btn { border-radius: 14px; padding: 10px 12px; background: rgba(255,255,255,.12); border: 1px solid var(--stroke); }
 .toolbar button:hover, .app-btn:hover, .ghost-btn:hover { background: rgba(255,255,255,.19); }
-.app-btn.primary { background: linear-gradient(135deg, rgba(122,168,255,.9), rgba(193,121,255,.82)); color: white; }
+.app-btn.primary { background: var(--button-primary); color: var(--button-primary-text); }
 .danger-btn { background: rgba(255,95,121,.18); }
 .danger-btn:hover { background: rgba(255,95,121,.28); }
 .muted { color: var(--muted); }
@@ -148,7 +148,7 @@
 .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
 .calc-grid button { height: 54px; border-radius: 16px; background: rgba(255,255,255,.1); border: 1px solid var(--stroke); font-size: 18px; }
 .calc-grid button:hover { background: rgba(255,255,255,.18); }
-.calc-grid .eq { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+.calc-grid .eq { background: var(--button-primary); color: var(--button-primary-text); }
 .browser-app { height: 100%; display: grid; grid-template-rows: auto 1fr; gap: 12px; }
 .browser-bar { display: flex; gap: 8px; }
 .browser-bar input { flex: 1; border: 1px solid var(--stroke); background: rgba(255,255,255,.1); border-radius: 14px; padding: 0 12px; outline: 0; user-select: text; }

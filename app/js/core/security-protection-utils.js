@@ -158,9 +158,11 @@
   async function verifyBackupEntries(entries, options = {}) {
     const stateBytes = entries.get(STATE_PATH) || entries.get(`backup/${STATE_PATH}`);
     if (!stateBytes) throw new Error(`В бэкапе не найден ${STATE_PATH}.`);
+    if (stateBytes.byteLength > (window.ZETER_OS_CONFIG?.BACKUP_IMPORT_MAX_STATE_BYTES || 50 * 1024 * 1024)) throw new Error("Состояние в архиве превышает допустимый размер 50 МБ.");
     const payload = parseJsonBytes(stateBytes, STATE_PATH);
     const state = validateBackupStatePayload(payload);
     const manifestBytes = entries.get(MANIFEST_PATH);
+    if (manifestBytes?.byteLength > 2 * 1024 * 1024) throw new Error("Манифест архива превышает допустимый размер.");
     if (!manifestBytes) {
       return { ok: true, verified: false, legacy: true, status: "Совместимый старый бэкап без манифеста", payload, state, summary: stateSummary(state), manifest: null };
     }
@@ -169,12 +171,17 @@
     if (manifest?.format !== "zeter-backup-manifest" || Number(manifest?.formatVersion) !== 1 || !Array.isArray(manifest.files)) {
       throw new Error("Манифест бэкапа имеет неподдерживаемый формат.");
     }
+    const declared = new Set();
+    const statePath = entries.has(STATE_PATH) ? STATE_PATH : `backup/${STATE_PATH}`;
     for (const expected of manifest.files) {
+      if (!expected || typeof expected.path !== "string" || declared.has(expected.path) || expected.path === MANIFEST_PATH || !Number.isSafeInteger(expected.bytes) || expected.bytes < 0) throw new Error("Манифест содержит неверный или повторяющийся состав.");
+      declared.add(expected.path);
       const bytes = entries.get(expected.path);
       if (!bytes) throw new Error(`В бэкапе отсутствует файл из манифеста: ${expected.path}.`);
       if (Number(expected.bytes) !== bytes.byteLength) throw new Error(`Размер файла ${expected.path} не совпадает с манифестом.`);
       if (!(await verifyChecksum(bytes, expected, options))) throw new Error(`Контрольная сумма файла ${expected.path} не совпадает.`);
     }
+    if (!declared.has(statePath) || [...entries.keys()].some(path => path !== MANIFEST_PATH && !declared.has(path))) throw new Error("Манифест не покрывает полный состав архива.");
     return { ok: true, verified: true, legacy: false, status: "Манифест и контрольные суммы проверены", payload, state, summary: stateSummary(state), manifest };
   }
 

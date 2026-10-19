@@ -50,7 +50,11 @@
       throw new Error("Python-хранилище недоступно. Запусти ZeTer OS через run_zeter_os.py и установи pywebview.");
     }
     const result = await api[method](...args);
-    if (result && result.ok === false) throw new Error(result.error || `Ошибка Python-хранилища: ${method}`);
+    if (result && result.ok === false) {
+      const error = new Error(result.error || `Ошибка Python-хранилища: ${method}`);
+      if (typeof result.code === "string") error.code = result.code;
+      throw error;
+    }
     return result;
   }
 

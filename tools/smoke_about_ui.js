@@ -6,11 +6,13 @@ const path = require("node:path");
 const vm = require("node:vm");
 const sandbox = { window: { ZETER_CORE_UTILS: { escapeHtml: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])) } } };
 vm.createContext(sandbox);
-for (const name of ["version.js", "config.js", "about-ui-utils.js"]) {
+for (const name of ["version.js", "config.js", "app-catalog.js", "about-ui-utils.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", "js", "core", name), "utf8"), sandbox);
 }
 const about = sandbox.window.ZETER_ABOUT_UI_UTILS;
 const html = about.aboutAppHTML();
+assert.match(html, /data-about-guide[^>]*>Руководство пользователя ZeTer OS<\/button>/, "About must offer the internal user guide");
+assert.doesNotMatch(html, /Изменения сохраняются автоматически\./, "the crossed-out introduction must be removed");
 assert.match(html, /class="about-brand"[\s\S]*?<img src="assets\/icons\/zeter-logo\.svg"[^>]*alt=""/, "About must use the shared product logo beside its heading");
 assert.match(html, /data-update-check/, "About must let the user check for app updates");
 assert.ok(html.includes(sandbox.window.ZETER_OS_CONFIG.OS_VERSION), "About must display the running product version");
@@ -31,12 +33,12 @@ async function main() {
   const root = { addEventListener: (name, callback) => { handlers[name] = callback; }, contains: node => node === inside };
   let selection = { isCollapsed: false, anchorNode: inside, focusNode: inside, toString: () => "  Дмитрий\nКолесниченко  " };
   let menu, copied, result = true;
-  const notices = [], opened = [];
+  const notices = [], opened = [], openedApps = [];
   about.aboutAppElement({
     documentRef: { createElement: () => root }, getSelection: () => selection,
     showContext: (x, y, entries) => { menu = { x, y, entries }; },
     copyText: async text => { copied = text; return result; },
-    toast: title => notices.push(title), openExternalLink: async href => opened.push(href)
+    toast: title => notices.push(title), openExternalLink: async href => opened.push(href), openApp: appId => openedApps.push(appId)
   });
   const event = { preventDefault() {}, stopPropagation() {}, clientX: 125, clientY: 80 };
   handlers.contextmenu(event);
@@ -56,8 +58,11 @@ async function main() {
   const link = inside;
   link.getAttribute = () => expectedLinks[1];
   link.querySelector = () => ({ textContent: "Обновления системы" });
-  handlers.click({ ...event, target: { closest: () => link } });
+  handlers.click({ ...event, target: { closest: selector => selector === "[data-about-link]" ? link : null } });
   assert.deepEqual(opened, [expectedLinks[1]], "links must use the app's external-opening boundary");
+  handlers.click({ ...event, target: { closest: selector => selector === "[data-about-guide]" ? inside : null } });
+  assert.deepEqual(openedApps, ["help"], "the guide must open inside ZeTer OS");
+  assert.deepEqual(opened, [expectedLinks[1]], "opening the guide must not launch an external page");
   console.log("about UI smoke: ok");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -7,7 +7,8 @@
   const systemSettingsUtils = window.ZETER_SYSTEM_SETTINGS_UTILS;
   const pinningUtils = window.ZETER_PINNING_UTILS;
   const searchUtils = window.ZETER_SEARCH_UTILS;
-  if (!config || !coreUtils || !visualUtils || !systemSettingsUtils || !pinningUtils || !searchUtils) {
+  const appCatalog = window.ZETER_APP_CATALOG;
+  if (!config || !coreUtils || !visualUtils || !systemSettingsUtils || !pinningUtils || !searchUtils || !appCatalog) {
     throw new Error("ZeTer OS initial state utils require config, core, visual, system settings, pinning and search utils.");
   }
 
@@ -45,16 +46,10 @@
     item("app_settings", "app", "Настройки", "desktop", 224, 132, { appId: "settings" });
     item("app_editor", "app", "Текстовый редактор", "desktop", 128, 240, { appId: "editor" });
     item("app_photos", "app", "Фото", "desktop", 224, 240, { appId: "photos" });
-    item("folder_projects", "folder", "Проекты", "desktop", 128, 456, { color: "blue" });
-    item("file_welcome", "text", "Welcome.txt", "desktop", 224, 456, {
-      content: "Добро пожаловать в ZeTer OS!\n\nЧто умеет эта версия:\n- свободное перемещение иконок по рабочему столу;\n- перетаскивание файлов, папок, заметок и ярлыков в папки;\n- автосохранение в редакторе;\n- экспорт всей ОС в JSON-файл на компьютер;\n- импорт бэкапа и восстановление состояния;\n- продвинутый календарь;\n- русскоязычный задачник с доской, приоритетами и чеклистами.",
-      extension: "txt"
-    });
-    item("note_ideas", "note", "Note_Идеи", "folder_projects", 30, 30, {
-      content: "Идеи для ZeTer OS:\n1. Сделать свои иконки.\n2. Добавить темы.\n3. Хранить проекты в папках."
-    });
-    item("md_plan", "markdown", "План.md", "folder_projects", 30, 30, {
-      content: "# План проекта\n\n- [x] Интерфейс\n- [x] Задачи\n- [x] Календарь\n- [ ] Дополнительные приложения"
+    (config.DEFAULT_DESKTOP_APP_IDS || []).forEach((appId, index) => {
+      if (fs[`app_${appId}`]) return;
+      const name = appCatalog.APP_CATALOG_DEFINITIONS[appId].name;
+      item(`app_${appId}`, "app", name, "desktop", 32 + Math.floor(index / 4) * 112, 24 + (index % 4) * 112, { appId });
     });
 
     return {
@@ -126,29 +121,8 @@
           createdAt: Date.now()
         }
       ],
-      events: [
-        {
-          id: uid("event"),
-          title: "Познакомиться с ZeTer OS",
-          date: now,
-          start: "10:00",
-          end: "11:00",
-          category: "personal",
-          location: "Рабочий стол",
-          description: "Проверить календарь, задачи и резервную копию",
-          repeat: "none",
-          reminder: "15"
-        }
-      ],
-      notifications: [
-        {
-          id: uid("notif"),
-          title: "ZeTer OS обновлена",
-          text: "Добавлены перетаскивание, автосохранение, импорт/экспорт, календарь и расширенные задачи.",
-          time: Date.now(),
-          read: false
-        }
-      ]
+      events: [],
+      notifications: []
     };
   }
 

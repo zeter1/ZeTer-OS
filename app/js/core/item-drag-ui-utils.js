@@ -195,6 +195,7 @@
     if (dropEl) {
       const folderId = dropEl.dataset.folderDrop;
       if (folderId) {
+        if (["ordered", "flow"].includes(dropEl.dataset?.layoutMode) && folderId === item.parent) return true;
         if (dropEl.classList?.contains("explorer-sidebar")) {
           if (getItem(folderId)?.type === "folder" && folderId !== item.parent && canMoveInto(itemId, folderId)) {
             moveItemToFolder(itemId, folderId);

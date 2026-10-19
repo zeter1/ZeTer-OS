@@ -1,0 +1,20 @@
+"use strict";
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{webcrypto}=require('node:crypto');
+const context=vm.createContext({window:{ZETER_OS_CONFIG:{BACKUP_IMPORT_MAX_ZIP_ENTRIES:1200,BACKUP_IMPORT_MAX_BYTES:120*1024*1024,BACKUP_IMPORT_MAX_STATE_BYTES:50*1024*1024,ALLOWED_IMAGE_MIME_TYPES:['image/png']}},console,Blob,Uint8Array,Uint32Array,ArrayBuffer,DataView,TextEncoder,TextDecoder,Date,JSON,Math,Map,Set,Promise,crypto:webcrypto,atob,btoa});
+for(const name of ['asset-utils','security-protection-utils'])vm.runInContext(fs.readFileSync('app/js/core/'+name+'.js','utf8'),context);
+const a=context.window.ZETER_ASSET_UTILS,p=context.window.ZETER_SECURITY_PROTECTION_UTILS;
+(async()=>{
+ const state={fs:{},settings:{}}; const entries=[{path:'zeter-os-state.json',blob:new Blob([JSON.stringify({state})])}];
+ const manifest=await p.createBackupManifest(entries,{}, {crypto:webcrypto});
+ const good=await a.createZipBlob([...entries,{path:'zeter-backup-manifest.json',blob:new Blob([JSON.stringify(manifest)])}]);
+ assert.equal((await p.verifyBackupBlob(good,{crypto:webcrypto})).verified,true);
+ const duplicate=await a.createZipBlob([{path:'zeter-os-state.json',blob:new Blob(['{}'])},...entries]);
+ await assert.rejects(async()=>a.readStoredZipEntries(await duplicate.arrayBuffer()),/повтор|дубл|Duplicate/i);
+ const badBytes=new Uint8Array(await good.arrayBuffer());badBytes[30+'zeter-os-state.json'.length]^=1;
+ await assert.rejects(()=>a.readStoredZipEntries(badBytes.buffer),/CRC|контроль|поврежд/i);
+ const empty=await a.createZipBlob([...entries,{path:'zeter-backup-manifest.json',blob:new Blob([JSON.stringify({...manifest,files:[]})])}]);
+ await assert.rejects(()=>p.verifyBackupBlob(empty,{crypto:webcrypto}),/манифест|покры|состав/i);
+ const extra=await a.createZipBlob([...entries,{path:'unlisted.bin',blob:new Blob(['x'])},{path:'zeter-backup-manifest.json',blob:new Blob([JSON.stringify(manifest)])}]);
+ await assert.rejects(()=>p.verifyBackupBlob(extra,{crypto:webcrypto}),/манифест|покры|состав/i);
+ console.log('security archive strict CRC/duplicates/manifest smoke PASS');
+})().catch(e=>{console.error(e);process.exitCode=1;});

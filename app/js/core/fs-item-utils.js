@@ -74,8 +74,10 @@
   function createFsItemRecord(fs = {}, type, name, parent = "desktop", options = {}) {
     const fallbackName = options.fallbackName || (type === "folder" ? "Новая папка" : "Элемент");
     const cleanName = String(name || fallbackName).trim() || fallbackName;
-    if (type === "folder" && folderNameExists(fs, parent, cleanName)) {
-      return { item: null, keyId: "", error: { code: "folder_exists", name: cleanName } };
+    let folderName = cleanName;
+    if (type === "folder") {
+      let suffix = 2;
+      while (folderNameExists(fs, parent, folderName)) folderName = `${cleanName} (${suffix++})`;
     }
 
     const makeId = typeof options.uid === "function"
@@ -97,7 +99,7 @@
     const item = {
       id: keyId,
       type,
-      name: type === "folder" ? cleanName : makeUniqueName(cleanName, parent),
+      name: type === "folder" ? folderName : makeUniqueName(cleanName, parent),
       parent,
       x: Number.isFinite(Number(position?.x)) ? Number(position.x) : fallbackPosition.x,
       y: Number.isFinite(Number(position?.y)) ? Number(position.y) : fallbackPosition.y,

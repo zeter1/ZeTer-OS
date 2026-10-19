@@ -2,12 +2,32 @@
   "version": 1,
   "python_owners": [
     {
+      "id": "python-web-prepare", "title": "Прямая загрузка app и целостность веб-кэша", "path": "tools/prepare_web.py",
+      "anchors": ["render_manifest", "check_manifest"], "keywords": ["ucoz", "web", "cache", "кэш", "кеш", "Ctrl+F5", "web-release"],
+      "js": ["app/js/web-bootstrap.js", "app/service-worker.js", "app/js/core/shell-ui-utils.js"],
+      "docs": ["docs/UCOZ.md", "docs/TESTING.md"], "smokes": ["tools/smoke_web_cache.js", "tools/smoke_web_cache_ui.js"]
+    },
+    {
+      "id": "python-security-backup", "title": "Полные резервные копии и изолированное восстановление", "path": "security_backup.py",
+      "anchors": ["SecurityBackupStore"], "keywords": ["backup", "vault", "restore", "бэкап", "восстановление"],
+      "js": ["app/js/core/security-recovery-utils.js", "app/js/core/security-ui-utils.js", "app/js/app.js"],
+      "docs": ["docs/NATIVE_BRIDGE.md", "docs/DATA_MODEL.md", "docs/TESTING.md"], "smokes": ["tools/smoke_security_backup.py"]
+    },
+    {
+      "id": "word-documents", "title": "DOC/DOCX в редакторе", "path": "document_converter.py",
+      "anchors": ["read_document", "build_document", "pending_documents"],
+      "keywords": ["doc", "docx", "Word", "LibreOffice", "документы"],
+      "js": ["app/js/core/editor-ui-utils.js", "app/js/core/managed-file-utils.js"],
+      "docs": ["docs/NATIVE_BRIDGE.md", "docs/TESTING.md"],
+      "smokes": ["tools/smoke_document_native.py", "tools/smoke_document_editor.js"]
+    },
+    {
       "id": "native-storage", "title": "Python storage и pywebview API", "path": "run_zeter_os.py",
       "anchors": ["NativeStorageApi", "WindowsStartupManager", "DefaultPlatformOpener", "startup_window_maximized", "_run_normal_app", "run_update_probe"],
       "keywords": ["native", "python", "хранилище", "bridge", "сохранение", "автозапуск", "метрики"],
       "js": ["app/js/core/native-storage.js", "app/js/app.js"],
       "docs": ["docs/NATIVE_BRIDGE.md", "docs/DATA_MODEL.md", "docs/TESTING.md"],
-      "smokes": ["tools/smoke_managed_file_native.py", "tools/smoke_desktop_backup_native.py"]
+      "smokes": ["tools/smoke_managed_file_native.py", "tools/smoke_desktop_backup_native.py", "tools/smoke_storage_info.py"]
     },
     {
       "id": "python-problem-logs", "title": "Структурированные Логи проблем", "path": "problem_logs.py",
@@ -31,10 +51,10 @@
       "js": [], "docs": ["docs/UPDATES.md"], "smokes": ["tools/smoke_app_updater.py"]
     },
     {
-      "id": "python-ucoz-builder", "title": "Веб ZIP для uCoz без очистки кэша", "path": "tools/build_ucoz.py",
-      "anchors": ["build_ucoz", "prepare_files", "validate_resources", "validate_archive"],
+      "id": "python-ucoz-builder", "title": "Веб ZIP и служебный runtime-патч uCoz", "path": "tools/build_ucoz.py",
+      "anchors": ["build_ucoz", "build_runtime_patch", "render_worker", "prepare_files", "validate_resources", "validate_archive"],
       "keywords": ["ucoz", "FTP", "web", "сборка", "ZIP", "кэш", "кеш"],
-      "js": ["app/js/core/shell-ui-utils.js"], "docs": ["docs/UCOZ.md", "UCOZ_BUILD_PROMPT.md", "docs/TESTING.md"], "smokes": ["tools/smoke_ucoz_builder.py"]
+      "js": ["app/js/core/shell-ui-utils.js"], "docs": ["docs/UCOZ.md", "UCOZ_BUILD_PROMPT.md", "docs/TESTING.md"], "smokes": ["tools/smoke_ucoz_builder.py", "tools/smoke_ucoz_runtime.js"]
     },
     {
       "id": "python-release-builder", "title": "Чистый portable ZIP исходников", "path": "tools/build_release.py",
@@ -44,6 +64,17 @@
     }
   ],
   "scenarios": [
+    {
+      "id": "project-overview",
+      "title": "Обзор проекта и переработанные Задачи",
+      "keywords": ["обзор", "проект", "категории задач", "categoryId", "attachments", "материалы", "встречи", "project overview", "список", "сроки", "палитра", "HEX", "этапы", "график времени", "настройки проекта", "defaultView", "defaultPriority", "hideCompleted", "sortBy"],
+      "js": ["app/js/core/project-overview-utils.js", "app/js/core/project-overview-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/task-ui-utils.js", "app/js/core/data-normalizers.js", "app/js/core/state-import-validator.js", "app/js/core/time-tracking-utils.js"],
+      "app_anchors": ["createTaskProjectOverview", "createTaskProjectPersistence", "refreshProjectOverviews", "createWorkspaceTimeController"],
+      "css": ["app/css/61-tasks.css"],
+      "state": ["workspace.activeTaskProjectId", "fs[tasklist].activeTaskProjectId", "workspace.taskProjects[].description", "workspace.taskProjects[].color", "workspace.taskProjects[].defaultView", "workspace.taskProjects[].sortBy", "workspace.taskProjects[].hideCompleted", "workspace.taskProjects[].defaultPriority", "fs[tasklist].taskProjects[]", "workspace.taskProjects[].categories", "fs[tasklist].taskProjects[].categories", "workspace.tasks[].categoryId", "fs[tasklist].tasks[].categoryId", "workspace.taskProjects[].attachments", "fs[tasklist].taskProjects[].attachments", "workspace.timeTracking", "openWindows[].params.projectView"],
+      "smokes": ["tools/smoke_project_overview.js", "tools/smoke_project_overview_ui.js", "tools/smoke_project_settings.js", "tools/smoke_project_settings_ui.js", "tools/smoke_task_categories.js", "tools/smoke_task_categories_ui.js", "tools/smoke_tasks_layout.js", "tools/smoke_state_migration.js", "tools/smoke_time_tracking.js"],
+      "manual": "Создать проект в модальном окне, отказ/повтор; быстро переключить проекты при удержанной записи, reload; открыть Обзор/Доску/Список, фильтр сроков и Настройки проекта; изменить статус и checklist; прикрепить материал/событие, отказ и повтор, другой проект и reload; старт таймера, recovery и отдельный tasklist; внутреннее окно 560 px и viewport 390 px."
+    },
     {
       "id": "time-tracking", "title": "Учёт времени задач и занятий", "keywords": ["timetracking", "учёт времени", "таймер", "пауза", "сессия"],
       "js": ["app/js/core/time-tracking-utils.js", "app/js/core/time-tracking-ui-utils.js", "app/js/core/calendar-utils.js", "app/js/core/calendar-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js"],
@@ -127,22 +158,22 @@
       "id": "shell-boot",
       "title": "Запуск, shell, taskbar и меню Пуск",
       "keywords": ["boot", "shell", "startup", "taskbar", "пуск", "панель задач", "first run", "logo", "branding", "логотип", "иконка ZeTer"],
-      "js": ["app/js/core/boot-guard.js", "app/js/core/version.js", "app/js/core/config.js", "app/js/core/utils.js", "app/js/core/system-settings-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/start-ui-utils.js", "app/js/core/first-run-ui-utils.js", "app/js/core/app-catalog.js", "app/js/core/pinning-utils.js", "app/js/core/context-menu-ui-utils.js"],
-      "app_anchors": ["bootZeTerOs", "shellRuntimeController", "renderStart"],
-      "css": ["app/css/00-base.css", "app/css/10-shell.css", "app/css/20-windows.css"],
+      "js": ["app/js/core/boot-guard.js", "app/js/core/version.js", "app/js/core/config.js", "app/js/core/utils.js", "app/js/core/preferences-writer-utils.js", "app/js/core/system-settings-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/start-ui-utils.js", "app/js/core/first-run-ui-utils.js", "app/js/core/app-catalog.js", "app/js/core/pinning-utils.js", "app/js/core/context-menu-ui-utils.js"],
+      "app_anchors": ["bootZeTerOs", "shellRuntimeController", "taskbarController", "renderStart", "saveFirstRunSetup", "updateStartPreferences", "recordStartRecentItem", "openStartItem"],
+      "css": ["app/css/00-base.css", "app/css/10-shell.css", "app/css/20-windows.css", "app/css/41-first-run.css"],
       "state": ["state.settings", "state.systemSettings", "state.taskbarPinnedApps", "workspace.openWindows"],
-      "smokes": ["tools/smoke_boot_guard.js", "tools/smoke_shell_runtime.js", "tools/smoke_system_settings.js"],
+      "smokes": ["tools/smoke_boot_guard.js", "tools/smoke_shell_runtime.js", "tools/smoke_taskbar_grouping.js", "tools/smoke_system_settings.js", "tools/smoke_start_preferences.js", "tools/smoke_start_preferences_queue.js", "tools/smoke_start_menu_ui.js"],
       "manual": "Запустить ОС, открыть Пуск, taskbar и глобальные панели; нажать на часы и проверить открытие календаря на текущем месяце, повторно нажать для его закрытия; затем перезапустить."
     },
     {
       "id": "desktop-windows",
       "title": "Рабочие столы, окна и сессии",
       "keywords": ["desktop", "workspace", "window", "snap", "drag", "group drag", "multi selection", "ctrl click", "resize", "shortcut", "item settings", "рабочий стол", "окна", "групповое перетаскивание", "множественное выделение", "ctrl щелчок", "ярлык", "настройка ярлыка"],
-      "js": ["app/js/core/workspace-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/storage-utils.js", "app/js/core/desktop-ui-utils.js", "app/js/core/desktop-layout-utils.js", "app/js/core/item-drag-ui-utils.js", "app/js/core/shortcut-utils.js", "app/js/core/item-customization-utils.js", "app/js/core/window-metrics-utils.js", "app/js/core/window-ui-utils.js", "app/js/core/window-session-utils.js", "app/js/core/sticky-utils.js"],
+      "js": ["app/js/core/config.js", "app/js/core/initial-state-utils.js", "app/js/core/app-catalog.js", "app/js/core/workspace-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/storage-utils.js", "app/js/core/desktop-ui-utils.js", "app/js/core/desktop-layout-utils.js", "app/js/core/item-drag-ui-utils.js", "app/js/core/shortcut-utils.js", "app/js/core/item-customization-utils.js", "app/js/core/window-metrics-utils.js", "app/js/core/window-ui-utils.js", "app/js/core/window-session-utils.js", "app/js/core/sticky-utils.js"],
       "app_anchors": ["currentWorkspace", "switchDesktop", "openApp", "refreshWindow", "downloadDesktopBackup"],
       "css": ["app/css/10-shell.css", "app/css/20-windows.css", "app/css/80-overrides.css"],
       "state": ["state.desktops[]", "state.archivedDesktops[]", "workspace.openWindows", "state.fs[*].x/y", "state.fs[*].appearance"],
-      "smokes": ["tools/smoke_desktop_group_drag.js", "tools/smoke_state_migration.js", "tools/smoke_desktop_backup_native.py", "tools/smoke_storage_runtime.js", "tools/smoke_shortcut_runtime.js", "tools/smoke_item_customization.js"],
+      "smokes": ["tools/smoke_icon_layout.js", "tools/smoke_desktop_appearance.js", "tools/smoke_desktop_group_drag.js", "tools/smoke_state_migration.js", "tools/smoke_desktop_backup_native.py", "tools/smoke_storage_runtime.js", "tools/smoke_shortcut_runtime.js", "tools/smoke_item_customization.js"],
       "manual": "Через Ctrl+ЛКМ добавить и снять отдельные значки, проверить переход к одиночному выделению, затем перетащить всю группу за любой выбранный значок с сохранением взаимного расположения; проверить копии самих значков в desktop-drag-preview, точку захвата, длинное название, пользовательскую картинку и очистку после отпускания/отмены; отдельно открыть, переместить, свернуть, развернуть и восстановить окно после перезапуска; перед удалением дополнительного стола скачать все его данные, выбрать группы удаления, проверить сохранение остальных в архиве без переноса и сохранность основного стола."
     },
     {
@@ -152,8 +183,8 @@
       "js": ["app/js/core/explorer-utils.js", "app/js/core/explorer-ui-utils.js", "app/js/core/explorer-tab-utils.js", "app/js/core/fs-item-utils.js", "app/js/core/item-metadata.js", "app/js/core/item-properties-ui-utils.js", "app/js/core/item-customization-utils.js", "app/js/core/managed-file-utils.js", "app/js/core/shortcut-utils.js"],
       "app_anchors": ["renderExplorer", "navigateFolderWindow", "bulkMoveItemsToFolder", "renderShortcutEditorApp", "renderItemSettingsApp", "openShortcutTarget"],
       "css": ["app/css/30-app-common.css", "app/css/50-explorer.css", "app/css/60-apps-calendar-notes-tables.css", "app/css/85-explorer-plus.css"],
-      "state": ["state.fs", "state.fs[*].managedFile", "state.fs[*].shortcut", "state.fs[*].appearance", "state.fs[explorerAnchor].explorerTabs", "state.fs[explorerAnchor].explorerTabLinks", "data/Оформление объектов"],
-      "smokes": ["tools/smoke_explorer_navigation.js", "tools/smoke_managed_file_runtime.js", "tools/smoke_managed_file_native.py", "tools/smoke_shortcut_runtime.js", "tools/smoke_item_customization.js"],
+      "state": ["state.fs", "state.fs[*].managedFile", "state.fs[*].shortcut", "state.fs[*].appearance", "state.fs[explorerAnchor].explorerTabs", "state.fs[explorerAnchor].explorerTabLinks", "state.fs[*].explorerView", "workspace.settings.explorerView", "data/Оформление объектов"],
+      "smokes": ["tools/smoke_explorer_navigation.js", "tools/smoke_explorer_view_persistence.js", "tools/smoke_managed_file_runtime.js", "tools/smoke_managed_file_native.py", "tools/smoke_shortcut_runtime.js", "tools/smoke_item_customization.js"],
       "manual": "Открыть папку с рабочего стола отдельным окном и проверить слева дерево от «Рабочего стола» до текущей папки; перейти на корень рабочего стола, убедиться в упорядоченной сетке без desktop-разброса, прокрутить большое содержимое и проверить, что реальные desktop-координаты не изменились; развернуть вложенные папки и перейти по строкам дерева; перетащить внутренние файл и папку на карточку папки, строку дерева, свободное место, адресную панель и preview; перетащить Windows-файл на текущую и вложенную папку; отдельно проверить вкладки, ярлыки, копирование пути и удаление без удаления внешней цели."
     },
     {
@@ -163,8 +194,8 @@
       "js": ["app/js/core/editor-ui-utils.js", "app/js/core/rich-text-utils.js", "app/js/core/markdown-utils.js", "app/js/core/file-template-utils.js", "app/js/core/fs-item-utils.js", "app/js/core/managed-file-utils.js", "app/js/core/shortcut-utils.js"],
       "app_anchors": ["documentEditorRuntimeController", "refreshOpenEditors"],
       "css": ["app/css/30-app-common.css", "app/css/40-app-foundation.css", "app/css/60-apps-calendar-notes-tables.css"],
-      "state": ["state.fs[*].content", "state.fs[*].richContent", "state.fs[*].managedFiles", "state.fs[*].parent"],
-      "smokes": ["tools/smoke_export_runtime.js", "tools/smoke_editor_ui.js", "tools/smoke_managed_file_runtime.js", "tools/smoke_shortcut_runtime.js"],
+      "state": ["state.fs[*].content", "state.fs[*].richContent", "state.fs[*].managedFiles", "state.fs[*].parent", "state.fs[*].managedFile", "state.fs[*].sourceDocument", "state.fs[*].documentDraft"],
+      "smokes": ["tools/smoke_export_runtime.js", "tools/smoke_editor_ui.js", "tools/smoke_document_editor.js", "tools/smoke_document_native.py", "tools/smoke_managed_file_runtime.js", "tools/smoke_shortcut_runtime.js"],
       "manual": "Создать заметку; применить введённый цифрой размер шрифта к выделенному тексту и проверить, что подсветка сохраняется до щелчка вне панели; оформить последний абзац цитатой, скопировать её отдельной кнопкой и убедиться, что скопирован только текст, затем поставить курсор в конец цитаты и нажать стрелку вниз, отдельно щёлкнуть ниже цитаты и проверить ввод обычного текста в обоих случаях; найти текст через Ctrl+F в английской и русской раскладке, перейти по Enter и Shift+Enter без изменения текста; скачать текущую заметку в DOCX и открыть файл; добавить ссылку на выделение; изменить размер изображения угловыми маркерами, выбрать его, удалить клавишей Delete и открыть заметку заново; вставить Windows-файл в позицию текста, пустую нижнюю область, к левой и правой границе; перенести внутренний managed-файл drag/drop без дубля и отдельно скопировать его через Ctrl+C/Ctrl+V; повторить в стикере, сохранить и открыть заново."
     },
     {
@@ -270,23 +301,23 @@
       "id": "security-monitor",
       "title": "Центр безопасности и монитор storage",
       "keywords": ["security", "integrity", "monitor", "system metrics", "cpu", "ram", "disk", "restore point", "безопасность", "целостность", "монитор", "процессор", "память", "диск"],
-      "js": ["app/js/core/security-protection-utils.js", "app/js/core/security-utils.js", "app/js/core/security-ui-utils.js", "app/js/core/monitor-utils.js"],
+      "js": ["app/js/core/security-protection-utils.js", "app/js/core/security-utils.js", "app/js/core/security-restore-utils.js", "app/js/core/security-vault-utils.js", "app/js/core/security-recovery-utils.js", "app/js/core/security-ui-utils.js", "app/js/core/monitor-utils.js"],
       "app_anchors": ["securityRuntimeController", "renderMonitorApp"],
       "css": ["app/css/40-app-foundation.css", "app/css/90-security.css"],
       "state": ["storage runtime", "state.security protection policy and journal", "restore points", "integrity snapshot"],
-      "smokes": ["tools/smoke_storage_runtime.js", "tools/smoke_monitor_runtime.js", "tools/smoke_export_runtime.js", "tools/smoke_import_runtime.js", "tools/smoke_security_protection.js", "tools/smoke_managed_file_native.py", "tools/smoke_problem_logs.py"],
-      "manual": "Открыть Монитор системы с верхней панели; сверить обновление CPU/RAM/диска, предупреждения, ручное обновление, копирование отчёта, открытие data, «Логи проблем», журнал операций и браузерный fallback. В `Логи проблем` проверить latest_run → summary, отсутствие текста/имён тестовых документов и закрытый health. Затем проверить structured security status, manifest/encryption, recovery drill, точки, preflight import, cleanup preview, reset safety, journal, policy и storage pressure."
+      "smokes": ["tools/smoke_storage_runtime.js", "tools/smoke_monitor_runtime.js", "tools/smoke_monitor_ui.js", "tools/smoke_export_runtime.js", "tools/smoke_import_runtime.js", "tools/smoke_security_protection.js", "tools/smoke_security_loading.js", "tools/smoke_security_loading_ui.js", "tools/smoke_storage_info.py", "tools/smoke_managed_file_native.py", "tools/smoke_problem_logs.py"],
+      "manual": "Открыть Монитор системы с верхней панели; сверить четыре раздела, периоды 1/5/15 минут, разрывы истории, свежесть, 9-секундное подтверждение и 6-секундное восстановление предупреждений, фокус после обновления, ширины 320/390/760/1440, обновление CPU/RAM/диска, ручное обновление, копирование отчёта, открытие data, «Логи проблем», журнал операций и браузерный fallback. В `Логи проблем` проверить latest_run → summary, отсутствие текста/имён тестовых документов и закрытый health. Затем проверить structured security status, manifest/encryption, recovery drill, точки, preflight import, cleanup preview, reset safety, journal, policy и storage pressure."
     },
     {
       "id": "settings-visual",
       "title": "Настройки, данные, уведомления, доступность и горячие клавиши",
       "keywords": ["settings", "wallpaper", "desktop profile", "storage", "notifications", "startup", "autostart", "accessibility", "hotkeys", "настройки", "обои", "профиль", "сохранение", "уведомления", "запуск", "автозапуск", "доступность", "горячие клавиши"],
-      "js": ["app/js/core/settings-ui-utils.js", "app/js/core/system-settings-utils.js", "app/js/core/visual-utils.js", "app/js/core/desktop-profile-utils.js", "app/js/core/shell-ui-utils.js"],
+      "js": ["app/js/core/settings-ui-utils.js", "app/js/core/preferences-writer-utils.js", "app/js/core/system-settings-utils.js", "app/js/core/window-metrics-utils.js", "app/js/core/window-ui-utils.js", "app/js/core/visual-utils.js", "app/js/core/desktop-profile-utils.js", "app/js/core/shell-ui-utils.js"],
       "app_anchors": ["renderSettingsApp"],
-      "css": ["app/css/40-app-foundation.css", "app/css/45-form-controls.css"],
+      "css": ["app/css/40-app-foundation.css", "app/css/45-form-controls.css", "app/css/10-shell.css"],
       "state": ["workspace.settings", "state.settings", "state.systemSettings", "desktop name/description/icon", "HKCU Windows Run entry"],
-      "smokes": ["tools/smoke_system_settings.js", "tools/smoke_state_migration.js", "tools/smoke_export_runtime.js", "tools/smoke_managed_file_native.py"],
-      "manual": "Проверить сохранение сейчас, общий автозапуск Windows на нескольких рабочих столах, уведомления и тихие часы, стартовый стол, восстановление окон, доступность, переназначение/конфликт горячих клавиш, обои, профиль, узкое окно и длинный текст."
+      "smokes": ["tools/smoke_system_settings.js", "tools/smoke_preferences_writer.js", "tools/smoke_settings_preferences.js", "tools/smoke_shell_preferences.js", "tools/smoke_window_sizes.js", "tools/smoke_settings_ui.js", "tools/smoke_settings_edges_ui.js", "tools/smoke_state_migration.js", "tools/smoke_export_runtime.js", "tools/smoke_managed_file_native.py"],
+      "manual": "Проверить семь разделов, поиск/переход/фокус, область действия, отказ/повтор/отмена, быстрые изменения и смену стола при pending, safe reset, цвета/подписи/одинарное открытие, часы/неделю, 150%, сохранение раздела после изменения параметра, клавиатуру, выбор размера новых окон с предпросмотром, сохранение сейчас, общий автозапуск Windows на нескольких рабочих столах, уведомления и тихие часы, стартовый стол, восстановление окон, доступность, переназначение/конфликт горячих клавиш, обои, профиль, узкое окно и длинный текст."
     },
     {
       "id": "about-system",
@@ -297,7 +328,7 @@
       "css": ["app/css/40-app-foundation.css"],
       "state": ["ui.windows (обычное окно; содержимое О ZeTer OS не хранит пользовательских данных)"],
       "smokes": ["tools/smoke_about_ui.js", "tools/smoke_help_content.js", "tools/smoke_shell_runtime.js"],
-      "manual": "Верхняя панель → О ZeTer OS: описание, версия, 13 ссылок, контакты; выделение → ПКМ → Копировать, Ctrl+C; широкое/узкое окно, повторное открытие. В Настройках нет Разработчика и О системе."
+      "manual": "Верхняя панель → О ZeTer OS: описание, ссылка Руководство пользователя ZeTer OS → отдельное внутреннее окно, версия, 13 внешних ссылок, контакты; выделение → ПКМ → Копировать, Ctrl+C; широкое/узкое окно, повторное открытие. В Настройках нет Разработчика и О системе."
     },
     {
       "id": "tables",
@@ -329,8 +360,8 @@
       "app_anchors": ["renderAppCenter", "openApp"],
       "css": ["app/css/30-app-common.css", "app/css/60-apps-calendar-notes-tables.css"],
       "state": ["state.fs app shortcuts", "state.taskbarPinnedApps"],
-      "smokes": [],
-      "manual": "Установить и удалить ярлык, открыть приложение и проверить Пуск/taskbar."
+      "smokes": ["tools/smoke_persistence_ack.js"],
+      "manual": "Для всех карточек проверить описания в 3–6 видимых строк при широком и узком окне; текст целиком, кнопки доступны. Установить и удалить ярлык, открыть приложение и проверить Пуск/taskbar."
     },
     {
       "id": "small-apps",
@@ -338,10 +369,10 @@
       "keywords": ["photos", "calculator", "help", "guide", "first run", "gallery", "фото", "калькулятор", "справка", "путеводитель", "возможности", "первый запуск"],
       "js": ["app/js/core/photo-ui-utils.js", "app/js/core/calculator-utils.js", "app/js/core/calculator-ui-utils.js", "app/js/core/help-content.js", "app/js/core/first-run-ui-utils.js", "app/js/core/app-catalog.js"],
       "app_anchors": ["renderPhotosApp", "renderCalculatorApp", "renderHelpApp"],
-      "css": ["app/css/30-app-common.css", "app/css/40-app-foundation.css"],
-      "state": ["state.fs image items", "calculator runtime input"],
-      "smokes": ["tools/smoke_help_content.js"],
-      "manual": "На первом запуске нажать «Посмотреть возможности»; проверить поиск справки, навигацию по разделам, раскрытие тем, кнопки открытия приложений, предупреждения об удалении/data/бэкапах и узкое окно; отдельно открыть галерею и калькулятор."
+      "css": ["app/css/30-app-common.css", "app/css/40-app-foundation.css", "app/css/41-first-run.css"],
+      "state": ["state.fs image items", "calculator runtime input", "state.firstRunCompleted", "state.systemSettings", "state.desktops[].name", "workspace.settings.wallpaper", "workspace.settings.desktopAppearance", "state.taskbarPinnedApps"],
+      "smokes": ["tools/smoke_help_content.js", "tools/smoke_first_run_setup.js"],
+      "manual": "Первый запуск: шесть этапов настройки, приложения на столе/taskbar, размеры/зазоры/расширения, startup, первый проверенный ZIP или «Позже», Назад/вперёд, отказ записи/повтор, сохранение/перезагрузка и 14 подсказок. «Посмотреть возможности»: главная, раздел → поиск → Escape, пустой результат/очистка, раскрытие тем клавиатурой, кнопки приложений и окно 390 px внутри широкого viewport; отдельно открыть галерею и калькулятор."
     },
     {
       "id": "state-lifecycle",
@@ -356,6 +387,22 @@
     }
   ],
   "ui_contracts": [
+    {
+      "id": "project-overview",
+      "title": "Обзор, представления и настройки проекта",
+      "scenario": "project-overview",
+      "keywords": ["обзор", "настройки проекта", "project view", "attachments"],
+      "files": ["app/js/core/task-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/project-overview-ui-utils.js", "app/css/61-tasks.css"],
+      "hooks": ["data-project-view", "data-task-deadline", "data-project-deadline", "data-project-day-bar", "data-task-status", "task-project-settings", "data-project-attachment-choice", "data-project-action", "project-save-status"]
+    },
+    {
+      "id": "app-center-catalog",
+      "title": "Карточки и сводка каталога приложений",
+      "scenario": "app-center",
+      "keywords": ["каталог", "карточки", "описание", "статус", "счётчик", "установка"],
+      "files": ["app/js/core/app-center-ui-utils.js", "app/js/core/app-catalog.js", "app/css/60-apps-calendar-notes-tables.css"],
+      "hooks": ["data-catalog-app", "app-center-heading", "app-center-summary", "app-center-icon", "app-center-description", "app-center-status", "data-open-app", "data-install-app", "data-uninstall-app"]
+    },
     {
       "id": "time-tracking-app", "title": "Таймер и история работы", "scenario": "time-tracking", "keywords": ["учёт времени", "timetracking UI", "таймер"],
       "files": ["app/js/core/time-tracking-utils.js", "app/js/core/time-tracking-ui-utils.js", "app/js/core/calendar-utils.js", "app/js/core/calendar-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/app-catalog.js", "app/js/app.js", "app/css/68-time-tracking.css"],
@@ -439,7 +486,7 @@
       "scenario": "shell-boot",
       "keywords": ["start", "taskbar", "shell", "пуск"],
       "files": ["app/index.html", "app/js/core/shell-ui-utils.js", "app/js/core/start-ui-utils.js", "app/css/10-shell.css"],
-      "hooks": ["start-button", "data-app", "start-menu"]
+      "hooks": ["start-button", "data-app", "start-menu", "start-settings", "start-preferences", "data-start-pref", "data-start-recent", "data-start-category", "data-start-pin", "data-start-quick", "data-desktop-menu"]
     },
     {
       "id": "app-update-offer",
@@ -487,7 +534,7 @@
       "scenario": "tasks",
       "keywords": ["task board", "task editor", "задачи"],
       "files": ["app/js/core/task-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/css/30-app-common.css"],
-      "hooks": ["task-board", "data-task-title", "data-task-priority"]
+      "hooks": ["task-board", "data-task-title", "data-task-priority", "data-project-configure", "data-project-settings-dialog"]
     },
     {
       "id": "calendar-editor",
@@ -542,8 +589,8 @@
       "title": "Центр безопасности данных",
       "scenario": "security-monitor",
       "keywords": ["security", "integrity", "backup", "безопасность"],
-      "files": ["app/js/core/security-protection-utils.js", "app/js/core/security-ui-utils.js", "app/css/90-security.css"],
-      "hooks": ["security-center-app", "data-security-check", "data-security-import", "data-security-restore-list", "data-security-journal"]
+      "files": ["app/js/core/security-protection-utils.js", "app/js/core/security-restore-utils.js", "app/js/core/security-vault-utils.js", "app/js/core/security-recovery-utils.js", "app/js/core/security-ui-utils.js", "app/css/90-security.css"],
+      "hooks": ["security-center-app", "data-security-check", "data-security-import", "data-security-restore-list", "data-security-journal", "data-security-view", "data-security-panel", "data-security-operation", "data-recovery-action", "data-recovery-choice", "data-vault-list"]
     },
     {
       "id": "settings-profile",
@@ -551,15 +598,15 @@
       "scenario": "settings-visual",
       "keywords": ["settings", "wallpaper", "profile", "storage", "notifications", "startup", "autostart", "accessibility", "hotkeys", "настройки", "сохранение", "уведомления", "автозапуск", "доступность", "горячие клавиши"],
       "files": ["app/js/core/settings-ui-utils.js", "app/js/core/system-settings-utils.js", "app/css/00-base.css", "app/css/40-app-foundation.css"],
-      "hooks": ["settings-field", "data-wall", "data-desktop-name", "data-system-setting", "data-windows-startup", "data-storage-save", "data-hotkey-capture"]
+      "hooks": ["settings-field", "data-settings-search", "data-settings-search-result", "data-settings-save-status", "data-settings-retry", "data-settings-discard", "data-settings-reset", "data-settings-section", "data-settings-panel", "data-settings-preview", "data-wall", "data-desktop-name", "data-desktop-appearance", "data-system-setting", "data-windows-startup", "data-storage-save", "data-hotkey-capture"]
     },
     {
       "id": "help-guide",
       "title": "Первый запуск и пользовательская справка",
       "scenario": "small-apps",
       "keywords": ["help", "guide", "first run", "search", "справка", "путеводитель", "возможности", "первый запуск", "поиск"],
-      "files": ["app/js/core/first-run-ui-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/help-content.js", "app/js/core/app-catalog.js", "app/css/40-app-foundation.css"],
-      "hooks": ["data-first-help", "help-page", "data-help-search", "data-help-target", "data-help-app"]
+      "files": ["app/js/core/first-run-ui-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/help-content.js", "app/js/core/app-catalog.js", "app/css/40-app-foundation.css", "app/css/41-first-run.css"],
+      "hooks": ["data-first-create", "data-first-import", "data-first-help", "data-first-error", "data-first-windows-startup", "data-first-backup-create", "data-first-backup-later", "data-first-backup-done", "first-run-setup-form", "data-setup-back", "data-tour-next", "data-tour-back", "data-setup-skip", "help-page", "data-help-search", "data-help-target", "data-help-app", "data-help-home", "data-help-results", "data-help-clear", "data-help-query"]
     }
   ],
   "state_lifecycle": [
@@ -744,7 +791,7 @@
     {
       "id": "tasks",
       "title": "Задачи и проекты",
-      "state_paths": ["workspace.tasks", "workspace.taskProjects"],
+      "state_paths": ["workspace.tasks", "workspace.taskProjects", "workspace.taskProjects[].attachments", "fs[tasklist].taskProjects[].attachments"],
       "stages": {
         "defaults": [{"path": "app/js/core/initial-state-utils.js", "anchors": ["defaultState"]}],
         "normalizers": [{"path": "app/js/core/data-normalizers.js", "anchors": ["normalizeTaskStore", "normalizeTaskListsData"]}],
@@ -753,7 +800,7 @@
         "serializer": [{"path": "app/js/core/storage-utils.js", "anchors": ["buildPrimaryStateRecord"]}],
         "storage": [{"path": "app/js/core/workspace-utils.js", "anchors": ["deskTasks"]}]
       },
-      "smokes": ["tools/smoke_state_migration.js", "tools/smoke_storage_runtime.js"]
+      "smokes": ["tools/smoke_state_migration.js", "tools/smoke_storage_runtime.js", "tools/smoke_project_overview.js"]
     },
     {
       "id": "calendar",
@@ -828,7 +875,7 @@
     {
       "id": "system-settings",
       "title": "Глобальные настройки системы",
-      "state_paths": ["state.systemSettings", "state.systemSettings.startup", "state.systemSettings.notifications", "state.systemSettings.accessibility", "state.systemSettings.hotkeys"],
+      "state_paths": ["state.systemSettings", "state.systemSettings.windows.openingSize", "state.systemSettings.startup", "state.systemSettings.notifications", "state.systemSettings.accessibility", "state.systemSettings.hotkeys"],
       "stages": {
         "defaults": [{"path": "app/js/core/initial-state-utils.js", "anchors": ["defaultState"]}],
         "normalizers": [{"path": "app/js/core/system-settings-utils.js", "anchors": ["normalizeSystemSettings"]}],

@@ -5,6 +5,7 @@
   if (!coreUtils) throw new Error("ZeTer OS shell UI utils require core utils.");
 
   const { $, $$, parseISO, escapeHtml } = coreUtils;
+  let shellSettingsReader = () => ({});
 
   function desktopDeletionDialogHTML(model) {
     return `<section class="desktop-delete-dialog" data-desktop-delete-dialog role="dialog" aria-modal="true" aria-labelledby="desktop-delete-title" aria-describedby="desktop-delete-warning">
@@ -108,22 +109,30 @@
       : { day: "2-digit", month: "2-digit", year: "numeric" });
   }
 
-  function updateClock() {
-    const now = new Date();
-    const time = now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-    const date = now.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
-    $("#clock").textContent = time;
-    $("#date-line").textContent = date;
-    $("#lock-time").textContent = time;
+  function clockViewModel(settings = {}, now = new Date()) {
+    const pad = value => String(value).padStart(2, "0");
+    const hour = now.getHours();
+    const short = `${pad(settings.format === "12h" ? (hour % 12 || 12) : hour)}:${pad(now.getMinutes())}`;
+    const suffix = settings.format === "12h" ? (hour < 12 ? " AM" : " PM") : "";
+    return { time: short + (settings.showSeconds ? `:${pad(now.getSeconds())}` : "") + suffix, lockTime: short + suffix, date: now.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" }), showDate: settings.showDate !== false };
+  }
+
+  function updateClock(settings = shellSettingsReader().clock || {}, now = new Date()) {
+    const view = clockViewModel(settings, now);
+    $("#clock").textContent = view.time;
+    $("#date-line").textContent = view.date;
+    $("#date-line").hidden = !view.showDate;
+    $("#lock-time").textContent = view.lockTime;
     $("#lock-date").textContent = now.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
   }
 
-  function toast(title, text = "") {
+  function toast(title, text = "", duration = shellSettingsReader().notifications?.popupDuration) {
     const t = document.createElement("div");
     t.className = "toast";
     t.innerHTML = `<b>${escapeHtml(title)}</b><span>${escapeHtml(text)}</span>`;
     $("#toast-stack").appendChild(t);
-    setTimeout(() => t.remove(), 3500);
+    const timeout = [3500, 5000, 8000, 12000].includes(Number(duration)) ? Number(duration) : 3500;
+    setTimeout(() => t.remove(), timeout);
   }
 
   function createRunningTaskbarButton({ winId = "", name = "", icon = "" } = {}) {
@@ -148,6 +157,9 @@
     const getState = typeof options.getState === "function" ? options.getState : () => ({});
     const getApps = typeof options.getApps === "function" ? options.getApps : () => ({});
     const getWindows = typeof options.getWindows === "function" ? options.getWindows : () => new Map();
+    const getActiveWindow = typeof options.getActiveWindow === "function" ? options.getActiveWindow : () => null;
+    const minimizeWindow = typeof options.minimizeWindow === "function" ? options.minimizeWindow : () => {};
+    const persistWindows = typeof options.persistWindows === "function" ? options.persistWindows : () => {};
     const saveState = typeof options.saveState === "function" ? options.saveState : () => {};
     const renderStart = typeof options.renderStart === "function" ? options.renderStart : () => {};
     const openByDataApp = typeof options.openByDataApp === "function" ? options.openByDataApp : () => {};
@@ -188,6 +200,42 @@
       return pinnedApps().includes(appId);
     }
 
+    function appWindows(appId) {
+      return [...getWindows().values()].filter(record => record.appId === appId);
+    }
+
+    function selectedWindow(appId) {
+      const records = appWindows(appId);
+      return records.find(record => record.winId === getActiveWindow()) || records[records.length - 1];
+    }
+
+    function activatePinned(appId) {
+      const record = selectedWindow(appId);
+      if (!record) return openByDataApp(appId);
+      if (!record.el.classList.contains("minimized") && record.winId === getActiveWindow()) {
+        return minimizeWindow(record.winId);
+      }
+      record.el.classList.remove("minimized");
+      focusWindow(record.winId);
+      persistWindows();
+    }
+
+    function syncWindows() {
+      const pinned = pinnedApps();
+      $$("#taskbar-apps .taskbar-app").forEach(button => {
+        const record = getWindows().get(button.dataset.winId);
+        button.classList.toggle("hidden", Boolean(record && pinned.includes(record.appId)));
+      });
+      $$("#taskbar .taskbar-pinned-static, #taskbar .taskbar-pinned-app").forEach(button => {
+        const appId = button.dataset.app || button.dataset.taskbarPinnedApp;
+        const records = pinned.includes(appId) ? appWindows(appId) : [];
+        const running = records.length > 0;
+        button.classList.toggle("taskbar-pinned-running", running);
+        button.classList.toggle("active", records.some(record => record.winId === getActiveWindow() && !record.el.classList.contains("minimized")));
+        button.classList.toggle("minimized", running && records.every(record => record.el.classList.contains("minimized")));
+      });
+    }
+
     function setPinned(appId, pinned) {
       const apps = getApps();
       const app = apps[appId];
@@ -219,6 +267,7 @@
         if (!apps[appId]) return;
         button.classList.add("taskbar-pinned-static");
         button.classList.toggle("hidden", !pinned.includes(appId));
+        button.onclick = () => activatePinned(appId);
         button.oncontextmenu = event => showPinnedAppMenu(event, appId);
       });
 
@@ -228,10 +277,11 @@
           const app = apps[appId];
           if (!app || !canPinAppToTaskbar(appId)) return;
           const button = createPinnedTaskbarButton({ appId, name: app.name, icon: app.icon });
-          button.addEventListener("click", () => openByDataApp(appId));
+          button.addEventListener("click", () => activatePinned(appId));
           button.addEventListener("contextmenu", event => showPinnedAppMenu(event, appId));
           container.appendChild(button);
         });
+      syncWindows();
       return true;
     }
 
@@ -251,6 +301,8 @@
     }
 
     function showPinnedAppMenu(event, appId) {
+      const record = selectedWindow(appId);
+      if (record) return showRunningWindowMenu(event, record.winId);
       event.preventDefault();
       event.stopPropagation();
       const app = getApps()[appId];
@@ -284,6 +336,16 @@
           if (entry.action.type === "close-window") return closeWindow(winId);
         }];
       });
+      if (isPinned(record.appId) && appWindows(record.appId).length > 1) {
+        const windowEntries = appWindows(record.appId).map(other => [app?.icon || "□",
+          other.el.querySelector(".window-title b, .win-title b")?.textContent || app?.name || "Окно",
+          () => {
+            other.el.classList.remove("minimized");
+            focusWindow(other.winId);
+            persistWindows();
+          }]);
+        entries.unshift(...windowEntries, ["", "hr"]);
+      }
       showContextNearElement(event, entries);
       return true;
     }
@@ -314,6 +376,7 @@
       isPinned,
       setPinned,
       renderPinned,
+      syncWindows,
       bindLockedContextMenus,
       showPinnedAppMenu,
       showRunningWindowMenu,
@@ -333,6 +396,7 @@
     const getDesktopName = typeof options.getDesktopName === "function" ? options.getDesktopName : id => String(id || "");
     const getSettings = typeof options.getSettings === "function" ? options.getSettings : () => ({});
     const getSystemSettings = typeof options.getSystemSettings === "function" ? options.getSystemSettings : () => ({});
+    shellSettingsReader = getSystemSettings;
     const saveState = typeof options.saveState === "function" ? options.saveState : () => {};
     const renderDesktop = typeof options.renderDesktop === "function" ? options.renderDesktop : () => {};
     const renderFileSurfaces = typeof options.renderFileSurfaces === "function" ? options.renderFileSurfaces : () => {};
@@ -374,6 +438,7 @@
 
     function registerPWA() {
       if (initSteps.shouldUseNativeStorage?.()) return;
+      if (documentRef?.documentElement?.dataset?.zeterWebManaged === "true") return;
       if (!("serviceWorker" in navigatorRef)) return;
       if (!["http:", "https:"].includes(locationRef.protocol)) return;
       navigatorRef.serviceWorker.register("service-worker.js").catch(error => console.warn("[ZeTer OS PWA]", error));
@@ -395,28 +460,46 @@
 
     function showFirstRunScreen() {
       const state = getState();
-      if (state.firstRunCompleted) return;
-      const overlay = documentRef.createElement("section");
+      if (state.firstRunCompleted || documentRef.querySelector?.(".first-run-screen")) return;
+      const overlay = documentRef.createElement("dialog");
       overlay.className = "first-run-screen";
+      overlay.setAttribute("aria-labelledby", "first-run-title");
+      overlay.setAttribute("aria-describedby", "first-run-description");
       overlay.innerHTML = firstRunScreenHTML(osVersion);
       documentRef.body.appendChild(overlay);
-      const done = () => {
-        state.firstRunCompleted = true;
-        saveState();
+      overlay.addEventListener("cancel", event => event.preventDefault());
+      overlay.showModal();
+      const done = async (persist = true) => {
+        if (persist) {
+          if (typeof options.completeFirstRun === "function") await options.completeFirstRun();
+          else { state.firstRunCompleted = true; saveState(); }
+        }
+        overlay.close();
         overlay.remove();
+        $("#start-button")?.focus();
       };
-      overlay.addEventListener("click", event => {
-        if (event.target.closest("[data-first-create]")) {
-          done();
-          toastMessage("Рабочее пространство готово", getDesktopName(getDesktopRoot()));
+      let pending = false;
+      overlay.addEventListener("click", async event => {
+        if (pending) return;
+        if (event.target.closest("[data-first-create]") && typeof options.startFirstRunSetup === "function") {
+          options.startFirstRunSetup(overlay, () => done(false));
+          return;
         }
-        if (event.target.closest("[data-first-import]")) {
-          done();
-          $("#import-file")?.click();
-        }
-        if (event.target.closest("[data-first-help]")) {
-          done();
-          openApp("help");
+        const action = event.target.closest("[data-first-create], [data-first-import], [data-first-help]");
+        if (!action) return;
+        pending = true;
+        overlay.querySelectorAll?.("button").forEach(button => { button.disabled = true; });
+        try {
+          await done();
+          if (event.target.closest("[data-first-import]")) $("#import-file")?.click();
+          else if (event.target.closest("[data-first-help]")) openApp("help");
+          else toastMessage("Рабочее пространство готово", getDesktopName(getDesktopRoot()));
+        } catch (error) {
+          const errorBox = overlay.querySelector("[data-first-error]");
+          errorBox.textContent = `Не удалось сохранить начало работы. ${error?.message || "Повтори попытку."}`;
+          errorBox.hidden = false;
+          overlay.querySelectorAll("button").forEach(button => { button.disabled = false; });
+          pending = false;
         }
       });
     }
@@ -428,11 +511,14 @@
       const activeWallpaper = settings.wallpaper === "custom" && settings.customWallpaper?.dataURL
         ? "custom"
         : (settings.wallpaper || "aurora");
-      documentRef.body.classList.remove("light");
       documentRef.body.classList.remove("wall-aurora", "wall-silk", "wall-mint", "wall-graphite", "wall-custom");
       documentRef.body.classList.add(`wall-${activeWallpaper}`);
       documentRef.documentElement.style.setProperty("--custom-wallpaper-image", customWallpaperCssUrl(settings.customWallpaper));
       documentRef.documentElement.style.setProperty("--custom-wallpaper-preview", customWallpaperCssUrl(settings.customWallpaper));
+      const accent = window.ZETER_VISUAL_UTILS?.ACCENT_PRESETS?.find(preset => preset.id === settings.accent);
+      if (accent) {
+        for (const [property, value] of Object.entries({ "--accent": accent.color, "--button-primary": accent.primary, "--button-primary-hover": accent.hover, "--button-primary-active": accent.active })) documentRef.documentElement.style.setProperty(property, value);
+      }
       documentRef.documentElement.style.setProperty("--blur", "0px");
       documentRef.documentElement.style.setProperty("--zeter-text-scale", String((Number(accessibility.textScale) || 100) / 100));
       documentRef.body.classList.toggle("zeter-large-controls", Boolean(accessibility.largeControls));
@@ -441,6 +527,7 @@
       $("#os").style.filter = "brightness(100%)";
       const volumeControl = $("#volume");
       if (volumeControl) volumeControl.value = settings.volume || 74;
+      updateClockAction();
       $$('[data-quick-wall]').forEach(button => button.classList.toggle("active", button.dataset.quickWall === activeWallpaper));
     }
 
@@ -610,7 +697,7 @@
       documentRef.addEventListener("keydown", event => {
         if (documentRef.body?.classList.contains("app-update-locked")) { event.preventDefault(); return; }
         // Modal controls retain their native Enter/Space behavior; the shell stays idle.
-        if (documentRef.querySelector?.("[data-desktop-delete-dialog], [data-prompt-dialog][open]")) return;
+        if (documentRef.querySelector?.("[data-desktop-delete-dialog], [data-prompt-dialog][open], [data-task-project-dialog][open], .first-run-screen[open]")) return;
         const targetElement = ElementCtor && event.target instanceof ElementCtor ? event.target : null;
         if (event.altKey && event.key === "Tab") { event.preventDefault(); cycleWindows(event.shiftKey); return; }
         if (event.key === "Escape") closeFloating();
@@ -631,7 +718,9 @@
         }
       });
       $$("[data-close-panel]").forEach(button => button.addEventListener("click", closeFloating));
-      $$("[data-app]").forEach(button => button.addEventListener("click", () => openByDataApp(button.dataset.app)));
+      $$("[data-app]").forEach(button => {
+        if (!button.closest("#taskbar")) button.addEventListener("click", () => openByDataApp(button.dataset.app));
+      });
       $$("[data-top-action]").forEach(button => button.addEventListener("click", () => handleTopMenuAction(button.dataset.topAction)));
       $("#lock-shortcut")?.addEventListener("click", lock);
       $("#restart-shortcut")?.addEventListener("click", restartShell);
@@ -691,6 +780,7 @@
   window.ZETER_SHELL_UI_UTILS = Object.freeze({
     formatDate,
     updateClock,
+    clockViewModel,
     toast,
     desktopDeletionDialogHTML,
     showDesktopDeletionDialog,

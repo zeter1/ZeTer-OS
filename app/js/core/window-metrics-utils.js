@@ -2,7 +2,8 @@
   "use strict";
 
   const coreUtils = window.ZETER_CORE_UTILS;
-  if (!coreUtils) throw new Error("ZeTer OS window metrics utils require core utils.");
+  const systemSettingsUtils = window.ZETER_SYSTEM_SETTINGS_UTILS;
+  if (!coreUtils || !systemSettingsUtils) throw new Error("ZeTer OS window metrics utils require core and system settings utils.");
 
   const { $, clamp } = coreUtils;
 
@@ -75,13 +76,56 @@
 
   function normalizeOpeningWindowRect(rect = null) {
     const standard = standardWindowRect();
-    if (windowRectNeedsStandardSize(rect)) return standard;
+    if (!rect) return standard;
+    const rawWidth = windowMetricToPx(rect.width, "x");
+    const rawHeight = windowMetricToPx(rect.height, "y");
+    if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight) || rawWidth <= 0 || rawHeight <= 0) return standard;
+    const width = clamp(rawWidth, 330, parseFloat(standard.width));
+    const height = clamp(rawHeight, 240, parseFloat(standard.height));
+    const left = windowMetricToPx(rect.left, "x");
+    const top = windowMetricToPx(rect.top, "y");
+    const minTop = parseFloat(standard.top);
     return {
-      left: rect.left || standard.left,
-      top: rect.top || standard.top,
-      width: rect.width || standard.width,
-      height: rect.height || standard.height
+      left: `${clamp(Number.isFinite(left) ? left : 0, 0, parseFloat(standard.width) - width)}px`,
+      top: `${clamp(Number.isFinite(top) ? top : minTop, minTop, minTop + parseFloat(standard.height) - height)}px`,
+      width: `${width}px`,
+      height: `${height}px`
     };
+  }
+
+  function openingWindowRect(size = "full") {
+    const standard = standardWindowRect();
+    const preset = systemSettingsUtils.WINDOW_SIZE_PRESETS.find(item => item.id === size) || systemSettingsUtils.WINDOW_SIZE_PRESETS[0];
+    if (preset.scale === 1) return standard;
+    const areaW = parseFloat(standard.width);
+    const areaH = parseFloat(standard.height);
+    const width = Math.max(330, Math.round(areaW * preset.scale));
+    const height = Math.max(240, Math.round(areaH * preset.scale));
+    return {
+      left: `${Math.round((areaW - width) / 2)}px`,
+      top: `${parseFloat(standard.top) + Math.round((areaH - height) / 2)}px`,
+      width: `${width}px`, height: `${height}px`
+    };
+  }
+
+  function openingWindowPlacementRect(size = "full", placement = "center", options = {}) {
+    const rect = openingWindowRect(size);
+    if (placement === "last" && options.lastRect) {
+      const left = windowMetricToPx(options.lastRect.left, "x");
+      const top = windowMetricToPx(options.lastRect.top, "y");
+      if (Number.isFinite(left)) rect.left = `${left}px`;
+      if (Number.isFinite(top)) rect.top = `${top}px`;
+    } else if (placement === "cascade") {
+      const standard = standardWindowRect();
+      const roomX = parseFloat(standard.width) - parseFloat(rect.width) - parseFloat(rect.left);
+      const roomY = parseFloat(standard.top) + parseFloat(standard.height) - parseFloat(rect.height) - parseFloat(rect.top);
+      const positions = Math.max(1, Math.floor(Math.min(roomX, roomY) / 24) + 1);
+      const index = Math.max(0, Math.floor(Number(options.cascadeIndex) || 0));
+      const offset = (index % positions) * 24;
+      rect.left = `${parseFloat(rect.left) + offset}px`;
+      rect.top = `${parseFloat(rect.top) + offset}px`;
+    }
+    return normalizeOpeningWindowRect(rect);
   }
 
   window.ZETER_WINDOW_METRICS_UTILS = Object.freeze({
@@ -95,6 +139,8 @@
     windowMetricToPx,
     standardWindowRect,
     windowRectNeedsStandardSize,
-    normalizeOpeningWindowRect
+    normalizeOpeningWindowRect,
+    openingWindowRect,
+    openingWindowPlacementRect
   });
 })();

@@ -33,7 +33,7 @@ function loadCore(name) {
   vm.runInContext(fs.readFileSync(filePath, "utf8"), sandbox, { filename: filePath });
 }
 
-["version.js", "config.js", "system-settings-utils.js", "app-catalog.js", "help-content.js", "first-run-ui-utils.js", "settings-ui-utils.js"].forEach(loadCore);
+["version.js", "config.js", "system-settings-utils.js", "asset-utils.js", "visual-utils.js", "app-catalog.js", "help-content.js", "first-run-ui-utils.js", "settings-ui-utils.js"].forEach(loadCore);
 
 const help = sandbox.window.ZETER_HELP_CONTENT;
 const firstRun = sandbox.window.ZETER_FIRST_RUN_UI_UTILS;
@@ -41,6 +41,20 @@ const settings = sandbox.window.ZETER_SETTINGS_UI_UTILS;
 const config = sandbox.window.ZETER_OS_CONFIG;
 const catalog = sandbox.window.ZETER_APP_CATALOG.APP_CATALOG_DEFINITIONS;
 assert.ok(help && firstRun && settings && config && catalog, "help, settings, first-run, config and app catalog contracts must load");
+loadCore("state-maintenance-utils.js");
+const shortcutFixture = { fs: {
+  old: { type: "app", appId: "help", name: "Справка", parent: "desktop", x: 32 },
+  custom: { type: "app", appId: "help", name: "Моя инструкция" },
+  document: { type: "file", name: "Справка" }
+} };
+const originalShortcuts = structuredClone(shortcutFixture);
+const normalizeShortcuts = sandbox.window.ZETER_STATE_MAINTENANCE_UTILS.normalizeNotesData;
+normalizeShortcuts(shortcutFixture, { helpName: catalog.help.name });
+assert.equal(shortcutFixture.fs.old.name, "Руководство пользователя ZeTer OS", "existing default help shortcuts must receive the new name");
+originalShortcuts.fs.old.name = "Руководство пользователя ZeTer OS";
+assert.deepEqual(shortcutFixture, originalShortcuts, "renaming must preserve custom names, documents and shortcut properties");
+normalizeShortcuts(shortcutFixture, { helpName: catalog.help.name });
+assert.deepEqual(shortcutFixture, originalShortcuts, "repeated normalization must preserve the migrated shortcut");
 assert.deepEqual(
   JSON.parse(JSON.stringify(config.DEVELOPER)),
   { name: "Дмитрий Колесниченко", email: "zeter11@gmail.com" },
@@ -62,6 +76,13 @@ assert.match(html, /стрелку ↓/, "help must explain how to leave a trail
 assert.match(html, /копирует только текст цитаты/, "help must explain the quote copy button");
 assert.match(html, /data-help-search/, "help must provide full-text search");
 assert.match(html, /data-help-target="start"/, "help must provide section navigation");
+assert.match(html, /data-help-home/, "guide must offer an overview without showing every article at once");
+assert.match(html, /data-help-target="home"/, "section navigation must provide a way back to the overview");
+assert.match(html, /data-help-clear/, "search must have an explicit clear action");
+assert.match(html, /data-help-query="бэкап"/, "common searches must be actionable");
+for (const sectionId of sectionIds) {
+  assert.match(html, new RegExp(`data-help-target="${sectionId}"`), `every section must remain reachable: ${sectionId}`);
+}
 assert.match(html, /start_zeter_os\.cmd/, "help must explain the supported desktop launch");
 assert.match(html, /data\/zeter-os-state\.json/, "help must identify the primary recovery state");
 assert.match(html, /Отдельного приложения «Корзина» нет/, "help must warn that deletion is immediate after confirmation");
@@ -132,6 +153,60 @@ assert.deepEqual(
   }))),
   { type: "open-app", appId: "security" }
 );
+
+// Independent two-section DOM fixture exercises selection → search → no matches → clear.
+// No application startup, native bridge, browser storage, filesystem writes or live user state.
+const article = (textContent, open = false) => ({ textContent, open, hidden: false, dataset: {} });
+const introTopic = article("Открыть первый файл", true);
+const backupTopic = article("Проверенный ZIP-бэкап");
+const fixtureSections = [
+  { id: "help-start", dataset: { helpKeywords: "Начало" }, hidden: false, querySelectorAll: () => [introTopic] },
+  { id: "help-safety", dataset: { helpKeywords: "Защита" }, hidden: false, querySelectorAll: () => [backupTopic] }
+];
+const makeNav = helpTarget => ({ dataset: { helpTarget }, attributes: {}, setAttribute(key, value) { this.attributes[key] = value; }, removeAttribute(key) { delete this.attributes[key]; } });
+const fixtureNav = [makeNav("home"), makeNav("start"), makeNav("safety")];
+const fixtureElements = Object.fromEntries(["[data-help-home]", "[data-help-results]", "[data-help-empty]", "[data-help-search-status]", ".help-search-panel [data-help-clear]"].map(key => [key, {}]));
+const fixtureSearch = { value: "", handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; }, focus() {} };
+const fixtureRoot = {
+  dataset: {}, handlers: {}, classList: { toggle() {} },
+  addEventListener(type, handler) { this.handlers[type] = handler; },
+  querySelectorAll(selector) { return selector === "[data-help-section]" ? fixtureSections : fixtureNav; },
+  querySelector(selector) { return selector === "[data-help-search]" ? fixtureSearch : fixtureElements[selector]; }
+};
+help.bindHelpInteractions(fixtureRoot, { openApp() {} });
+assert.equal(fixtureElements["[data-help-home]"].hidden, false, "initial view must be the overview");
+assert.ok(fixtureSections.every(section => section.hidden), "initial view must not contain a wall of expanded sections");
+const clickHelpTarget = target => fixtureRoot.handlers.click({ target: { closest(selector) { return selector === "[data-help-target]" ? { dataset: { helpTarget: target } } : null; } } });
+clickHelpTarget("start");
+assert.equal(fixtureSections[0].hidden, false, "navigation must reveal the requested section");
+assert.equal(fixtureSections[1].hidden, true, "navigation must leave unrelated sections hidden");
+assert.equal(fixtureNav[1].attributes["aria-current"], "page", "navigation must identify the selected section accessibly");
+fixtureSearch.value = "ZIP";
+fixtureSearch.handlers.input({ target: fixtureSearch });
+assert.equal(fixtureSections[0].hidden, true);
+assert.equal(fixtureSections[1].hidden, false, "search must find content outside the selected section");
+assert.equal(backupTopic.open, true, "matching instructions must be readable without another click");
+assert.equal(fixtureElements["[data-help-empty]"].hidden, true);
+fixtureSearch.value = "несуществующий-запрос";
+fixtureSearch.handlers.input({ target: fixtureSearch });
+assert.ok(fixtureSections.every(section => section.hidden));
+assert.equal(fixtureElements["[data-help-empty]"].hidden, false, "empty results must expose recovery guidance");
+let escapePrevented = false;
+fixtureSearch.handlers.keydown({ key: "Escape", preventDefault() { escapePrevented = true; } });
+assert.equal(escapePrevented, true);
+assert.equal(fixtureSearch.value, "");
+assert.equal(fixtureSections[0].hidden, false, "Escape must return to the selected section");
+assert.equal(fixtureSections[1].hidden, true);
+assert.equal(backupTopic.open, false, "clearing search must close only topics opened by search");
+assert.equal(introTopic.open, true, "clearing search must preserve a previously opened topic");
+clickHelpTarget("home");
+assert.equal(fixtureElements["[data-help-home]"].hidden, false);
+assert.ok(fixtureSections.every(section => section.hidden));
+fixtureRoot.handlers.click({ target: { closest(selector) { return selector === "[data-help-query]" ? { dataset: { helpQuery: "ZIP" } } : null; } } });
+assert.equal(fixtureSearch.value, "ZIP", "suggested search must update the real search input");
+fixtureRoot.handlers.click({ target: { closest(selector) { return selector === "[data-help-clear]" ? {} : null; } } });
+assert.equal(fixtureSearch.value, "", "clear button must restore a useful initial state");
+assert.equal(fixtureElements["[data-help-home]"].hidden, false);
 
 const firstRunHtml = firstRun.firstRunScreenHTML("3.77");
 assert.match(firstRunHtml, /Посмотреть возможности/, "first-run action must accurately describe the guide");

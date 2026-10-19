@@ -293,6 +293,8 @@
           runtime.lastError = primaryMessage;
           warn("[ZeTer OS primary state save]", error);
 
+          if (queueOptions.requirePrimary) throw error;
+
           if (!nativeStorage()) {
             let fallbackSaved = false;
             let fallbackError = null;
@@ -341,7 +343,7 @@
       transactionBarrier = new Promise(resolve => { release = resolve; });
       try {
         await prior.catch(() => {});
-        return await operation(snapshot => queue({ snapshot, transactionWrite: true, silentStorageError: true }));
+        return await operation((snapshot, writeOptions = {}) => queue({ snapshot, requirePrimary: Boolean(writeOptions.requirePrimary), transactionWrite: true, silentStorageError: true }));
       } finally {
         transactionBarrier = null;
         release();

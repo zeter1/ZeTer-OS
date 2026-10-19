@@ -4,9 +4,11 @@
 @import url("./20-windows.css");
 @import url("./30-app-common.css");
 @import url("./40-app-foundation.css");
+@import url("./41-first-run.css");
 @import url("./45-form-controls.css");
 @import url("./50-explorer.css");
 @import url("./60-apps-calendar-notes-tables.css");
+@import url("./61-tasks.css");
 @import url("./65-link-library.css");
 @import url("./66-prompt-library.css");
 @import url("./67-business-calculations.css");

@@ -540,11 +540,10 @@
       const id = createId("desktop");
       state.desktops.push({ id, name, description: defaultDesktopDescription(id), data: workspaceDefaults() });
       state.currentDesktop = id;
-
-      addDesktopShortcut("tasks", id, 128, 24);
-      addDesktopShortcut("calendar", id, 224, 24);
-      addDesktopShortcut("settings", id, 32, 132);
-      addDesktopShortcut("editor", id, 128, 132);
+      resetSelection();
+      (config.DEFAULT_DESKTOP_APP_IDS || ["tasks", "calendar", "settings", "editor"]).forEach((appId, index) => {
+        addDesktopShortcut(appId, id, 24 + Math.floor(index / 4) * 112, 64 + (index % 4) * 112);
+      });
       const explorerRoot = ensureWorkspaceExplorerRoot(id);
       createWorkspaceSystemFolders(explorerRoot);
 

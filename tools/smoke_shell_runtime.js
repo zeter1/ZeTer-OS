@@ -9,6 +9,7 @@ function fakeElement() {
   const classes = new Set();
   return {
     addEventListener() {},
+    focus() {},
     style: {},
     value: "",
     classList: {
@@ -165,3 +166,46 @@ modalPresent = false;
 globalKeydown({ key: "k", target: {}, preventDefault() {} });
 assert.equal(hotkeyChecks, 1, "guard must leave ordinary shell hotkeys available after modal closes");
 console.log("desktop deletion modal keyboard isolation smoke: ok");
+
+// First launch must be a real modal, and each route must finish exactly once.
+(async () => {
+for (const route of ["create", "import", "help"]) {
+  const listeners = {};
+  const firstState = { firstRunCompleted: false };
+  let saves = 0, shown = 0, removed = 0, imports = 0;
+  const firstOpened = [];
+  const dialog = {
+    setAttribute() {},
+    addEventListener(type, handler) { listeners[type] = handler; },
+    showModal() { shown++; }, close() {}, remove() { removed++; }
+  };
+  elements["#import-file"] = { click() { imports++; } };
+  const firstController = sandbox.window.ZETER_SHELL_UI_UTILS.createShellRuntimeController({
+    navigatorRef: {}, locationRef: { protocol: "file:" },
+    documentRef: {
+      querySelector() { return null; },
+      createElement(tag) { assert.equal(tag, "dialog"); return dialog; },
+      body: { appendChild() {} }
+    },
+    getState: () => firstState,
+    firstRunScreenHTML: () => "<button data-first-create>Start</button>",
+    saveState() { saves++; },
+    openApp(app) { firstOpened.push(app); }
+  });
+  firstController.showFirstRunScreen();
+  assert.equal(shown, 1, "first launch must isolate background focus with showModal");
+  assert.equal(saves, 0, "viewing welcome must not complete first launch");
+  let cancelPrevented = false;
+  listeners.cancel({ preventDefault() { cancelPrevented = true; } });
+  assert.equal(cancelPrevented, true, "Escape must not silently skip the first-launch choice");
+  await listeners.click({ target: { closest: selector => selector.split(", ").includes(`[data-first-${route}]`) } });
+  assert.equal(firstState.firstRunCompleted, true);
+  assert.equal(saves, 1);
+  assert.equal(removed, 1);
+  assert.equal(imports, route === "import" ? 1 : 0);
+  assert.deepEqual(firstOpened, route === "help" ? ["help"] : []);
+  firstController.showFirstRunScreen();
+  assert.equal(shown, 1, "completed first launch must not reopen");
+}
+console.log("first-run routes and modal isolation smoke: ok");
+})().catch(error => { console.error(error); process.exitCode = 1; });

@@ -43,6 +43,7 @@ STAGES = frozenset({
     "clear_restore_points", "clear_state", "cleanup_security_artifacts", "save_item_asset",
     "begin_file_import", "append_file_chunk", "finish_file_import", "cancel_file_import",
     "save_text_download", "save_binary_download", "open_managed_file", "open_external_target",
+    "read_managed_document", "save_managed_document",
     "open_data_folder", "open_logs_folder", "open_problem_logs_folder", "open_readable_folder",
     "get_windows_startup_status", "set_windows_startup_enabled", "close_app", "shutdown",
 })

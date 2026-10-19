@@ -420,7 +420,7 @@
   }
 
   function notesFileCardHTML(item = {}, icon = "📄", description = "") {
-    return `<span class="file-emoji">${escapeHtml(icon)}</span><b>${escapeHtml(item.name)}</b><small>${escapeHtml(description)}</small>`;
+    return `<span class="file-emoji">${icon}</span><b>${escapeHtml(item.name)}</b><small>${escapeHtml(description)}</small>`;
   }
 
   function markdownEditorHTML(itemName = "") {
@@ -1310,6 +1310,138 @@
     });
   }
 
+  // DOC/DOCX payloads stay in managed storage. Only a recoverable unsaved draft
+  // belongs in state; the immutable source reference also protects the original from GC.
+  const LIBREOFFICE_DOWNLOAD_URL = "https://www.libreoffice.org/download/download/";
+
+  function managedDocumentUnavailableHTML(error = {}) {
+    const missing = error.code === "DOCUMENT_CONVERTER_MISSING";
+    return missing
+      ? '<h2>Для документов Word нужен LibreOffice</h2><p>Установите бесплатный LibreOffice с официального сайта. Он помогает ZeTer OS читать DOC и DOCX и сохранять изменения.</p><p>Копия документа уже находится в папке data. После установки нажмите «Проверить снова» — повторно перетаскивать файл не нужно.</p><div class="managed-document-dependency-actions"><button type="button" class="btn" data-document-download>Скачать LibreOffice</button><button type="button" class="btn" data-document-retry>Проверить снова</button></div>'
+      : `<p role="alert">${escapeHtml(error.message || "Не удалось прочитать документ.")}</p><button type="button" class="btn" data-document-retry>Повторить открытие</button>`;
+  }
+
+  function createManagedDocumentSession({ getItem, saveState, nativeStorageCall }) {
+    let loaded = false;
+    let loadPromise = null;
+    let richHtml = "";
+    let sha256 = "";
+    let loadedPath = "";
+    let revision = 0;
+    let tail = Promise.resolve();
+    let candidate = null;
+    let warnings = [];
+    let pending = 0;
+    let actionSequence = 0;
+    let capturedSequence = 0;
+
+    function captureDraft(payload, editorVersion) {
+      const item = getItem();
+      if (!loaded || !item || item.deletedAt || editorVersion.revision !== revision || item.managedFile?.managedPath !== loadedPath) return false;
+      if (!item.documentDraft && payload.richHtml === richHtml && payload.title === item.name) return false;
+      item.sourceDocument ||= { ...item.managedFile };
+      capturedSequence = ++actionSequence;
+      item.documentDraft = { name: payload.title, richContent: payload.richHtml, content: payload.plainText,
+        basePath: loadedPath, baseSha256: sha256 };
+      return true;
+    }
+
+    async function load() {
+      if (loaded) return;
+      if (loadPromise) return loadPromise;
+      loadPromise = (async () => {
+        const item = getItem();
+        if (!item?.managedFile?.managedPath) throw new Error("Копия документа в data не найдена.");
+        const result = await nativeStorageCall("read_managed_document", { managedPath: item.managedFile.managedPath });
+        if (!result || result.ok === false || typeof result.richHtml !== "string" || !result.sha256) throw new Error(result?.error || "Не удалось прочитать документ.");
+        sha256 = result.sha256;
+        loadedPath = item.managedFile.managedPath;
+        richHtml = result.richHtml;
+        warnings = Array.isArray(result.warnings) ? result.warnings : [];
+        const draft = item.documentDraft;
+        if (draft) {
+          if (draft.basePath !== item.managedFile.managedPath || draft.baseSha256 !== sha256) {
+            throw new Error("Копия в data изменилась после создания черновика. Черновик сохранён; восстановите его из резервной копии перед повторным открытием.");
+          }
+          richHtml = String(draft.richContent || "");
+          warnings = [...warnings, "Восстановлен несохранённый черновик. Нажмите «Сохранить в data» для повтора."];
+        }
+        loaded = true;
+      })();
+      try { await loadPromise; } finally { loadPromise = null; }
+    }
+
+    function save(payload, editorVersion) {
+      pending++;
+      const requestedSequence = ++actionSequence;
+      const operation = tail.catch(() => {}).then(async () => {
+        await load();
+        const item = getItem();
+        if (!item || item.deletedAt) throw new Error("Документ удалён или перемещён в Корзину. Изменения остались в редакторе.");
+        if (editorVersion.revision !== revision || item.managedFile?.managedPath !== loadedPath) throw new Error("Документ изменён в другом окне. Скопируйте свой текст и откройте документ заново.");
+        const previousFile = item.managedFile;
+        const title = String(payload.title || item.name).trim() || item.name;
+        if (!item.documentDraft && previousFile.extension === "docx" && payload.richHtml === richHtml && title === item.name) return { saved: true, revision };
+        const draft = {
+          name: title, richContent: payload.richHtml, content: payload.plainText,
+          basePath: previousFile.managedPath, baseSha256: sha256
+        };
+        item.sourceDocument ||= { ...previousFile };
+        if (capturedSequence <= requestedSequence || !item.documentDraft) item.documentDraft = draft;
+        // Commit a recoverable draft before starting an external conversion.
+        await saveState();
+        const key = JSON.stringify([draft.basePath, sha256, title, draft.richContent]);
+        if (!candidate || candidate.key !== key) {
+          const result = await nativeStorageCall("save_managed_document", {
+            managedPath: draft.basePath, expectedSha256: sha256, richHtml: draft.richContent, name: title
+          });
+          if (!result?.file?.managedPath || !result.sha256 || result.ok === false) throw new Error(result?.error || "Новая версия документа не сохранена.");
+          candidate = { key, result };
+        }
+        if (getItem() !== item || item.deletedAt || item.managedFile?.managedPath !== previousFile.managedPath) {
+          throw new Error("Документ изменился во время сохранения. Черновик сохранён.");
+        }
+        const result = candidate.result;
+        const previousName = item.name;
+        const previousExtension = item.extension;
+        const previousUpdatedAt = item.updatedAt;
+        item.managedFile = { ...previousFile, ...result.file, id: previousFile.id };
+        item.name = result.file.name;
+        item.extension = "docx";
+        item.updatedAt = Date.now();
+        const latestDraft = item.documentDraft;
+        const hasNewerDraft = latestDraft && (latestDraft.richContent !== draft.richContent || latestDraft.name !== draft.name);
+        if (hasNewerDraft) item.documentDraft = { ...latestDraft, basePath: result.file.managedPath, baseSha256: result.sha256 };
+        else delete item.documentDraft;
+        let saved;
+        try { saved = await saveState(); }
+        catch (error) {
+          item.managedFile = previousFile;
+          item.name = previousName;
+          item.extension = previousExtension;
+          item.updatedAt = previousUpdatedAt;
+          item.documentDraft = latestDraft || draft;
+          throw error;
+        }
+        richHtml = draft.richContent;
+        sha256 = result.sha256;
+        loadedPath = result.file.managedPath;
+        revision++;
+        editorVersion.revision = revision;
+        candidate = null;
+        return { ...saved, revision };
+      });
+      tail = operation.finally(() => { pending--; });
+      // A later save remains available after a failure, without an unhandled rejection.
+      tail.catch(() => {});
+      return operation;
+    }
+
+    return Object.freeze({ load, save, captureDraft, get loaded() { return loaded; }, get revision() { return revision; },
+      get richHtml() { return richHtml; }, get warnings() { return warnings; },
+      get pending() { return pending; }, whenIdle: () => tail.catch(() => {}) });
+  }
+
   function createDocumentEditorRuntimeController(options = {}) {
     const getState = typeof options.getState === "function" ? options.getState : () => ({ fs: {} });
     const getDesktopRoot = typeof options.getDesktopRoot === "function" ? options.getDesktopRoot : () => "desktop";
@@ -1351,6 +1483,93 @@
     const workspaceItems = typeof options.workspaceItems === "function" ? options.workspaceItems : () => [];
     const selectSearch = typeof options.selectSearch === "function" ? options.selectSearch : () => {};
     const createMarkdownEditor = typeof options.createMarkdownEditor === "function" ? options.createMarkdownEditor : createMarkdownEditorUI;
+    const nativeStorageCall = typeof options.nativeStorageCall === "function" ? options.nativeStorageCall : async () => { throw new Error("Документы Word редактируются в Windows-версии ZeTer OS."); };
+    const documentSessions = new Map();
+    const hasOtherDocumentWindow = typeof options.hasOtherDocumentWindow === "function" ? options.hasOtherDocumentWindow : () => false;
+
+    function renderManagedDocumentEditor(item, params, winId) {
+      let session = documentSessions.get(item.id);
+      if (!session) {
+        session = createManagedDocumentSession({ getItem: () => getState().fs[item.id], saveState, nativeStorageCall });
+        documentSessions.set(item.id, session);
+      }
+      if (!session.loaded) {
+        const root = documentRef.createElement("div");
+        root.className = "app-shell managed-document-loading";
+        root.innerHTML = '<p role="status">Открываю документ из data…</p>';
+        session.load().then(() => {
+          if (getWindowRecord(winId)?.params?.itemId === item.id) refreshWindow(winId);
+        }).catch(error => {
+          root.innerHTML = managedDocumentUnavailableHTML(error);
+          root.querySelector("[data-document-retry]")?.addEventListener("click", () => refreshWindow(winId));
+          root.querySelector("[data-document-download]")?.addEventListener("click", () => {
+            Promise.resolve(openExternalLink(LIBREOFFICE_DOWNLOAD_URL)).catch(downloadError => toast("Не удалось открыть сайт", downloadError.message));
+          });
+        });
+        return root;
+      }
+      const editorVersion = { revision: session.revision };
+      const root = createRichEditor({
+        itemName: item.documentDraft?.name || item.name,
+        initialHtml: item.documentDraft?.richContent ?? session.richHtml,
+        cleanHtml: cleanRichHtml, plainToHtml: plainToRichHtml,
+        highlightSearch, debounce, documentRef, copyText, openExternalLink,
+        requestLink: defaultValue => requestText("Адрес ссылки:", defaultValue || "https://"),
+        save: async payload => {
+          const saved = await session.save(payload, editorVersion);
+          renderFileSurfaces();
+          refreshWindowTitle(winId, getState().fs[item.id]?.name || item.name);
+          const title = root.querySelector(".editor-title");
+          if (title && title.value === payload.title) title.value = getState().fs[item.id]?.name || payload.title;
+          return saved;
+        },
+        createNew: () => openApp("editor", {}),
+        duplicate: () => duplicateItem(item.id),
+        downloadText: () => downloadFile(String(item.name).replace(/\.(docx?|txt)$/i, "") + ".txt", root.querySelector(".rich-editor-area")?.innerText || "", "text/plain"),
+        downloadHtml: () => downloadFile(String(item.name).replace(/\.docx?$/i, "") + ".html", `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${cleanRichHtml(root.querySelector(".rich-editor-area")?.innerHTML || "")}</body></html>`, "text/html"),
+        openFolder: () => openApp("folder", { folderId: item.parent || getDesktopRoot() })
+      });
+      root.dataset.managedDocument = "true";
+      const currentDocumentPayload = () => {
+        const title = root.querySelector(".editor-title")?.value || item.name;
+        const area = root.querySelector(".rich-editor-area");
+        return { title, richHtml: cleanRichHtml(area?.innerHTML || ""), plainText: area?.innerText || "" };
+      };
+      root.captureManagedDocumentDraft = () => session.captureDraft(currentDocumentPayload(), editorVersion);
+      root.addEventListener("input", root.captureManagedDocumentDraft);
+      root.hasUnsavedDocumentChanges = () => session.pending > 0 || Boolean(item.documentDraft)
+        || cleanRichHtml(root.querySelector(".rich-editor-area")?.innerHTML || "") !== session.richHtml
+        || root.querySelector(".editor-title")?.value !== item.name;
+      root.disposeManagedDocument = async () => {
+        await root.saveManagedDocument();
+        await session.whenIdle().then(() => {
+          if (!hasOtherDocumentWindow(item.id, winId) && documentSessions.get(item.id) === session) documentSessions.delete(item.id);
+        });
+      };
+      const notice = documentRef.createElement("div");
+      notice.className = "managed-document-notice";
+      notice.innerHTML = '<span>Рабочая копия — в data. Автосохранение в DOCX. Исходник сохранён. Сложное оформление может отличаться.</span><button type="button" data-document-save>Сохранить в data</button><button type="button" data-document-original>Открыть исходник</button>';
+      if (session.warnings.length) notice.querySelector("span").textContent += " " + session.warnings.join(" ");
+      root.prepend(notice);
+      root.saveManagedDocument = () => {
+        return session.save(currentDocumentPayload(), editorVersion)
+          .then(saved => { renderFileSurfaces(); refreshWindowTitle(winId, item.name); return saved; });
+      };
+      notice.querySelector("[data-document-save]").addEventListener("click", () => {
+        const status = root.querySelector("[data-status]");
+        status.textContent = "Сохранение…";
+        root.saveManagedDocument().then(() => { status.textContent = "Сохранено в data"; })
+          .catch(error => { status.textContent = `Не сохранено: ${error.message}`; });
+      });
+      notice.querySelector("[data-document-original]").addEventListener("click", () => {
+        nativeStorageCall("open_managed_file", { managedPath: (item.sourceDocument || item.managedFile).managedPath })
+          .catch(error => toast("Не удалось открыть исходник", error.message));
+      });
+      const docxButton = root.querySelector('[data-action="download-docx"]');
+      // The ordinary note exporter simplifies DOCX; it must not replace this document's working copy.
+      if (docxButton) docxButton.hidden = true;
+      return root;
+    }
 
     function renderRichEditorApp(params = {}, winId = "") {
       const state = getState();
@@ -1360,6 +1579,7 @@
         params.itemId = itemId;
       }
       const item = state.fs[itemId];
+      if (item?.type === "managedFile" && (["doc", "docx"].includes(item.managedFile?.extension) || /\.docx?$/i.test(item.managedFile?.name || item.name))) return renderManagedDocumentEditor(item, params, winId);
       const root = createRichEditor({
         itemName: item.name,
         managedFiles: item.managedFiles,
@@ -1532,6 +1752,9 @@
     findTextMatchOffsets,
     imageResizeDimensions,
     createAutosaveStatusController,
+    createManagedDocumentSession,
+    managedDocumentUnavailableHTML,
+    LIBREOFFICE_DOWNLOAD_URL,
     editorTextNodes,
     editorRangeForTextMatch,
     rangeOverlayRectangles,

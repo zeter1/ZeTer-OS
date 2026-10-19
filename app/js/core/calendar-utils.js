@@ -19,9 +19,9 @@
     important: "Важное"
   });
 
-  function startOfWeek(date) {
+  function startOfWeek(date, weekStart = "monday") {
     const x = new Date(date);
-    const day = (x.getDay() + 6) % 7;
+    const day = weekStart === "sunday" ? x.getDay() : (x.getDay() + 6) % 7;
     x.setDate(x.getDate() - day);
     x.setHours(0, 0, 0, 0);
     return x;
@@ -70,11 +70,14 @@
     return CALENDAR_CATEGORY_NAMES[normalizeCalendarCategory(category)] || CALENDAR_CATEGORY_NAMES.personal;
   }
 
-  function calendarTitleText(calendar = {}, formatDate = value => String(value || "")) {
+  function calendarTitleText(calendar = {}, formatDate = value => String(value || ""), weekStart = "monday") {
     const view = calendar.view || "month";
     const date = parseISO(calendar.date || todayISO());
     if (view === "month") return date.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
-    if (view === "week") return `Неделя ${formatDate(startOfWeek(date))} \u2014 ${formatDate(addDays(startOfWeek(date), 6))}`;
+    if (view === "week") {
+      const start = startOfWeek(date, weekStart);
+      return `Неделя ${formatDate(start)} \u2014 ${formatDate(addDays(start, 6))}`;
+    }
     if (view === "day") return formatDate(calendar.selected || calendar.date, true);
     return "Все события";
   }

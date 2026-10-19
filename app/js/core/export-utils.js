@@ -93,6 +93,12 @@
       if (!item || !record.el) return;
 
       if (record.appId === "editor") {
+        // Managed Word documents commit a native file + pointer through their own
+        // save queue. The generic note snapshot must not bypass that transaction.
+        if (item.type === "managedFile") {
+          if (query("[data-managed-document]", record.el)?.captureManagedDocumentDraft?.()) changed = true;
+          return;
+        }
         const title = query(".editor-title", record.el);
         const area = query(".rich-editor-area", record.el);
         if (!area) return;

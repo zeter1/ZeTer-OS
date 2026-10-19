@@ -407,7 +407,7 @@
       return [{ desktopId, title: desktopName(desktopId), data: getWorkspace() }];
     }
 
-    function results(query = "") {
+    function results(query = "", options = {}) {
       return buildCombinedSearchResults(query, {
         apps,
         fs: getFs(),
@@ -415,9 +415,9 @@
         commands: searchCommandDefinitions(),
         trashRoot,
         limit: resultLimit,
-        allFiltersActive: allFiltersActive(),
+        allFiltersActive: options.ignoreFilters || allFiltersActive(),
         appSearchText,
-        builderOptions: builderOptions()
+        builderOptions: builderOptions(options.ignoreFilters ? { filtersAllow: () => true } : {})
       });
     }
 

@@ -149,7 +149,8 @@
     };
     if (nativeMode) {
       try {
-        const info = await nativeStorageCall("get_storage_info");
+        const info = Object.hasOwn(options, "nativeInfo") ? options.nativeInfo : await nativeStorageCall("get_storage_info");
+        if (!info) throw new Error(options.nativeError || "Не удалось прочитать папку data.");
         result.enabled = true;
         result.hasHandle = true;
         result.permission = "granted";
@@ -209,41 +210,34 @@
       getStorageEstimate = async () => null,
       percent = (used, total) => total > 0 ? (used / total) * 100 : null,
       collectExternalSaveSnapshot = async () => ({})
-      , collectCleanupPreview = async () => ({})
+      , collectCleanupPreview = async () => ({}), includeCleanup = true, restoreReadResult = null
     } = options;
     let localSettingsBytes = Number(storageRuntime.localSettingsBytes || 0);
     try {
       if (!localSettingsBytes) localSettingsBytes = byteSize(readSmallSettings() || "");
     } catch {}
 
-    let restoreCount = 0;
-    let restorePoints = [];
-    let restoreError = "";
-    try {
-      restorePoints = await readRestorePoints();
-      restoreCount = restorePoints.length;
-    } catch (error) {
-      restoreError = error?.message || "Не удалось прочитать точки восстановления";
-    }
-
+    // Independent reads start together. The same results feed all status cards.
+    const [restoreResult, storageResult, browserExternal] = await Promise.all([
+      restoreReadResult || Promise.resolve().then(readRestorePoints).then(points => ({points}), error => ({points:[],error:error?.message || "Не удалось прочитать точки восстановления"})),
+      Promise.resolve().then(() => nativeMode ? nativeStorageCall("get_storage_info") : getStorageEstimate()).then(info => ({info}), error => ({info:null,error:error?.message || "Не удалось прочитать папку data"})),
+      nativeMode ? null : collectExternalSaveSnapshot()
+    ]);
+    const restorePoints = restoreResult.points, restoreCount = restorePoints.length;
+    let restoreError = restoreResult.error || "";
     let nativeInfo = null;
     let usage = 0;
     let quota = 0;
     if (nativeMode) {
-      try {
-        nativeInfo = await nativeStorageCall("get_storage_info");
+      if (storageResult.info) {
+        nativeInfo = storageResult.info;
         usage = Number(nativeInfo?.dataBytes || stateBytes || 0);
         storageRuntime.usage = usage;
         storageRuntime.quota = null;
         storageRuntime.pressurePct = null;
-      } catch (error) {
-        restoreError = restoreError || (error?.message || "Не удалось прочитать папку data");
-      }
+      } else restoreError = restoreError || storageResult.error;
     } else {
-      let estimate = null;
-      try {
-        estimate = await getStorageEstimate();
-      } catch {}
+      const estimate = storageResult.info;
       usage = Number(estimate?.usage || storageRuntime.usage || 0);
       quota = Number(estimate?.quota || storageRuntime.quota || 0);
     }
@@ -255,9 +249,9 @@
       quota,
       percent
     });
-    const externalSave = await collectExternalSaveSnapshot();
+    const externalSave = nativeMode ? await collectExternalSaveSnapshot({nativeInfo, nativeError:storageResult.error}) : browserExternal;
     let cleanupPreview = {};
-    try { cleanupPreview = await collectCleanupPreview(); } catch {}
+    if (includeCleanup) { try { cleanupPreview = await collectCleanupPreview({restorePoints, restoreError:restoreResult.error}); } catch {} }
     const snapshot = {
       meta,
       stateBytes,
@@ -422,16 +416,19 @@
     validateSecurityEventStore(state.events, "Календарь", problems);
     validateSecurityDesktopStores(state.desktops, problems);
 
+    let restoreReadResult;
     try {
       const points = await readRestorePoints();
+      restoreReadResult = {points};
       points.forEach((point, index) => {
         if (!point?.state || !point.state.fs) addIntegrityProblem(problems, "warn", `Точка восстановления #${index + 1} повреждена или не содержит состояние ОС.`, "restore-bad", point?.id || "");
       });
     } catch (err) {
+      restoreReadResult = {points:[],error:err?.message || String(err)};
       addIntegrityProblem(problems, "warn", `Не удалось прочитать точки восстановления: ${err?.message || err}.`, "restore-read");
     }
 
-    const snapshot = await collectSecuritySnapshot();
+    const snapshot = await collectSecuritySnapshot({includeCleanup:false,restoreReadResult});
     if (snapshot.risk?.tone === "bad") addIntegrityProblem(problems, "bad", `Риск переполнения хранилища: ${snapshot.risk.label}. ${snapshot.risk.text}`, "storage-risk");
     else if (snapshot.risk?.tone === "warn") addIntegrityProblem(problems, "warn", `Риск переполнения хранилища: ${snapshot.risk.label}. ${snapshot.risk.text}`, "storage-risk");
 

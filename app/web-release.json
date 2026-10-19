@@ -1,0 +1,628 @@
+{
+  "schema": 1,
+  "runtime": 1,
+  "version": "4.0.64",
+  "build": "196474c4709308ad056503a01a8e27392d41313d4046850177899967a355f55f",
+  "files": [
+    {
+      "path": "assets/1.png",
+      "size": 2020433,
+      "sha256": "5892c6ebb320fadc7c64282dcf15f5694d0b96c654187bffde983d57e9b24268"
+    },
+    {
+      "path": "assets/icons/zeter-icon-180.png",
+      "size": 7865,
+      "sha256": "7be93ea516534376bab13133750684299ccc1de51c0c6b5e68f051d9a296a626"
+    },
+    {
+      "path": "assets/icons/zeter-icon-192.png",
+      "size": 8415,
+      "sha256": "7d5e9f2a182cf260acfb49fee8cbf91a4fd9e995a9b3458e4c2f88ca3f5bbf4a"
+    },
+    {
+      "path": "assets/icons/zeter-icon-32.png",
+      "size": 1476,
+      "sha256": "1679066533cb8ec5be464c2d779bd30cc4e48e6d69baedf6d9d8b05e40d9aae4"
+    },
+    {
+      "path": "assets/icons/zeter-icon-512.png",
+      "size": 24731,
+      "sha256": "9e179150a9e1ea7befabd72157e1ea25b28e3fdb626baba5bb535091ec77f7c1"
+    },
+    {
+      "path": "assets/icons/zeter-icon-maskable-512.png",
+      "size": 16365,
+      "sha256": "079159222ce54c2f57cb34b88f016c17330638c408272cbdaee8417784e54d82"
+    },
+    {
+      "path": "assets/icons/zeter-icon.ico",
+      "size": 25529,
+      "sha256": "2a9d39ce4f4dfccb6ae77b65c381578fa7ff12af9d2eef7ed3c62ddb23a1ffff"
+    },
+    {
+      "path": "assets/icons/zeter-logo.svg",
+      "size": 1480,
+      "sha256": "e3b52e0ae37b7fa8ac6d24663a5485624c17503e15fc19c6f63a92035a01d914"
+    },
+    {
+      "path": "assets/icons/zeter-mark.svg",
+      "size": 1353,
+      "sha256": "022ec4a5280f84346ad6214f6d37c4607077b6ffde232932f152c0c4ddf88924"
+    },
+    {
+      "path": "css/00-base.css",
+      "size": 6610,
+      "sha256": "3046ba97522f57dab60558ac29a1bc4b55a5c28389ec8222aa07035431c1adca"
+    },
+    {
+      "path": "css/10-shell.css",
+      "size": 29323,
+      "sha256": "71dbd24f80ef6a06a4fa123636032f5adcb7b6441d4147f8a23f6da134765ee2"
+    },
+    {
+      "path": "css/20-windows.css",
+      "size": 5953,
+      "sha256": "d3c53d291431b20e1102022838300d843c8a173ef3e73a8bc484b0b5bd76a5af"
+    },
+    {
+      "path": "css/30-app-common.css",
+      "size": 15205,
+      "sha256": "7d2dc8020aa251d7520605e9b285ccbee00f10143f60a7c5be56289109108c4a"
+    },
+    {
+      "path": "css/40-app-foundation.css",
+      "size": 78349,
+      "sha256": "feee2170dc2c3ec41f0d11c0ece02ad8dc5fb406aeb7346c27e8e16fd652f4cc"
+    },
+    {
+      "path": "css/41-first-run.css",
+      "size": 18348,
+      "sha256": "b377ec9f459f454dd03b0fba2fb93e7ef713b31f661f84a29c75c98e69ee947a"
+    },
+    {
+      "path": "css/45-form-controls.css",
+      "size": 2530,
+      "sha256": "84d7ae4f5222eef73857412e6050315435c42ee7ef4256fbc97d73999d2d2af5"
+    },
+    {
+      "path": "css/50-explorer.css",
+      "size": 7509,
+      "sha256": "202f6dd11082c839bbae8822faebde3ea418cfdf278123c84642e13205ffe174"
+    },
+    {
+      "path": "css/60-apps-calendar-notes-tables.css",
+      "size": 50125,
+      "sha256": "54f5e71d4fc45d09d81e55623a4afe53f5e422b0e27ebddf2e63f00280c59e8b"
+    },
+    {
+      "path": "css/61-tasks.css",
+      "size": 34811,
+      "sha256": "495d0b2c5dcb0482d3e27b27f50c40ddeb9115720b68662622e1daa7f23dd927"
+    },
+    {
+      "path": "css/65-link-library.css",
+      "size": 10009,
+      "sha256": "f9b73700ef099a7e369bd4a2be8498837c6bcc312e89b4812e3816ac25b54fe6"
+    },
+    {
+      "path": "css/66-prompt-library.css",
+      "size": 2535,
+      "sha256": "2aff37e03634a3a6abdade367a73ca918e89c55cf17d9cd9742ca4268c26f53e"
+    },
+    {
+      "path": "css/67-business-calculations.css",
+      "size": 8504,
+      "sha256": "22ea2a081435724f22a21ca22c67adb9c08af686a5283f359d389b59a95462cd"
+    },
+    {
+      "path": "css/68-time-tracking.css",
+      "size": 12566,
+      "sha256": "d0685e75baf8c0feec8e19ed9c8d2c5d2995e4c719652252fe57c453ed590475"
+    },
+    {
+      "path": "css/80-overrides.css",
+      "size": 9261,
+      "sha256": "ee2f19930d516406f98183cf95265e841c814f358c1bb2f5c733328de28fdf74"
+    },
+    {
+      "path": "css/85-explorer-plus.css",
+      "size": 21584,
+      "sha256": "4054a9a88d7be2dc553e2d96bb966ecbc57f4eff02e6f199609697cf1901aa9c"
+    },
+    {
+      "path": "css/90-security.css",
+      "size": 16015,
+      "sha256": "d359650eb750d069cf24ceee38b90b6580ced366f32c697af93b84bd9c11ffc8"
+    },
+    {
+      "path": "css/style.css",
+      "size": 760,
+      "sha256": "08377cfc0178f22b6317ea61956be7f32975eec0233d1987a0db59da5fc18ef3"
+    },
+    {
+      "path": "index.html",
+      "size": 18424,
+      "sha256": "b618e98c79f4c9d47dda3ba51975b51caeb0ceabc4b39972739acc141ea672fd"
+    },
+    {
+      "path": "js/app.js",
+      "size": 175028,
+      "sha256": "156b6dcbc565e969048397d9395477bed8f281ea46281867b36dc6a6d7e44802"
+    },
+    {
+      "path": "js/core/about-ui-utils.js",
+      "size": 5674,
+      "sha256": "9dde2de79f98469722f23a68f665fcb783c0f1391045ecac060039180ce15b93"
+    },
+    {
+      "path": "js/core/app-catalog.js",
+      "size": 8368,
+      "sha256": "4c3d45b9ffeae23a11d3540c71baf8d9fd25e6bd1b21b5e3b4232f6ce4a9413d"
+    },
+    {
+      "path": "js/core/app-center-ui-utils.js",
+      "size": 8569,
+      "sha256": "a26134cdbee2929dd5854c0846927251a4f95d368dc566f00f5c3a276d22be99"
+    },
+    {
+      "path": "js/core/asset-utils.js",
+      "size": 24989,
+      "sha256": "752fae15b9c1b563fb02b4e5d0d8ddc7c22d758a9a6fa5f081dcdf92c8d16fe9"
+    },
+    {
+      "path": "js/core/automation-ui-utils.js",
+      "size": 79316,
+      "sha256": "4eb0339b904f97f19b46cdfd3b2eddb423d71aaaad71b6e5797e5d5ea4f896e4"
+    },
+    {
+      "path": "js/core/automation-utils.js",
+      "size": 67921,
+      "sha256": "374d92fe545d8159feca5d13c865616cb50a5394867c21cc97d15fe8f11ef407"
+    },
+    {
+      "path": "js/core/boot-guard.js",
+      "size": 8074,
+      "sha256": "b6af701b61a37d9dc9abccf30b90d124d4f9650e5abab5740b4ee8076226d347"
+    },
+    {
+      "path": "js/core/business-calculations-ui-utils.js",
+      "size": 24602,
+      "sha256": "13a0c7558a8f3b2e5e5cbf34fc99c9413769537979f46fc5f93b1972942ce77e"
+    },
+    {
+      "path": "js/core/business-calculations-utils.js",
+      "size": 17549,
+      "sha256": "0fe72e499838ad611dfe5e78e2f91125daf7165def8773d2df4cca117362ad9b"
+    },
+    {
+      "path": "js/core/calculator-ui-utils.js",
+      "size": 1640,
+      "sha256": "e2b8dd8c75f63e29f2f27af565b8b2e2859443da6a90398042a11e4b0980daf1"
+    },
+    {
+      "path": "js/core/calculator-utils.js",
+      "size": 2320,
+      "sha256": "ca692f59050fab8c436d23df5d7e510a373e11b2565cb343e361323b965ab126"
+    },
+    {
+      "path": "js/core/calendar-ui-utils.js",
+      "size": 34022,
+      "sha256": "0d3923e2476af46fafe80cc8a1a855890fb4bf47154d319574aacc04fabb84a2"
+    },
+    {
+      "path": "js/core/calendar-utils.js",
+      "size": 6973,
+      "sha256": "b1d0af44a3e48689ca7f93d2ffa063d3b1a82461b163d8cd840eb0eb9b8291be"
+    },
+    {
+      "path": "js/core/config.js",
+      "size": 3168,
+      "sha256": "80d60ad235a59939b541617de82356dae865f9668c894fce102f99cdda87d299"
+    },
+    {
+      "path": "js/core/context-menu-ui-utils.js",
+      "size": 16117,
+      "sha256": "473dbfbdb63c9ca60a76ce7f9e0348902d8a43e70536a22c75cc6e57728837dd"
+    },
+    {
+      "path": "js/core/data-normalizers.js",
+      "size": 20402,
+      "sha256": "9bf1dd2ec2a4db88b3c55b21f31be32341f61ad982b9b8205e17e93ddf581a50"
+    },
+    {
+      "path": "js/core/desktop-layout-utils.js",
+      "size": 17260,
+      "sha256": "addcbb5cdcdde2425d37028ecc038ce1fdb99f8fc644d79be105f6a0d3d68aad"
+    },
+    {
+      "path": "js/core/desktop-profile-utils.js",
+      "size": 1554,
+      "sha256": "64b9671d5403d3a7bd4494aeef8906a96217c379d8164c53ecd724a2d2965b99"
+    },
+    {
+      "path": "js/core/desktop-ui-utils.js",
+      "size": 46845,
+      "sha256": "ac1a1b9c4e9de06f43bde5b801ebd07e05fd861d9219c7e4a47fbf8c781e0670"
+    },
+    {
+      "path": "js/core/download-utils.js",
+      "size": 2359,
+      "sha256": "b5f6d5a493a05e20da0f354ad96bc9812e8b73e0627627a7051978c63354c46f"
+    },
+    {
+      "path": "js/core/editor-ui-utils.js",
+      "size": 87250,
+      "sha256": "38611379d23d1b53756646b21478b8a70aebf1996f426632a5f7b43b7d19e28d"
+    },
+    {
+      "path": "js/core/explorer-tab-utils.js",
+      "size": 15774,
+      "sha256": "e3bae736fb0774085aa6ab3d73924b6e022aedf20b34c4a6d6056cfabc8cea76"
+    },
+    {
+      "path": "js/core/explorer-ui-utils.js",
+      "size": 85542,
+      "sha256": "02a323676d4d719dcba56c134f04ccd581551341d1f9fdbf021f5f402d679c90"
+    },
+    {
+      "path": "js/core/explorer-utils.js",
+      "size": 49800,
+      "sha256": "e89eab0809bd231aa434873099c771707c020a043dfd9874b21afdea73b64179"
+    },
+    {
+      "path": "js/core/export-utils.js",
+      "size": 27814,
+      "sha256": "f0b0e89b21eb1822bef7b74182774a9b9c98dabe5d900ad16e725e55a07c0526"
+    },
+    {
+      "path": "js/core/file-import-utils.js",
+      "size": 10519,
+      "sha256": "1c1030e0a8f5ff9a78cafe4a72641003ee6b0f381f34a4b6b84f4200344ea331"
+    },
+    {
+      "path": "js/core/file-template-utils.js",
+      "size": 850,
+      "sha256": "c42b686bbf86d5b12e03d720f658b439be633660e65a49df8eb42c189fdba570"
+    },
+    {
+      "path": "js/core/first-run-ui-utils.js",
+      "size": 42147,
+      "sha256": "d60d31b24e5fe5a7d574e4621f05acaa2d2a14e5059b7acc094709d23fed711b"
+    },
+    {
+      "path": "js/core/fs-item-utils.js",
+      "size": 18358,
+      "sha256": "28be11e4337df992129d567d862a1c105bdb59d04999d1939fe8cda2e44c9c8f"
+    },
+    {
+      "path": "js/core/help-content.js",
+      "size": 150530,
+      "sha256": "8f45113a09a825744e7c24ba40ec0503628e4355bbed870cc1aa5e88c56ff469"
+    },
+    {
+      "path": "js/core/import-utils.js",
+      "size": 18636,
+      "sha256": "75a4149dc2ee2ce34d03cdc815ec27a61e8350daccf2ead7b5a06cabf38264ee"
+    },
+    {
+      "path": "js/core/initial-state-utils.js",
+      "size": 4932,
+      "sha256": "15e88a4fb8f0218a7c8cff65712af7a137272017cac0de354db96682ea83ac9d"
+    },
+    {
+      "path": "js/core/item-customization-utils.js",
+      "size": 22928,
+      "sha256": "cf79fcfb7cbaa2e0572756dbf68ce20b23b20f84fa73254161f8a02469f3771e"
+    },
+    {
+      "path": "js/core/item-drag-ui-utils.js",
+      "size": 16532,
+      "sha256": "a41ca1d85701a838661b28d6b33ef56fb81f61829c6655e8ff291ebedba95601"
+    },
+    {
+      "path": "js/core/item-metadata.js",
+      "size": 1796,
+      "sha256": "1a2ceea3531e5f623ce094726653dffa46255311609e2a3396b2e7a21742bba6"
+    },
+    {
+      "path": "js/core/item-properties-ui-utils.js",
+      "size": 770,
+      "sha256": "850d4bc060fb63a982ac056b6eca02e1424e5e842c9d172f607b49929299182e"
+    },
+    {
+      "path": "js/core/link-library-ui-utils.js",
+      "size": 20809,
+      "sha256": "f08b413ea000c75f17db35a758c3c491cc8917cb95073c24e8d139cec6ede95f"
+    },
+    {
+      "path": "js/core/link-library-utils.js",
+      "size": 12595,
+      "sha256": "d5f28feae1f92d5a7cdd55969401d3661bf2618ecef81cbdaf5a80655cbd3bc4"
+    },
+    {
+      "path": "js/core/managed-file-utils.js",
+      "size": 54505,
+      "sha256": "6260ff827ffea6ed1d2fd085e4f45e3ea0f56d3230f662b74ce2794d1fe42df8"
+    },
+    {
+      "path": "js/core/markdown-utils.js",
+      "size": 851,
+      "sha256": "345c27d4fcf30d1f58928216e8d5554a3982d7b7a9a456438886e9cb54ba071c"
+    },
+    {
+      "path": "js/core/monitor-utils.js",
+      "size": 72338,
+      "sha256": "df1b4007667e4c5369f3a27ce638e2a27a9899b32ba520ec4c9b45d3bc802585"
+    },
+    {
+      "path": "js/core/native-storage.js",
+      "size": 3266,
+      "sha256": "27b6fb57abf6e82795508bc743435152e0bc5351824adc6320d31d049f2a5af6"
+    },
+    {
+      "path": "js/core/notification-ui-utils.js",
+      "size": 13154,
+      "sha256": "196d1299d88d465b5179eda8adebae18f45f12d946edc6e0daefd412a8bae986"
+    },
+    {
+      "path": "js/core/notification-utils.js",
+      "size": 17873,
+      "sha256": "26dcbf82b924bb754996aef0a272ca4bfe72c91f5c0c676e5ced67391d2ceac1"
+    },
+    {
+      "path": "js/core/object-link-ui-utils.js",
+      "size": 9201,
+      "sha256": "2459873a60f958d6a91e37f199252f02915367deb276fcf229be7485c5ec8384"
+    },
+    {
+      "path": "js/core/object-link-utils.js",
+      "size": 5292,
+      "sha256": "0a6f46dd5e0f5ad333a740deb1f73feb129029ac78f8f973a483d4422e38c70e"
+    },
+    {
+      "path": "js/core/photo-ui-utils.js",
+      "size": 5734,
+      "sha256": "3812754a52343e1147bc5fc524c74bcb9b255568e398c85fcb51ccc70e1f3f3e"
+    },
+    {
+      "path": "js/core/pinning-utils.js",
+      "size": 2925,
+      "sha256": "6982f21434d9468c26e9e84d338b3c0af3b2a0953663c21d49448bdda4db4d18"
+    },
+    {
+      "path": "js/core/preferences-writer-utils.js",
+      "size": 3257,
+      "sha256": "c0e11c8e25c8931a7d2da080bc13f3ab8d8bd4f54a594c1f049e117eadac7844"
+    },
+    {
+      "path": "js/core/project-overview-ui-utils.js",
+      "size": 18698,
+      "sha256": "c5ca743d9ba932f7ff6f705054546273ffb2ad27704272eaab0e2cb74bd3efe0"
+    },
+    {
+      "path": "js/core/project-overview-utils.js",
+      "size": 4374,
+      "sha256": "c906610dc14d339da2c5ae2ca7a7597a9ed895318de50c5797b1037f8e1d1d85"
+    },
+    {
+      "path": "js/core/prompt-library-ui-utils.js",
+      "size": 21314,
+      "sha256": "cbf78ab48a914a781f221dfdc2cbdb67d355802d88a3ec56a053f3dbc1d8428a"
+    },
+    {
+      "path": "js/core/prompt-library-utils.js",
+      "size": 8339,
+      "sha256": "9ef588ce588bbfc6d6805aa72661dae29e0bc2643a4ba1fa2d9927c5dd97d8ce"
+    },
+    {
+      "path": "js/core/readable-export-utils.js",
+      "size": 38496,
+      "sha256": "e2bc4672c72c9839a0bf2785c9a3a5caf83169d81db74379c5351a6a77c8208a"
+    },
+    {
+      "path": "js/core/rich-text-utils.js",
+      "size": 10336,
+      "sha256": "5b6da835b29f82bff231f89e05e020d664d60a39238df964645a235b3384ba37"
+    },
+    {
+      "path": "js/core/search-ui-utils.js",
+      "size": 26141,
+      "sha256": "90747c2419f5f54dd7c148cfcc3032b3cae8e913510ad28a9a76a012a22a59e3"
+    },
+    {
+      "path": "js/core/search-utils.js",
+      "size": 24362,
+      "sha256": "bf7c37e75f0f60df847a61cac340199749b978ad7998fa6486618673e46033fa"
+    },
+    {
+      "path": "js/core/security-protection-utils.js",
+      "size": 17124,
+      "sha256": "bbb72f362ac971c1153f9da29d3f0db7097b38c1d226130dd3ca30c4b9989323"
+    },
+    {
+      "path": "js/core/security-recovery-utils.js",
+      "size": 22012,
+      "sha256": "45dc83cd58f89abf06f39f6044264de41db3ffde9c87e2122e2ecb7262b4c47c"
+    },
+    {
+      "path": "js/core/security-restore-utils.js",
+      "size": 25216,
+      "sha256": "7fb5f6a9808d94023c8fd84a74d347720e4490900467f75170e4cbd2687a42b4"
+    },
+    {
+      "path": "js/core/security-ui-utils.js",
+      "size": 103045,
+      "sha256": "dd218dc8e17b3ffd493d1e2b2b3b50e6cfacfbc4681c84abe0c84e902651cf71"
+    },
+    {
+      "path": "js/core/security-utils.js",
+      "size": 31283,
+      "sha256": "eda5a2b4b1c60cfc89be6e58e60720dafa9e53e8010c6036285cb72e4eecbec1"
+    },
+    {
+      "path": "js/core/security-vault-utils.js",
+      "size": 24306,
+      "sha256": "a22c271666b116cef59ae7a177be7eddcf7839904e8953a817aa544d25f6b3b1"
+    },
+    {
+      "path": "js/core/settings-ui-utils.js",
+      "size": 65122,
+      "sha256": "2e0416d7f12026aa729361d913eff7e35f9a5c025b56dd69928d860eeb68ba24"
+    },
+    {
+      "path": "js/core/shell-ui-utils.js",
+      "size": 44562,
+      "sha256": "50f44798143b2bb85e5afd5c93dfd8132bf5871487ad9a9fd31b68b5d4dc7612"
+    },
+    {
+      "path": "js/core/shortcut-utils.js",
+      "size": 11013,
+      "sha256": "a1c42e81782da7df9c2d5b042b3f737f342af47b4bbc46a210dfc41c66ac118e"
+    },
+    {
+      "path": "js/core/start-ui-utils.js",
+      "size": 32582,
+      "sha256": "0da258dcd6718e5d14e283778e5e0223c02e2c0a8ce20df679d29f3966fc3e54"
+    },
+    {
+      "path": "js/core/state-import-validator.js",
+      "size": 39288,
+      "sha256": "b932aa029e317b8cfe0703faf995aaa44467bb9e9f5b953ace0d77f410aa2fec"
+    },
+    {
+      "path": "js/core/state-maintenance-utils.js",
+      "size": 12106,
+      "sha256": "6bf08c516fba2f881f7ba94bbf655136320e90bfe3bc9b62d2fdbb426288e524"
+    },
+    {
+      "path": "js/core/state-migration-utils.js",
+      "size": 5191,
+      "sha256": "69f2c53353d8099d487713b42db7b1acb487f418fec5602dbd561f20ec680a4c"
+    },
+    {
+      "path": "js/core/sticky-utils.js",
+      "size": 6224,
+      "sha256": "d8c5aa632366c82e27e5f0148b81abc20294f80eda981989c8f8b914466ba0d4"
+    },
+    {
+      "path": "js/core/storage-utils.js",
+      "size": 29192,
+      "sha256": "1e2fb70d032a98f650e5f2e857b5839a45a4c9ee784375e0b829c30d3eefc34b"
+    },
+    {
+      "path": "js/core/system-settings-utils.js",
+      "size": 15263,
+      "sha256": "b94e1fd7e14e4e3634bce07291b29abc71b889d930dd6057eca3d0cb8ce69e82"
+    },
+    {
+      "path": "js/core/table-app-interactions.js",
+      "size": 17257,
+      "sha256": "cc1d2b08baf6a9d749de9d66fa8ae34481090618fc3519c4c72210bbce581452"
+    },
+    {
+      "path": "js/core/table-ui-utils.js",
+      "size": 19063,
+      "sha256": "c7a85feb3a0a548c6054790daadcd403be3ac278f8d5408b9c325a7b448564ce"
+    },
+    {
+      "path": "js/core/table-utils.js",
+      "size": 13142,
+      "sha256": "b37638283ed1717fc694c480853c560b82c2164cb64b2b0e2f25edd97e0bd109"
+    },
+    {
+      "path": "js/core/task-app-ui-utils.js",
+      "size": 69419,
+      "sha256": "00722f8b4aa5e57e82e5783d56a72d50ed623f0708d852b524b0ea471c7a8805"
+    },
+    {
+      "path": "js/core/task-ui-utils.js",
+      "size": 25954,
+      "sha256": "235456f85f6fe1c1dfc47694b040b5d25908d6f61d79c648df9f317a9e0ad520"
+    },
+    {
+      "path": "js/core/time-tracking-ui-utils.js",
+      "size": 49427,
+      "sha256": "2e346c2728e954862138672c955c99b380a6abd75e6d5c3dca011b4b1ac3e4ee"
+    },
+    {
+      "path": "js/core/time-tracking-utils.js",
+      "size": 21436,
+      "sha256": "3a43d78fda8c4c296a94f1ff7293dc48db29f4199d6c94937f4d804a366f9508"
+    },
+    {
+      "path": "js/core/trash-utils.js",
+      "size": 19547,
+      "sha256": "c9b1311ecfd7f64b51a0f779e9296ff4290c41de5243bbc6c888e9cebdbe6762"
+    },
+    {
+      "path": "js/core/update-ui-utils.js",
+      "size": 20674,
+      "sha256": "72102d9314d315ca469a94df36867424c90d6a33bd689e4c1dc2f2dc9be5828c"
+    },
+    {
+      "path": "js/core/utils.js",
+      "size": 3022,
+      "sha256": "d45a2037f977280a15e94d2e5438ddf77fed22625abc0978c2479d7364e26cd9"
+    },
+    {
+      "path": "js/core/version.js",
+      "size": 37,
+      "sha256": "64d838738a9c2fccaea63a3a06650ea9524ecb43b8d8c99e89be03a3ad3dc5cd"
+    },
+    {
+      "path": "js/core/visual-utils.js",
+      "size": 13060,
+      "sha256": "54d7024e51e8afdface36ba000ddbef6b2d8d271eeb210b54134a162f61407c4"
+    },
+    {
+      "path": "js/core/window-metrics-utils.js",
+      "size": 6127,
+      "sha256": "65f251d6e6794fb0929230063a1b970f9ae1371200cddf94d2ca0b0e18368579"
+    },
+    {
+      "path": "js/core/window-session-utils.js",
+      "size": 1828,
+      "sha256": "693452f10f4922fe97d22a454be8bb17945d06ef1dd16dc020bdef8f7da49deb"
+    },
+    {
+      "path": "js/core/window-ui-utils.js",
+      "size": 26970,
+      "sha256": "57f589b51d88160586e4baf814d48932ef91d41471dd9f6b426f37bbb3aab8f3"
+    },
+    {
+      "path": "js/core/workspace-utils.js",
+      "size": 36620,
+      "sha256": "24451938a3256a9506ab6afb6607f92e08e2c6782b006f7371d01103494eb3b7"
+    },
+    {
+      "path": "js/core/xlsx-utils.js",
+      "size": 9151,
+      "sha256": "aaf1a1fb59a596bb16aaeb6594cfcd88ecc44e495a4f7a98ba2d8e1174e17bc2"
+    },
+    {
+      "path": "js/update-probe.js",
+      "size": 590,
+      "sha256": "8b03884d02ccdc3119f8b0b8c57116e93b9153e6ee93e42491d1cdeee603bef6"
+    },
+    {
+      "path": "js/web-bootstrap.js",
+      "size": 7633,
+      "sha256": "f19be87999e81bfff4e515a3f32f23cf44b34f6367d7c730f61a9ab6b6e0463a"
+    },
+    {
+      "path": "manifest.json",
+      "size": 719,
+      "sha256": "a8f231af7c4405959f1d6500209e6e2bff7845e7c86da975f8895f40f1679f3e"
+    },
+    {
+      "path": "service-worker.js",
+      "size": 16746,
+      "sha256": "f07094aca5d47cd21c3c3c80417ca8513938112d51b9b167cfc11805f393c4cc"
+    },
+    {
+      "path": "update-probe.html",
+      "size": 468,
+      "sha256": "25266dd607a66e85af54089cd71be20b4c8f213deef36ec0d8eb6ae368262917"
+    }
+  ]
+}

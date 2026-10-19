@@ -90,5 +90,3 @@
   .link-library-create-category { justify-self: start; }
 }
 .link-library-app { container-type: inline-size; }
-body.light .link-library-target { color: #245ec7; }
-body.light .link-library-category-menu > button[data-link-action="category-delete"] { color: #b9213e; }

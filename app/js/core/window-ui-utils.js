@@ -154,6 +154,7 @@
   }
 
   function createWindowRuntimeController(options = {}) {
+    const syncTaskbar = typeof options.syncTaskbar === "function" ? options.syncTaskbar : () => {};
     const getWindows = typeof options.getWindows === "function" ? options.getWindows : () => new Map();
     const getExplorerFolders = typeof options.getExplorerFolders === "function" ? options.getExplorerFolders : () => new Map();
     const getActiveWindow = typeof options.getActiveWindow === "function" ? options.getActiveWindow : () => null;
@@ -188,8 +189,27 @@
     const toast = typeof options.toast === "function" ? options.toast : () => {};
     const createWindowForApp = typeof options.createWindowForApp === "function" ? options.createWindowForApp : createWindowElement;
     const normalizeOpeningRect = typeof options.normalizeOpeningRect === "function" ? options.normalizeOpeningRect : normalizeOpeningWindowRect;
+    const getOpeningSize = typeof options.getOpeningSize === "function" ? options.getOpeningSize : () => "full";
+    const getOpeningPlacement = typeof options.getOpeningPlacement === "function" ? options.getOpeningPlacement : () => "center";
+    const getLastOpeningRect = typeof options.getLastOpeningRect === "function" ? options.getLastOpeningRect : () => null;
+    const rememberOpeningRect = typeof options.rememberOpeningRect === "function" ? options.rememberOpeningRect : () => {};
     const onOpenError = typeof options.onOpenError === "function" ? options.onOpenError : (appId, params, error) => console.error("[ZeTer OS openApp]", appId, params, error);
     const viewport = options.viewport || window;
+
+    function rememberWindowRect(winId) {
+      if (getRestoringWindows()) return;
+      const record = getWindows().get(winId);
+      if (!record?.el || !record.appId) return;
+      const rect = record.maximized && record.lastRect ? record.lastRect : record.el.style;
+      rememberOpeningRect(record.appId, normalizeOpeningRect({
+        left: rect.left, top: rect.top, width: rect.width, height: rect.height
+      }));
+    }
+
+    function persistWindowGeometry(winId) {
+      rememberWindowRect(winId);
+      return persistWindows();
+    }
 
     function collectCurrentWindowSessions() {
       syncLiveEditors();
@@ -214,6 +234,7 @@
     }
 
     function clearRuntimeWindows() {
+      getWindows().forEach(record => windowBodyEl(record.el)?.querySelector?.("[data-settings-root]")?.disposeSettingsView?.());
       const layer = windowLayer();
       if (layer) layer.innerHTML = "";
       const taskbarApps = getTaskbarApps();
@@ -221,6 +242,7 @@
       getWindows().clear();
       setActiveWindow(null);
       getExplorerFolders().clear();
+      syncTaskbar();
     }
 
     function taskbarButton(winId) {
@@ -236,19 +258,46 @@
       record.el.classList.add("active");
       record.el.style.zIndex = nextZ();
       $$(".taskbar-app").forEach(button => button.classList.toggle("active", button.dataset.winId === winId));
+      taskbarButton(winId)?.classList.toggle("minimized", record.el.classList.contains("minimized"));
+      syncTaskbar();
       return true;
     }
 
-    function closeWindow(winId) {
+    function finishCloseWindow(winId) {
       const record = getWindows().get(winId);
+      rememberWindowRect(winId);
       if (record?.el) {
+        windowBodyEl(record.el)?.querySelector?.("[data-settings-root]")?.disposeSettingsView?.();
         record.el.classList.add("closing");
         setTimeout(() => record.el?.remove(), 120);
       }
       getWindows().delete(winId);
       taskbarButton(winId)?.remove();
       getExplorerFolders().delete(winId);
+      syncTaskbar();
       persistWindows();
+    }
+
+    function closeWindow(winId) {
+      const record = getWindows().get(winId);
+      const editor = record?.el?.querySelector?.("[data-managed-document]");
+      if (!editor?.disposeManagedDocument) return finishCloseWindow(winId);
+      if (record.closingDocument) return false;
+      record.closingDocument = true;
+      const area = editor.querySelector(".rich-editor-area");
+      const title = editor.querySelector(".editor-title");
+      const status = editor.querySelector("[data-status]");
+      if (area) area.contentEditable = "false";
+      if (title) title.disabled = true;
+      if (status) status.textContent = "Сохраняю перед закрытием…";
+      return Promise.resolve().then(() => editor.disposeManagedDocument()).then(() => finishCloseWindow(winId)).catch(error => {
+        record.closingDocument = false;
+        if (area) area.contentEditable = "true";
+        if (title) title.disabled = false;
+        if (status) status.textContent = `Окно оставлено открытым: ${error?.message || "документ не сохранён"}`;
+        toast("Документ не сохранён", "Окно оставлено открытым. Повторите сохранение или скопируйте свои правки.");
+        return false;
+      });
     }
 
     function minimizeWindow(winId) {
@@ -256,6 +305,7 @@
       if (!record) return false;
       record.el.classList.add("minimized");
       taskbarButton(winId)?.classList.add("minimized");
+      syncTaskbar();
       persistWindows();
       return true;
     }
@@ -266,7 +316,7 @@
       Object.assign(record.el.style, record.lastRect);
       record.el.classList.remove("maximized");
       record.maximized = false;
-      persistWindows();
+      persistWindowGeometry(winId);
       return true;
     }
 
@@ -299,7 +349,7 @@
         record.maximized = false;
       }
       focusWindow(winId);
-      persistWindows();
+      persistWindowGeometry(winId);
       return true;
     }
 
@@ -307,6 +357,17 @@
       const record = getWindows().get(winId);
       if (!record) return false;
       return record.maximized ? restoreWindow(winId) : snapWindow(winId, "max");
+    }
+
+    function applyOpeningSize(winId, size = getOpeningSize()) {
+      const record = getWindows().get(winId);
+      if (!record) return false;
+      Object.assign(record.el.style, windowMetricsUtils.openingWindowRect(size));
+      record.el.classList.remove("maximized");
+      record.maximized = false;
+      record.lastRect = null;
+      persistWindowGeometry(winId);
+      return true;
     }
 
     function showSnapMenu(winId, event) {
@@ -328,7 +389,7 @@
         toggleMax,
         showSnapMenu,
         snapWindow,
-        persistWindows,
+        persistWindows: () => persistWindowGeometry(winId),
         getSnapOverlay,
         viewport
       });
@@ -356,10 +417,12 @@
       const record = getWindows().get(winId);
       if (!record) return false;
       const body = windowBodyEl(record.el);
+      if (body?.querySelector?.("[data-managed-document]")?.hasUnsavedDocumentChanges?.()) return false;
       const app = getApps()[record.appId];
       if (!body || !app) return false;
       const title = windowTitleEl(record.el);
       if (title) title.textContent = typeof app.title === "function" ? app.title(record.params || {}) : app.name;
+      body.querySelector?.("[data-settings-root]")?.disposeSettingsView?.();
       body.innerHTML = "";
       const bodyNode = app.render(record.params, winId);
       body.appendChild(bodyNode);
@@ -436,7 +499,12 @@
       }
 
       const winId = createId("win");
-      const openingRect = normalizeOpeningRect(runtimeOptions.session?.rect || null);
+      const openingRect = runtimeOptions.session?.rect
+        ? normalizeOpeningRect(runtimeOptions.session.rect)
+        : normalizeOpeningRect(windowMetricsUtils.openingWindowPlacementRect(getOpeningSize(), getOpeningPlacement(), {
+          lastRect: getLastOpeningRect(appId),
+          cascadeIndex: [...getWindows().values()].filter(record => record.desktopId === desktopId).length
+        }));
       const element = createWindowForApp({
         template: getWindowTemplate(),
         app,
@@ -476,6 +544,7 @@
       closeWindow,
       minimizeWindow,
       toggleMax,
+      applyOpeningSize,
       restoreWindow,
       snapWindow,
       showSnapMenu,

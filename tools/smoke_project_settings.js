@@ -1,0 +1,66 @@
+"use strict";
+// Synthetic VM state only, without startup, native APIs or user storage.
+const assert = require("node:assert/strict");
+const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
+const box = { console, Date, structuredClone, setTimeout, clearTimeout, crypto: require("node:crypto").webcrypto };
+box.window = box; vm.createContext(box);
+for (const file of ["utils.js", "config.js", "time-tracking-utils.js", "project-overview-utils.js", "data-normalizers.js", "task-ui-utils.js", "task-app-ui-utils.js"]) {
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core", file), "utf8"), box, { filename: file });
+}
+const plain = value => JSON.parse(JSON.stringify(value));
+async function main() {
+  const data = box.ZETER_DATA_NORMALIZERS, ui = box.ZETER_TASK_UI_UTILS;
+  const defaults = { description: "", color: "default", defaultView: "overview", sortBy: "created", hideCompleted: false, defaultPriority: "medium" };
+  assert.deepEqual(plain(data.normalizeTaskProjectSettings({})), defaults);
+  assert.equal(data.normalizeTaskProjectSettings({ color: " #D92B74 " }).color, "#d92b74");
+  assert.equal(data.taskProjectColorCSS("green"), "#74c99b", "legacy colors stay identical");
+  assert.equal(data.taskProjectColorCSS("url(evil)"), "var(--accent)");
+  assert.equal(data.taskProjectColorCSS("#d92b74"), "#d92b74");
+  const created = data.makeTaskProject("Новый");
+  const createdBytes = JSON.stringify(created);
+  data.normalizeTaskProject(created);
+  assert.equal(JSON.stringify(created), createdBytes, "fresh project is already normalized, without changing another desktop on the next pass");
+  assert.deepEqual(plain(data.normalizeTaskProjectSettings({ color: "url(evil)", defaultView: "bad", sortBy: "bad", hideCompleted: "false", defaultPriority: "bad", description: "x".repeat(2500) })), { ...defaults, description: "x".repeat(2000) });
+  const store = data.normalizeTaskStore({ taskProjects: [{ id: "p", name: "Первый", attachments: [{ kind: "fs", id: "doc" }], categories: [{ id: "c", name: "Категория" }], custom: 7 }, { id: "q", name: "Другой" }], tasks: [{ id: "old", projectId: "p", title: "Прежняя", priority: "low" }] });
+  const before = plain(store);
+  let refuse = true, release, hold, snapshot;
+  const options = { getStore: () => store, persistTransaction: operation => operation(async () => {}), saveSnapshot: async (write, candidate) => { snapshot = plain(candidate); if (refuse) throw new Error("refused"); if (hold) await hold; return { saved: true }; } };
+  const controller = box.ZETER_TASK_APP_UI_UTILS.createTaskProjectSettingsController(options);
+  const patch = { name: "Учёба <web>", description: "План\nработы", color: "green", defaultView: "list", sortBy: "priority", hideCompleted: true, defaultPriority: "high" };
+  await assert.rejects(controller.save("p", patch, store.taskProjects[0]), /refused/);
+  assert.deepEqual(plain(store), before, "refusal preserves every live field");
+  refuse = false; hold = new Promise(resolve => { release = resolve; });
+  const pending = controller.save("p", patch, store.taskProjects[0]);
+  assert.deepEqual(plain(store), before, "pending changes stay staged");
+  await assert.rejects(controller.save("q", patch), /Сохранение/);
+  release(); await pending; hold = null;
+  assert.equal(store.taskProjects[0].name, patch.name);
+  assert.equal(store.taskProjects[0].custom, 7);
+  assert.deepEqual(plain(store.taskProjects[0].attachments), before.taskProjects[0].attachments);
+  assert.deepEqual(plain(store.taskProjects[0].categories), before.taskProjects[0].categories);
+  assert.deepEqual(plain(store.taskProjects[1]), before.taskProjects[1]);
+  assert.deepEqual(plain(store.tasks), before.tasks, "defaults never rewrite old tasks");
+  assert.equal(snapshot.taskProjects[0].defaultPriority, "high");
+  assert.equal(data.normalizeTaskStore(JSON.parse(JSON.stringify(store))).taskProjects[0].hideCompleted, true);
+  await assert.rejects(controller.save("p", patch, before.taskProjects[0]), /изменён/);
+  await assert.rejects(controller.save("missing", patch), /недоступен/);
+  await assert.rejects(controller.save("p", { name: " " }), /название/);
+  const refusedAck = box.ZETER_TASK_APP_UI_UTILS.createTaskProjectSettingsController({ ...options, saveSnapshot: async () => ({ saved: false }) });
+  const currentBytes = JSON.stringify(store);
+  await assert.rejects(refusedAck.save("p", { ...patch, color: "pink" }), /не подтвердило/);
+  assert.equal(JSON.stringify(store), currentBytes, "negative ACK cannot publish settings");
+  let source = store;
+  const unavailable = box.ZETER_TASK_APP_UI_UTILS.createTaskProjectSettingsController({ ...options, getStore: () => source, persistTransaction: async operation => { source = null; return operation(); } });
+  await assert.rejects(unavailable.save("p", patch), /недоступен/);
+  assert.equal(JSON.stringify(store), currentBytes, "owner changed before queued transaction must preserve live data");
+  const tasks = [{ id: "a", status: "todo", priority: "low", createdAt: 1, due: "2026-10-20" }, { id: "b", status: "todo", priority: "high", createdAt: 2, due: "2026-10-19" }, { id: "c", status: "done", priority: "medium", createdAt: 3 }, { id: "pin", status: "todo", priority: "low", createdAt: 4, pinned: true }];
+  const ids = filter => plain(ui.taskBoardGroups(tasks, filter, false)).flatMap(group => group.tasks.map(task => task.id));
+  assert.deepEqual(ids({ sortBy: "priority", hideCompleted: true }), ["pin", "b", "a"]);
+  assert.deepEqual(ids({ sortBy: "due", hideCompleted: true }), ["pin", "b", "a"]);
+  assert.deepEqual(ids({ sortBy: "title", hideCompleted: true }), ["pin", "a", "b"]);
+  assert.equal(tasks[0].id, "a", "sorting does not mutate storage order");
+  const creation = box.ZETER_TASK_APP_UI_UTILS.createTaskCreationController({ ...options, getWorkspace: options.getStore });
+  assert.equal((await creation.createTask("Новая", "p")).priority, "high");
+  console.log("PROJECT_SETTINGS_SMOKE_PASS");
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });

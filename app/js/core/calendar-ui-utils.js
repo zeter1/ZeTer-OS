@@ -119,11 +119,13 @@
     calendarDateISO = "",
     selectedISO = "",
     todayISOValue = "",
-    eventsForDate = () => []
+    eventsForDate = () => [],
+    weekStart = "monday"
   } = {}) {
     const wrap = document.createElement("div");
     wrap.className = "month-grid";
-    CALENDAR_WEEKDAY_NAMES.forEach(name => {
+    const weekdayNames = weekStart === "sunday" ? ["Вс", ...CALENDAR_WEEKDAY_NAMES.slice(0, 6)] : CALENDAR_WEEKDAY_NAMES;
+    weekdayNames.forEach(name => {
       const header = document.createElement("div");
       header.innerHTML = calendarWeekdayHeaderHTML(name);
       wrap.appendChild(header.firstElementChild);
@@ -132,7 +134,7 @@
     const currentDate = parseISO(calendarDateISO);
     const currentMonth = currentDate.getMonth();
     const firstDayOfMonth = new Date(currentDate.getFullYear(), currentMonth, 1);
-    const start = startOfWeek(firstDayOfMonth);
+    const start = startOfWeek(firstDayOfMonth, weekStart);
 
     for (let i = 0; i < 42; i++) {
       const day = addDays(start, i);
@@ -184,10 +186,10 @@
     return `<p class="muted">На выбранный день событий нет.</p>`;
   }
 
-  function calendarWeekViewElement(calendarDateISO = "", eventsForDate = () => []) {
+  function calendarWeekViewElement(calendarDateISO = "", eventsForDate = () => [], weekStart = "monday") {
     const wrap = document.createElement("div");
     wrap.className = "week-view";
-    const start = startOfWeek(parseISO(calendarDateISO));
+    const start = startOfWeek(parseISO(calendarDateISO), weekStart);
     for (let i = 0; i < 7; i++) {
       const day = addDays(start, i);
       const iso = dateISO(day);
@@ -259,10 +261,11 @@
         calendarDateISO: calendar.date,
         selectedISO: selected,
         todayISOValue: options.todayISOValue || "",
-        eventsForDate
+        eventsForDate,
+        weekStart: options.weekStart
       }));
     }
-    if (view === "week") board.appendChild(calendarWeekViewElement(calendar.date, eventsForDate));
+    if (view === "week") board.appendChild(calendarWeekViewElement(calendar.date, eventsForDate, options.weekStart));
     if (view === "day") board.appendChild(calendarDayViewElement(selected, eventsForDate(selected)));
     if (view === "agenda") board.appendChild(calendarAgendaViewElement(events, options.formatDate));
     if (eventList) eventList.innerHTML = calendarSelectedEventsHTML(eventsForDate(selected));
@@ -406,6 +409,7 @@
       document,
       desktopTitle = "Рабочий стол",
       getCalendar = () => ({}),
+      getWeekStart = () => "monday",
       setCalendar = () => {},
       getEvents = () => [],
       setEvents = () => {},
@@ -424,8 +428,10 @@
     const eventsForDate = iso => calendarEventsForDate(getEvents(), iso);
     const draw = () => {
       const calendar = getCalendar();
+      const weekStart = getWeekStart();
       renderCalendarAppView(root, calendar, {
-        title: calendarTitleText(calendar, formatDate),
+        title: calendarTitleText(calendar, formatDate, weekStart),
+        weekStart,
         todayISOValue: todayISO(),
         events: getEvents(),
         eventsForDate,

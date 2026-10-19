@@ -55,6 +55,12 @@ async function main() {
   assert.equal(security.securityStatusLabel({ meta: security.normalizeSecurityMeta({}), risk: { tone: "ok" } }).tone, "warn");
 
   const securityShell = securityUi.securityCenterShellHTML(true);
+  for (const view of ["overview", "backups", "storage", "maintenance"]) {
+    assert.ok(securityShell.includes(`data-security-view="${view}"`), `Security navigation: ${view}`);
+    assert.ok(securityShell.includes(`data-security-panel="${view}"`), `Security panel: ${view}`);
+  }
+  assert.match(securityShell, /data-security-operation/);
+  assert.match(securityShell, /data-security-refresh/);
   assert.doesNotMatch(securityShell, /Корзин/, "Security Center must not present a current Trash feature");
   assert.match(securityShell, /Следы удаления из старых версий/, "Security Center must label legacy deletion records explicitly");
   [

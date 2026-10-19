@@ -69,6 +69,7 @@ loadCore("managed-file-utils.js");
 loadCore("table-utils.js");
 loadCore("security-utils.js");
 loadCore("search-utils.js");
+loadCore("app-catalog.js");
 loadCore("initial-state-utils.js");
 
 const appDefinitions = {
@@ -224,6 +225,20 @@ function smokeInstalledUpdateNotifications() {
 smokeInstalledUpdateNotifications();
 
 const defaults = migrate(sandbox.ZETER_INITIAL_STATE_UTILS.defaultState());
+{
+  const fixture = { desktops: [{ id: "desktop", name: "Основной" }], fs: {} };
+  const installed = [];
+  let reset = false;
+  const controller = sandbox.ZETER_WORKSPACE_UTILS.createVirtualDesktopController({
+    getState: () => fixture, requestName: () => "Новый", createId: () => "new-desktop",
+    resetSelection: () => { reset = true; },
+    addDesktopShortcut: appId => { assert.ok(reset, "reset scroll/selection before placing new shortcuts"); installed.push(appId); }
+  });
+  assert.equal(controller.create(), "new-desktop");
+  assert.deepEqual(installed, plain(sandbox.ZETER_OS_CONFIG.DEFAULT_DESKTOP_APP_IDS));
+  assert.deepEqual(plain(fixture.desktops[1].data.events), []);
+  assert.deepEqual(plain(fixture.desktops[1].data.notifications), []);
+}
 assert.deepEqual(plain(defaults.desktops[0].data.library), { entries: [], categories: [] });
 const linkLegacy = migrate({ fs: {}, settings: {}, future: "keep" });
 assert.deepEqual(plain(linkLegacy.desktops[0].data.library), { entries: [], categories: [] });

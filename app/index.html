@@ -44,16 +44,34 @@
     <section id="start-menu" class="start-menu glass hidden" aria-label="Меню ZeTer">
       <div class="start-search">
         <span>⌕</span>
-        <input id="start-search-input" placeholder="Поиск приложений, файлов, задач и настроек" autocomplete="off" />
+        <input id="start-search-input" aria-label="Поиск по ZeTer OS" title="Приложения, настройки и команды; файлы и задачи текущего рабочего стола" placeholder="Приложения, настройки, файлы и задачи текущего стола" autocomplete="off" />
       </div>
-      <div class="start-section-title"><h2>Закреплено</h2><button id="start-all-apps">Все</button></div>
-      <div id="start-pinned" class="start-pinned"></div>
-      <div class="start-section-title start-desktop-title">
-        <h2>Рабочие столы</h2>
-        <button id="start-new-desktop" title="Создать новый рабочий стол">+ Создать</button>
+      <div id="start-content" class="start-content">
+        <div class="start-primary">
+          <section class="start-apps-section" aria-labelledby="start-apps-title">
+            <div class="start-section-title"><h2 id="start-apps-title">Закреплено</h2><button id="start-all-apps">Все приложения →</button></div>
+            <div id="start-categories" class="start-categories hidden" aria-label="Категории приложений"></div>
+            <div id="start-pinned" class="start-pinned"></div>
+          </section>
+          <section id="start-recent-section" class="start-recent-section hidden" aria-labelledby="start-recent-title">
+            <div class="start-section-title"><h2 id="start-recent-title">Продолжить работу</h2><button id="start-clear-recent" title="Очистить список недавних документов">Очистить</button></div>
+            <div id="start-recent" class="start-recent"></div>
+          </section>
+          <section id="start-quick-section" class="start-quick-section" aria-labelledby="start-quick-title">
+            <div class="start-section-title"><h2 id="start-quick-title">Быстрые действия</h2></div>
+            <div id="start-quick-actions" class="start-quick-actions"></div>
+          </section>
+        </div>
+        <section id="start-desktops-section" class="start-workspaces" aria-labelledby="start-desktops-title">
+          <div class="start-section-title start-desktop-title">
+            <h2 id="start-desktops-title">Рабочие столы</h2>
+            <button id="start-new-desktop" title="Создать новый рабочий стол">+ Создать</button>
+          </div>
+          <div id="start-desktops" class="start-desktops"></div>
+        </section>
       </div>
-      <div id="start-desktops" class="start-desktops"></div>
-
+      <section id="start-preferences" class="start-preferences hidden" aria-label="Настройки меню Пуск"></section>
+      <footer class="start-footer"><span id="start-footer-hint">Ваше рабочее пространство</span><button id="start-settings" aria-controls="start-preferences" aria-expanded="false"><span aria-hidden="true">⚙</span> Настройки</button></footer>
     </section>
 
     <aside id="quick-panel" class="quick-panel glass hidden">
@@ -145,90 +163,97 @@
     </template>
   </main>
 
-  <script src="js/core/boot-guard.js"></script>
-  <script src="js/core/version.js"></script>
-  <script src="js/core/config.js"></script>
-  <script src="js/core/utils.js"></script>
-  <script src="js/core/system-settings-utils.js"></script>
-  <script src="js/core/shortcut-utils.js"></script>
-  <script src="js/core/link-library-utils.js"></script>
-  <script src="js/core/link-library-ui-utils.js"></script>
-  <script src="js/core/prompt-library-utils.js"></script>
-  <script src="js/core/prompt-library-ui-utils.js"></script>
-  <script src="js/core/business-calculations-utils.js"></script>
-  <script src="js/core/business-calculations-ui-utils.js"></script>
-  <script src="js/core/time-tracking-utils.js"></script>
-  <script src="js/core/time-tracking-ui-utils.js"></script>
-  <script src="js/core/shell-ui-utils.js"></script>
-  <script src="js/core/first-run-ui-utils.js"></script>
-  <script src="js/core/context-menu-ui-utils.js"></script>
-  <script src="js/core/explorer-tab-utils.js"></script>
-  <script src="js/core/explorer-ui-utils.js"></script>
-  <script src="js/core/pinning-utils.js"></script>
-  <script src="js/core/trash-utils.js"></script>
-  <script src="js/core/desktop-layout-utils.js"></script>
-  <script src="js/core/item-drag-ui-utils.js"></script>
-  <script src="js/core/window-metrics-utils.js"></script>
-  <script src="js/core/window-session-utils.js"></script>
-  <script src="js/core/window-ui-utils.js"></script>
-  <script src="js/core/sticky-utils.js"></script>
-  <script src="js/core/native-storage.js"></script>
-  <script src="js/core/managed-file-utils.js"></script>
-  <script src="js/core/storage-utils.js"></script>
-  <script src="js/core/asset-utils.js"></script>
-  <script src="js/core/security-protection-utils.js"></script>
-  <script src="js/core/visual-utils.js"></script>
-  <script src="js/core/item-customization-utils.js"></script>
-  <script src="js/core/desktop-profile-utils.js"></script>
-  <script src="js/core/desktop-ui-utils.js"></script>
-  <script src="js/core/start-ui-utils.js"></script>
-  <script src="js/core/file-import-utils.js"></script>
-  <script src="js/core/file-template-utils.js"></script>
-  <script src="js/core/rich-text-utils.js"></script>
-  <script src="js/core/markdown-utils.js"></script>
-  <script src="js/core/automation-utils.js"></script>
-  <script src="js/core/automation-ui-utils.js"></script>
-  <script src="js/core/object-link-utils.js"></script>
-  <script src="js/core/object-link-ui-utils.js"></script>
-  <script src="js/core/editor-ui-utils.js"></script>
-  <script src="js/core/data-normalizers.js"></script>
-  <script src="js/core/workspace-utils.js"></script>
-  <script src="js/core/state-maintenance-utils.js"></script>
-  <script src="js/core/task-ui-utils.js"></script>
-  <script src="js/core/task-app-ui-utils.js"></script>
-  <script src="js/core/calendar-utils.js"></script>
-  <script src="js/core/calendar-ui-utils.js"></script>
-  <script src="js/core/notification-utils.js"></script>
-  <script src="js/core/notification-ui-utils.js"></script>
-  <script src="js/core/import-utils.js"></script>
-  <script src="js/core/state-import-validator.js"></script>
-  <script src="js/core/export-utils.js"></script>
-  <script src="js/core/download-utils.js"></script>
-  <script src="js/core/security-utils.js"></script>
-  <script src="js/core/security-ui-utils.js"></script>
-  <script src="js/core/readable-export-utils.js"></script>
-  <script src="js/core/table-utils.js"></script>
-  <script src="js/core/xlsx-utils.js"></script>
-  <script src="js/core/table-ui-utils.js"></script>
-  <script src="js/core/table-app-interactions.js"></script>
-  <script src="js/core/calculator-utils.js"></script>
-  <script src="js/core/calculator-ui-utils.js"></script>
-  <script src="js/core/app-catalog.js"></script>
-  <script src="js/core/item-metadata.js"></script>
-  <script src="js/core/item-properties-ui-utils.js"></script>
-  <script src="js/core/fs-item-utils.js"></script>
-  <script src="js/core/explorer-utils.js"></script>
-  <script src="js/core/help-content.js"></script>
-  <script src="js/core/monitor-utils.js"></script>
-  <script src="js/core/photo-ui-utils.js"></script>
-  <script src="js/core/settings-ui-utils.js"></script>
-  <script src="js/core/about-ui-utils.js"></script>
-  <script src="js/core/update-ui-utils.js"></script>
-  <script src="js/core/app-center-ui-utils.js"></script>
-  <script src="js/core/search-utils.js"></script>
-  <script src="js/core/initial-state-utils.js"></script>
-  <script src="js/core/state-migration-utils.js"></script>
-  <script src="js/core/search-ui-utils.js"></script>
-  <script src="js/app.js"></script>
+  <script type="application/zeter-script" src="js/core/boot-guard.js"></script>
+  <script type="application/zeter-script" src="js/core/version.js"></script>
+  <script type="application/zeter-script" src="js/core/config.js"></script>
+  <script type="application/zeter-script" src="js/core/utils.js"></script>
+  <script type="application/zeter-script" src="js/core/system-settings-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/shortcut-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/link-library-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/link-library-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/prompt-library-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/prompt-library-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/business-calculations-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/business-calculations-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/time-tracking-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/project-overview-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/time-tracking-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/first-run-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/context-menu-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/explorer-tab-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/desktop-layout-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/explorer-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/pinning-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/trash-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/item-drag-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/window-metrics-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/window-session-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/window-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/sticky-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/native-storage.js"></script>
+  <script type="application/zeter-script" src="js/core/managed-file-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/storage-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/asset-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/security-protection-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/visual-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/shell-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/item-customization-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/desktop-profile-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/desktop-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/preferences-writer-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/start-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/file-import-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/file-template-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/rich-text-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/markdown-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/automation-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/automation-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/object-link-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/object-link-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/editor-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/data-normalizers.js"></script>
+  <script type="application/zeter-script" src="js/core/workspace-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/state-maintenance-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/task-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/project-overview-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/task-app-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/calendar-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/calendar-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/notification-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/notification-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/import-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/state-import-validator.js"></script>
+  <script type="application/zeter-script" src="js/core/export-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/download-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/security-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/security-restore-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/security-vault-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/security-recovery-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/security-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/readable-export-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/table-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/xlsx-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/table-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/table-app-interactions.js"></script>
+  <script type="application/zeter-script" src="js/core/calculator-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/calculator-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/app-catalog.js"></script>
+  <script type="application/zeter-script" src="js/core/item-metadata.js"></script>
+  <script type="application/zeter-script" src="js/core/item-properties-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/fs-item-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/explorer-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/help-content.js"></script>
+  <script type="application/zeter-script" src="js/core/monitor-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/photo-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/settings-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/about-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/update-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/app-center-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/search-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/initial-state-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/state-migration-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/search-ui-utils.js"></script>
+  <script type="application/zeter-script" src="js/app.js"></script>
+  <script src="js/web-bootstrap.js"></script>
 </body>
 </html>

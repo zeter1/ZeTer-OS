@@ -49,87 +49,115 @@
 
   function securityCenterShellHTML(nativeMode = false) {
     return `
-      <div class="security-hero">
+      <header class="security-hero">
         <div class="security-hero-copy">
+          <span class="security-eyebrow">СОХРАННОСТЬ И ВОССТАНОВЛЕНИЕ</span>
           <h2>Центр безопасности данных</h2>
-          <p class="muted">Здесь можно проверить сохранность ZeTer OS, сделать ZIP-бэкап и увидеть, куда реально сохраняются данные.</p>
+          <p class="muted">Проверяй сохранность, создавай копии и возвращайся к нужному состоянию.</p>
+          <span class="security-mode">${nativeMode ? "На компьютере · папка data" : "В браузере · отдельное хранилище"}</span>
         </div>
         <div class="security-hero-side">
-          <div class="security-hero-badge" data-security-main-badge>Проверка…</div>
-          <b class="security-score" data-security-score>—</b>
+          <div class="security-hero-badge" data-security-main-badge>Считываем состояние…</div>
+          <div class="security-score-line"><span>Оценка защиты</span><b data-security-score>— / 100</b></div>
+          <progress class="security-score-meter" data-security-score-meter max="100" value="0" aria-label="Оценка защиты данных"></progress>
+          <small>По проверкам, копиям и готовности отката</small>
         </div>
+      </header>
+      <div class="security-toolbar">
+        <nav class="security-nav" aria-label="Разделы Центра безопасности">
+          <button type="button" data-security-view="overview" aria-pressed="true">Обзор</button>
+          <button type="button" data-security-view="backups" aria-pressed="false">Копии и восстановление</button>
+          <button type="button" data-security-view="storage" aria-pressed="false">Хранилище</button>
+          <button type="button" data-security-view="maintenance" aria-pressed="false">Обслуживание</button>
+        </nav>
+        <button type="button" class="security-refresh" data-security-refresh>↻ Обновить</button>
       </div>
+      <div class="security-operation" data-security-operation role="status" aria-live="polite" hidden></div>
+      <div class="security-banner" data-security-banner><b>Загрузка статусов</b><span>Считываем состояние хранилища, копий и точек восстановления.</span></div>
 
-      <div class="security-banner" data-security-banner>
-        <b>Загрузка статусов</b>
-        <span>Считываю реальные данные хранилища.</span>
-      </div>
-
-      <section class="security-recommendation">
-        <div><span class="security-eyebrow">Рекомендуемое действие</span><b data-security-primary-title>Проверить состояние</b><small data-security-primary-detail>Центр выбирает следующий безопасный шаг по реальным данным.</small></div>
-        <button data-security-primary data-action="check">Выполнить</button>
+      <div class="security-view" data-security-panel="overview">
+        <section class="security-recommendation">
+        <div><span class="security-eyebrow">Следующий шаг</span><b data-security-primary-title>Проверить состояние</b><small data-security-primary-detail>Центр выбирает следующий безопасный шаг по реальным данным.</small></div>
+        <button data-security-primary data-action="check">Выполнить →</button>
       </section>
-
-      <section class="security-section">
-        <div class="security-section-head"><h3>Быстрые действия</h3><p class="muted">Каждая операция сначала проверяет данные и сообщает, что именно было сделано.</p></div>
-        <div class="security-action-grid">
+<div class="security-summary-grid" data-security-stats aria-label="Основные показатели защиты"></div><section class="security-section"><div class="security-section-head"><h3>Три шага к сохранности данных</h3><p class="muted">Проверь данные, сохрани копию отдельно от программы и убедись, что она читается.</p></div><div class="security-action-grid">          ${securityActionButtonHTML("data-security-check", "✅", "Проверить целостность ОС", "Проверяет файловую систему, задачи, календарь, совместимость старых данных, точки восстановления и хранилище.")}
           ${securityActionButtonHTML("data-security-backup", "📦", "Создать проверенный ZIP-бэкап", "Собирает полную переносимую копию, добавляет манифест и проверяет контрольные суммы до сохранения.")}
-          ${securityActionButtonHTML("data-security-encrypted-backup", "🔐", "Создать зашифрованный бэкап", "Защищает проверенный ZIP парольной фразой AES-256-GCM. Без пароля восстановление невозможно.")}
-          ${securityActionButtonHTML("data-security-import", "📥", "Импортировать ZIP, JSON или .zeterbak", "Показывает состав копии, проверяет формат и создаёт аварийную точку перед заменой данных.")}
-          ${securityActionButtonHTML("data-security-recovery-test", "🧪", "Проверить восстановление", "Создаёт временный архив в памяти, читает его обратно и проверяет, не изменяя текущие данные.")}
-          ${securityActionButtonHTML("data-security-check", "✅", "Проверить целостность ОС", "Проверяет файловую систему, задачи, календарь, совместимость старых данных, точки восстановления и хранилище.")}
-          ${securityActionButtonHTML("data-security-restore-point", "🕘", "Создать точку восстановления", "Сохраняет именованный снимок текущего состояния для быстрого локального отката.")}
-          ${securityActionButtonHTML("data-security-folder-save", "📁", nativeMode ? "Открыть папку data" : "Выбрать папку автосохранения", nativeMode ? "Открывает реальную папку состояния, резервных копий, журналов и Windows-файлов." : "Разрешает ZeTer OS автоматически обновлять JSON, изображения и читаемые данные в выбранной папке.")}
-          ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂️", "Открыть Windows-копии", "Открывает папку с DOCX, CSV, ICS, изображениями и другими обычными файлами для чтения вне ZeTer OS.") : ""}
-          ${securityActionButtonHTML("data-security-folder-save-now", "💾", "Сохранить состояние сейчас", nativeMode ? "Немедленно обновляет data/zeter-os-state.json и Windows-читаемые копии." : "Немедленно записывает и перечитывает резервную копию в выбранной внешней папке.")}
-          ${securityActionButtonHTML("data-security-refresh", "↻", "Обновить все статусы", "Повторно считывает размеры, разрешения, точки восстановления, журнал и состояние защиты.")}
-        </div>
-      </section>
-
-      <section class="security-section">
-        <div class="security-section-head">
-          <h3>Ключевые статусы</h3>
-          <p class="muted">Основные показатели сохранности данных и состояния хранилища.</p>
-        </div>
-        <div class="security-summary-grid" data-security-stats></div>
-      </section>
-
-      <div class="security-main-layout">
-        <section class="security-section">
-          <div class="security-section-head"><h3>Хранилище и риск</h3><p class="muted">${nativeMode ? "Размер состояния и папки data рядом с программой." : "Объём данных, квота браузера и риск переполнения."}</p></div>
-          <div class="security-storage-stack" data-security-storage></div>
-        </section>
-        <section class="security-section">
-          <div class="security-section-head"><h3>Служебные данные</h3><p class="muted">Последние системные события и текущий режим хранения.</p></div>
-          <div class="monitor-kv" data-security-kv></div>
-        </section>
-      </div>
-
-      <section class="security-section security-folder-panel">
-        <div class="security-section-head"><h3>${nativeMode ? "Папка данных ZeTer OS" : "Автосохранение бэкапа в папку"}</h3><p class="muted">${nativeMode ? "Папку выбирать не нужно: ZeTer OS автоматически сохраняет состояние, точки восстановления, логи, резервные копии и Windows-открываемые файлы рядом с программой." : "Выбери одну папку на компьютере. ZeTer OS будет обновлять там zeter-os-state.json, изображения и человекочитаемые данные."}</p></div>
-        <div class="security-folder-status" data-security-folder-status></div>
-        <p class="muted">${nativeMode ? "Основные файлы: data/zeter-os-state.json, data/restore-points.json, data/backups/, data/logs/ и data/Рабочие столы/. В data/Рабочие столы лежит по одному .docx-файлу на заметку/задачу, CSV/ICS для таблиц и календаря, а также обычные изображения. Не запускай app/index.html напрямую, если хочешь использовать эту папку data." : "Браузер не разрешает сохранить сам доступ к папке внутри ZIP-бэкапа. После переноса ОС на другой браузер или компьютер папку нужно выбрать заново."}</p>
-      </section>
-
-      <section class="security-section">
-        <div class="security-section-head"><h3>Точки восстановления</h3><p class="muted">Выбери конкретный снимок, просмотри его состав, экспортируй или восстанови. Перед откатом текущие данные страхуются автоматически.</p></div>
-        <div class="security-restore-list" data-security-restore-list><p class="muted">Загружаю точки восстановления…</p></div>
-      </section>
-
+          ${securityActionButtonHTML("data-security-recovery-test", "🧪", "Проверить восстановление", "Создаёт временный архив в памяти, читает его обратно и проверяет, не изменяя текущие данные.")}</div></section>
       <section class="security-section security-check-panel">
         <div class="security-section-head"><h3>Результат проверки</h3><p class="muted">Проверка файловой системы, задач, календаря, совместимости старых данных, точек восстановления и хранилища.</p></div>
         <div data-security-check-result>${securityCheckIdleHTML()}</div>
       </section>
+</div>
 
+      <div class="security-view" data-security-panel="backups" hidden>
+        <section class="security-section security-recovery-panel">
+          <div class="security-section-head"><h3>Проверить файл и вернуть нужное</h3><p class="muted">Выбери ZIP или .zeterbak. Проверка читает именно этот архив, без замены рабочих данных. Затем можно восстановить отдельный файл, папку, проект или стол.</p></div>
+          <div class="security-inline-actions"><button type="button" data-recovery-action="choose-file">Выбрать файл бэкапа…</button><button type="button" data-recovery-action="inspect-file" hidden>Проверить выбранный файл</button></div>
+          <input type="file" accept=".zip,.zeterbak" data-recovery-file hidden>
+          <div class="security-folder-card" data-recovery-file-result></div>
+          <div class="security-recovery-selective" data-recovery-selective hidden>
+            <label>Что восстановить<select data-recovery-choice></select></label>
+            <label>Как восстановить<select data-recovery-mode><option value="copy">Отдельной копией · сохранить текущие объекты</option><option value="replace">Заменить совпадающие объекты · показать изменения</option></select></label>
+            <label>Куда восстановить<select data-recovery-target></select></label>
+            <div class="security-inline-actions"><button type="button" data-recovery-action="compare">Сравнить с текущими данными</button><button type="button" data-recovery-action="apply" hidden>Применить восстановление…</button></div>
+            <div data-recovery-preview></div>
+          </div>
+          <div class="security-operation" data-recovery-status role="status" aria-live="polite" hidden></div>
+        </section>
+        <section class="security-section">
+          <div class="security-section-head"><h3>История полных резервных копий</h3><p class="muted">Отдельные проверенные ZIP-версии. Автоматическое копирование работает, пока ZeTer OS открыта. Закреплённые и последняя исправная копия сохраняются даже при превышении лимита.</p></div>
+          <div class="security-folder-card" data-vault-status>Читаем настройки истории…</div>
+          <div class="security-vault-settings">
+            <label><input type="checkbox" data-vault-enabled> Автоматические полные копии</label>
+            <label>Интервал, часов<input type="number" min="1" max="720" value="24" data-vault-interval></label>
+            <label>Хранить копий<input type="number" min="2" max="100" value="14" data-vault-count></label>
+            <label>Лимит места, МБ<input type="number" min="64" max="20480" value="2048" data-vault-quota></label>
+          </div>
+          <p class="muted">При включённом автокопировании старые незакреплённые версии этой истории удаляются по количеству и размеру после проверки новой копии. Чужие файлы не удаляются. Выбери другой диск или накопитель: папка рядом с программой не защищает от потери диска. Один архив — до 120 МБ.</p>
+          <div class="security-inline-actions"><button type="button" data-recovery-action="choose-folder">Выбрать папку…</button><button type="button" data-recovery-action="configure">Сохранить правила</button><button type="button" data-recovery-action="create-now">Создать копию сейчас</button></div>
+          <button type="button" data-recovery-action="refresh-history">Обновить историю</button>
+          <div class="security-restore-list" data-vault-list></div>
+        </section>
+<section class="security-section"><div class="security-section-head"><h3>Копия для переноса. Точка для отката.</h3><p class="muted">ZIP и .zeterbak храни отдельно от программы. Локальная точка помогает вернуться к прежнему состоянию в этом хранилище.</p></div><div class="security-action-grid">          ${securityActionButtonHTML("data-security-backup", "📦", "Создать проверенный ZIP-бэкап", "Собирает полную переносимую копию, добавляет манифест и проверяет контрольные суммы до сохранения.")}
+          ${securityActionButtonHTML("data-security-encrypted-backup", "🔐", "Создать зашифрованный бэкап", "Защищает проверенный ZIP парольной фразой AES-256-GCM. Без пароля восстановление невозможно.")}
+          ${securityActionButtonHTML("data-security-import", "📥", "Импортировать ZIP, JSON или .zeterbak", "Показывает состав копии, проверяет формат и создаёт аварийную точку перед заменой данных.")}
+          ${securityActionButtonHTML("data-security-restore-point", "🕘", "Создать точку восстановления", "Сохраняет именованный снимок текущего состояния для быстрого локального отката.")}</div></section>
+<div class="security-summary-grid security-copy-facts" data-security-copy-stats></div>
+        <section class="security-section">
+        <div class="security-section-head"><h3>Точки восстановления</h3><p class="muted">Выбери конкретный снимок, просмотри его состав, экспортируй или восстанови. Перед откатом текущие данные страхуются автоматически.</p></div>
+        <div class="security-restore-list" data-security-restore-list><p class="muted">Загружаю точки восстановления…</p></div>
+      </section>
+</div>
+
+      <div class="security-view" data-security-panel="storage" hidden><div class="security-summary-grid" data-security-storage-stats></div>
+        <section class="security-section security-folder-panel">
+        <div class="security-section-head"><h3>${nativeMode ? "Папка данных ZeTer OS" : "Автосохранение бэкапа в папку"}</h3><p class="muted">${nativeMode ? "Папку выбирать не нужно: ZeTer OS автоматически сохраняет состояние, точки восстановления, логи, резервные копии и Windows-открываемые файлы рядом с программой." : "Выбери одну папку на компьютере. ZeTer OS будет обновлять там zeter-os-state.json, изображения и человекочитаемые данные."}</p></div>
+        <div class="security-folder-status" data-security-folder-status></div>
+        <p class="muted">${nativeMode ? "Основные файлы: data/zeter-os-state.json, data/restore-points.json, data/backups/, data/logs/ и data/Рабочие столы/. В data/Рабочие столы лежит по одному .docx-файлу на заметку/задачу, CSV/ICS для таблиц и календаря, а также обычные изображения. Не запускай app/index.html напрямую, если хочешь использовать эту папку data." : "Браузер не разрешает сохранить сам доступ к папке внутри ZIP-бэкапа. После переноса ОС на другой браузер или компьютер папку нужно выбрать заново."}</p>
+      </section>
+<section class="security-section"><div class="security-action-grid">          ${securityActionButtonHTML("data-security-folder-save", "📁", nativeMode ? "Открыть папку data" : "Выбрать папку автосохранения", nativeMode ? "Открывает реальную папку состояния, резервных копий, журналов и Windows-файлов." : "Разрешает ZeTer OS автоматически обновлять JSON, изображения и читаемые данные в выбранной папке.")}
+${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂️", "Открыть Windows-копии", "Открывает папку с DOCX, CSV, ICS, изображениями и другими обычными файлами для чтения вне ZeTer OS.") : ""}
+          ${securityActionButtonHTML("data-security-folder-save-now", "💾", "Сохранить состояние сейчас", nativeMode ? "Немедленно обновляет data/zeter-os-state.json и Windows-читаемые копии." : "Немедленно записывает и перечитывает резервную копию в выбранной внешней папке.")}</div></section>
+<div class="security-main-layout">
+        <section class="security-section">
+          <div class="security-section-head"><h3>Хранилище и риск</h3><p class="muted">${nativeMode ? "Размер состояния и папки data рядом с программой." : "Объём данных, квота браузера и риск переполнения."}</p></div>
+          <div class="security-storage-stack" data-security-storage></div>
+        </section>
       <section class="security-section">
+          <div class="security-section-head"><h3>Служебные данные</h3><p class="muted">Последние системные события и текущий режим хранения.</p></div>
+          <div class="monitor-kv" data-security-kv></div>
+        </section>
+</div></div>
+
+      <div class="security-view" data-security-panel="maintenance" hidden>
+        <section class="security-section">
         <div class="security-section-head"><h3>Автоматическая защита</h3><p class="muted">Профиль определяет частоту автоматических точек, глубину истории и допустимый возраст проверенного бэкапа.</p></div>
         <div class="security-policy-row">
           <label><span>Профиль защиты</span><select data-security-policy><option value="standard">Стандартный · точка раз в 24 часа</option><option value="enhanced">Усиленный · точка раз в 6 часов</option><option value="manual">Ручной · без автоматических точек</option></select></label>
-          ${securityActionButtonHTML("data-security-policy-save", "🛡️", "Применить профиль", "Сохраняет безопасные лимиты и сразу проверяет, не пора ли создать автоматическую точку.")}
+                    ${securityActionButtonHTML("data-security-policy-save", "🛡️", "Применить профиль", "Сохраняет безопасные лимиты и сразу проверяет, не пора ли создать автоматическую точку.")}
         </div>
         <p class="muted" data-security-policy-status>Загружаю политику защиты…</p>
       </section>
-
       <section class="security-section">
         <div class="security-section-head"><h3>Безопасная очистка</h3><p class="muted">Сначала рассчитывается объём и количество объектов. Следы удаления из старых версий, история и точки восстановления никогда не выбраны заранее.</p></div>
         <div class="security-cleanup-grid">
@@ -143,20 +171,19 @@
           <label><input type="checkbox" data-security-clean="restore"> Все точки восстановления</label>
         </div>
         <div class="security-cleanup-summary" data-security-cleanup-summary>Выполняю предварительный расчёт…</div>
-        ${securityActionButtonHTML("data-security-clean-old", "🧹", "Рассчитать и очистить выбранное", "Показывает точный план, запрашивает подтверждение и сообщает фактически освобождённое место.", "warn")}
+                  ${securityActionButtonHTML("data-security-clean-old", "🧹", "Рассчитать и очистить выбранное", "Показывает точный план, запрашивает подтверждение и сообщает фактически освобождённое место.", "warn")}
       </section>
-
       <section class="security-section">
         <div class="security-section-head"><h3>Журнал защиты</h3><p class="muted">Последние проверки, бэкапы, восстановления, очистки и ошибки. Содержимое документов и парольные фразы сюда не записываются.</p></div>
         <div class="security-journal" data-security-journal><p class="muted">Событий пока нет.</p></div>
-        ${securityActionButtonHTML("data-security-diagnostic", "🧾", "Сохранить диагностический отчёт", "Экспортирует безопасную техническую сводку без текстов документов, изображений и паролей.")}
+                  ${securityActionButtonHTML("data-security-diagnostic", "🧾", "Сохранить диагностический отчёт", "Экспортирует безопасную техническую сводку без текстов документов, изображений и паролей.")}
       </section>
-
-      <section class="security-section security-danger-zone">
+      <details class="security-section security-danger-zone"><summary>Сброс данных и настроек</summary><div class="security-danger-content">
         <div class="security-section-head"><h3>Опасная зона</h3><p class="muted">Перед сбросом создаются проверенный ZIP и аварийная точка. Полный сброс требует ввода слова СБРОС.</p></div>
         <label class="security-reset-scope"><span>Что сбросить</span><select data-security-reset-scope><option value="settings">Только настройки оформления</option><option value="workspace">Пользовательские данные, сохранив настройки</option><option value="full">Полный сброс ZeTer OS</option></select></label>
-        ${securityActionButtonHTML("data-security-reset", "⚠️", "Подготовить безопасный сброс", "Создаёт страховочные копии, показывает точный состав операции и только затем запрашивает подтверждение.", "danger")}
-      </section>`;
+                  ${securityActionButtonHTML("data-security-reset", "⚠️", "Подготовить безопасный сброс", "Создаёт страховочные копии, показывает точный состав операции и только затем запрашивает подтверждение.", "danger")}
+      </div></details></div>
+    `;
   }
 
   function securitySummaryCardHTML(label, value, note, tone = "") {
@@ -246,6 +273,8 @@
   }
 
   function securityCenterAction(target) {
+    const recovery = target?.closest?.("[data-recovery-action]");
+    if (recovery) return { type: "recovery", name: recovery.dataset.recoveryAction, id: recovery.dataset.id, pinned: recovery.dataset.pinned };
     const primary = target?.closest?.("[data-security-primary]");
     if (primary) return { type: primary.dataset.action || "check" };
     if (target?.closest?.("[data-security-backup]")) return { type: "backup" };
@@ -298,10 +327,16 @@
       badge.textContent = overall.label;
     }
     const score = find("[data-security-score]");
-    if (score) score.textContent = `${Number(overall.score || 0)} / 100`;
+    const scoreValue = Math.max(0, Math.min(100, Number(overall.score) || 0));
+    if (score) score.textContent = `${scoreValue} / 100`;
+    const scoreMeter = find("[data-security-score-meter]");
+    if (scoreMeter) scoreMeter.value = scoreValue;
     const recommendation = recommendedSecurityAction(snapshot);
     const primary = find("[data-security-primary]");
-    if (primary) primary.dataset.action = recommendation.action;
+    if (primary) {
+      primary.dataset.action = recommendation.action;
+      primary.textContent = ({ check: "Проверить данные →", backup: "Создать бэкап →", "restore-point": "Создать точку →" })[recommendation.action] || "Выполнить →";
+    }
     const primaryTitle = find("[data-security-primary-title]");
     if (primaryTitle) primaryTitle.textContent = recommendation.title;
     const primaryDetail = find("[data-security-primary-detail]");
@@ -326,7 +361,7 @@
     const policy = normalizeProtectionPolicy(snapshot.meta?.protectionPolicy);
     const effectiveLimit = Math.min(restoreLimit || 12, policy.restoreLimit);
     const stats = find("[data-security-stats]");
-    if (stats) stats.innerHTML = securitySummaryCardsHTML([
+    const cards = [
       { label: "Целостность данных", value: overall.data?.label || snapshot.status.label, note: overall.data?.text || snapshot.status.text, tone: overall.data?.tone || snapshot.status.tone },
       { label: "Переносимый бэкап", value: overall.backup?.label || "Неизвестно", note: overall.backup?.text || "", tone: overall.backup?.tone || "warn" },
       { label: "Готовность отката", value: overall.recovery?.label || "Неизвестно", note: overall.recovery?.text || "", tone: overall.recovery?.tone || "warn" },
@@ -336,7 +371,12 @@
       { label: nativeMode ? "Папка данных" : "Папка бэкапа", value: snapshot.externalSave.label, note: snapshot.externalSave.folderName ? snapshot.externalSave.folderName : snapshot.externalSave.note, tone: snapshot.externalSave.tone },
       { label: "Размер состояния", value: bytesToHuman(snapshot.stateBytes), note: nativeMode ? "Файл состояния в папке data" : `Доп. настройки в localStorage: ${bytesToHuman(snapshot.localSettingsBytes)}` },
       { label: "Риск переполнения", value: snapshot.risk.label, note: snapshot.risk.text, tone: snapshot.risk.tone }
-    ]);
+    ];
+    if (stats) stats.innerHTML = securitySummaryCardsHTML(cards.slice(0, 3));
+    const copyStats = find("[data-security-copy-stats]");
+    if (copyStats) copyStats.innerHTML = securitySummaryCardsHTML([cards[4], cards[5]]);
+    const storageStats = find("[data-security-storage-stats]");
+    if (storageStats) storageStats.innerHTML = securitySummaryCardsHTML([cards[3], cards[7], cards[8]]);
     const storage = find("[data-security-storage]");
     if (storage) storage.innerHTML = securityStorageMetersHTML({
       nativeMode,
@@ -390,6 +430,10 @@
       document,
       nativeMode = false,
       collectSecuritySnapshot = async () => ({}),
+      collectCleanupPreview = async () => ({}),
+      readTimeoutMs = 15000,
+      scheduleReadTimeout = (callback, delay) => setTimeout(callback, delay),
+      clearReadTimeout = timer => clearTimeout(timer),
       renderOptions = {},
       exportBackup = async () => {},
       exportEncryptedBackup = async () => {},
@@ -409,31 +453,156 @@
       exportRestorePoint = async () => {},
       deleteRestorePoint = async () => {},
       setProtectionProfile = async () => {},
-      exportDiagnosticReport = async () => {}
+      exportDiagnosticReport = async () => {},
+      recoveryController = null
     } = integration;
     if (!document?.createElement) throw new Error("Security center requires a document.");
     const root = document.createElement("div");
     root.className = "app-shell security-center-app";
     root.innerHTML = securityCenterShellHTML(nativeMode);
 
-    const refresh = async () => {
-      const snapshot = await collectSecuritySnapshot();
-      renderSecuritySnapshot(root, snapshot, { ...renderOptions, nativeMode });
+    let currentView = "overview";
+    const showView = view => {
+      currentView = view;
+      for (const panel of root.querySelectorAll("[data-security-panel]")) panel.hidden = panel.dataset.securityPanel !== view;
+      for (const button of root.querySelectorAll("[data-security-view]")) button.setAttribute("aria-pressed", String(button.dataset.securityView === view));
+      root.scrollTop = 0;
+    };
+    const operation = root.querySelector("[data-security-operation]");
+    const report = (message, failed = false) => {
+      operation.hidden = !message;
+      operation.textContent = message;
+      operation.classList.toggle("bad", failed);
+    };
+    let statusLoading = false, actionBusy = false, readRevision = 0, extrasRevision = 0;
+    const setBusy = busy => {
+      root.setAttribute("aria-busy", String(busy || statusLoading));
+      for (const button of root.querySelectorAll("button:not([data-security-view])")) button.disabled = busy || (button.dataset.recoveryAction === "configure" && !root.dataset.vaultInitialized);
+      for (const input of root.querySelectorAll(".security-vault-settings input")) input.disabled = busy || !root.dataset.vaultInitialized;
     };
 
-    let actionBusy = false;
+    // Deadlines apply only to read-only presentation work. An unresolved native
+    // read keeps its slot, so retry never starts a stack of abandoned requests.
+    const pendingReads = new Map(), extraJobs = new Map(), loadedExtras = new Set(), queuedExtras = new Set();
+    function drainExtras() {
+      if (actionBusy) return;
+      for (const view of queuedExtras) {
+        if (currentView === view && !pendingReads.has(view) && !extraJobs.has(view)) {
+          queuedExtras.delete(view);
+          loadExtras(view, true);
+        }
+      }
+    }
+    function queueExtras(view) {
+      if (queuedExtras.has(view)) return;
+      queuedExtras.add(view);
+      const pending = pendingReads.get(view);
+      if (pending) pending.then(drainExtras, drainExtras);
+      else drainExtras();
+    }
+    let queuedSnapshot = false, queuedReadTimer = null;
+    function drainSnapshotRefresh() {
+      if (!queuedSnapshot || actionBusy || pendingReads.has("snapshot")) return;
+      queuedSnapshot = false;
+      clearReadTimeout(queuedReadTimer);
+      refresh().catch(error => report(`Статусы недоступны: ${error?.message || error}. Нажми «Обновить».`, true));
+    }
+    function queueSnapshotRefresh() {
+      if (queuedSnapshot) return;
+      queuedSnapshot = true;
+      const banner = root.querySelector("[data-security-banner]");
+      banner.className = "security-banner warn";
+      banner.innerHTML = securityBannerHTML("Обновление статусов ожидает чтения", "Действие завершено. Свежие показатели появятся после завершения предыдущего чтения; остальные действия доступны.");
+      queuedReadTimer = scheduleReadTimeout(() => {
+        if (queuedSnapshot) banner.innerHTML = securityBannerHTML("Чтение занимает слишком долго", "Проверь доступность папки или диска. После завершения чтения показатели обновятся автоматически; остальные действия доступны.");
+      }, readTimeoutMs);
+      pendingReads.get("snapshot")?.then(drainSnapshotRefresh, drainSnapshotRefresh);
+    }
+    function readStatus(key, task) {
+      if (pendingReads.has(key)) return Promise.reject(new Error("Предыдущее чтение ещё выполняется. Другие действия доступны; повтори обновление после его завершения."));
+      const raw = Promise.resolve().then(task);
+      pendingReads.set(key, raw);
+      raw.then(() => pendingReads.delete(key), () => pendingReads.delete(key));
+      return new Promise((resolve, reject) => {
+        const timer = scheduleReadTimeout(() => reject(new Error("Чтение занимает слишком долго. Проверь доступность папки или диска и повтори обновление.")), readTimeoutMs);
+        raw.then(resolve, reject).finally(() => clearReadTimeout(timer));
+      });
+    }
+    function loadExtras(view, force = false) {
+      if (!["backups", "maintenance"].includes(view) || (!force && loadedExtras.has(view))) return Promise.resolve();
+      if (extraJobs.has(view)) return extraJobs.get(view);
+      if (pendingReads.has(view)) { queueExtras(view); return Promise.resolve(); }
+      queuedExtras.delete(view);
+      const revision = extrasRevision;
+      const box = root.querySelector(view === "backups" ? "[data-vault-status]" : "[data-security-cleanup-summary]");
+      if (box) box.textContent = view === "backups" ? "Читаем историю копий… Остальные действия доступны." : "Рассчитываем объём очистки… Остальные действия доступны.";
+      const job = readStatus(view, () => view === "backups" ? recoveryController?.refresh(root) : collectCleanupPreview()).then(preview => {
+        if (revision !== extrasRevision) return;
+        if (view === "maintenance" && box) box.innerHTML = cleanupSummaryHTML(preview, renderOptions.bytesToHuman);
+        loadedExtras.add(view);
+      }).catch(error => {
+        if (revision !== extrasRevision) return;
+        if (box) box.textContent = `${view === "backups" ? "История" : "Расчёт очистки"} недоступна: ${error?.message || error}. Нажми «Обновить» или открой раздел повторно.`;
+      }).finally(() => {
+        extraJobs.delete(view); setBusy(actionBusy);
+        if (revision !== extrasRevision) queueExtras(view);
+      });
+      extraJobs.set(view, job);
+      return job;
+    }
+    root.querySelector("[data-security-cleanup-summary]").textContent = "Расчёт доступен в разделе «Обслуживание».";
+    let snapshotFailed = false;
+    const refresh = async ({deferIfPending = true} = {}) => {
+      if (deferIfPending && pendingReads.has("snapshot")) { queueSnapshotRefresh(); return; }
+      const revision = ++readRevision;
+      statusLoading = true;
+      setBusy(actionBusy);
+      try {
+        const snapshot = await readStatus("snapshot", () => collectSecuritySnapshot({includeCleanup:false}));
+        if (revision !== readRevision) return;
+        renderSecuritySnapshot(root, snapshot, { ...renderOptions, nativeMode });
+        if (loadedExtras.has("maintenance")) loadedExtras.delete("maintenance");
+        loadExtras(currentView, true);
+        snapshotFailed = false;
+      } catch (error) {
+        if (revision !== readRevision) return;
+        snapshotFailed = true;
+        const banner = root.querySelector("[data-security-banner]");
+        banner.className = "security-banner bad";
+        banner.innerHTML = securityBannerHTML("Статусы не обновлены", `Не удалось прочитать состояние: ${error?.message || "неизвестная ошибка"}. Нажми «Обновить», чтобы повторить. Показатели предыдущего чтения могут быть устаревшими.`);
+        const badge = root.querySelector("[data-security-main-badge]");
+        badge.className = "security-hero-badge warn";
+        badge.textContent = "Состояние не подтверждено";
+        root.querySelector("[data-security-score]").textContent = "— / 100";
+        root.querySelector("[data-security-score-meter]").removeAttribute("value");
+        throw error;
+      } finally {
+        if (revision === readRevision) statusLoading = false;
+        setBusy(actionBusy);
+      }
+    };
+
     root.addEventListener("click", async event => {
+      const navigation = event.target?.closest?.("[data-security-view]");
+      if (navigation) { showView(navigation.dataset.securityView); if (!actionBusy) loadExtras(currentView); return; }
       const action = securityCenterAction(event.target);
       if (!action || actionBusy) return;
       const trigger = event.target?.closest?.("button");
       actionBusy = true;
-      if (trigger) trigger.disabled = true;
+      ++readRevision;
+      ++extrasRevision;
+      statusLoading = false;
+      recoveryController?.invalidateRefresh?.(root);
+      snapshotFailed = false;
+      setBusy(true);
+      report(`Выполняется: ${trigger?.querySelector("b")?.textContent || trigger?.textContent || "операция"}. Дождись результата.`);
       try {
+        if (action.type === "recovery") { await recoveryController?.action(action, root); return; }
         if (action.type === "backup") { await exportBackup(); await refresh(); return; }
         if (action.type === "encrypted-backup") { await exportEncryptedBackup(); await refresh(); return; }
-        if (action.type === "import") { openImport(); return; }
+        if (action.type === "import") { await openImport(); return; }
         if (action.type === "recovery-test") { await runRecoveryTest(); await refresh(); return; }
-        if (action.type === "refresh") { await refresh(); toast("Статусы обновлены", "Центр безопасности перечитал состояние ZeTer OS."); return; }
+        if (action.type === "refresh") { await refresh({deferIfPending:false}); toast("Статусы обновлены", "Центр безопасности перечитал состояние ZeTer OS."); return; }
         if (action.type === "restore-point") { await createRestorePoint(root); await refresh(); return; }
         if (action.type === "restore-latest") { await restoreLatestPoint(); return; }
         if (action.type === "restore-id") { await restorePointById(action.id); return; }
@@ -456,6 +625,7 @@
         if (action.type === "policy-save") { await setProtectionProfile(root.querySelector?.("[data-security-policy]")?.value || "standard"); await refresh(); return; }
         if (action.type === "diagnostic") { await exportDiagnosticReport(); return; }
         if (action.type === "check") {
+          showView("overview");
           const box = root.querySelector?.("[data-security-check-result]");
           if (box) box.innerHTML = `<p class="muted">Проверяю данные ZeTer OS…</p>`;
           const check = await runIntegrityCheck({ persist: true });
@@ -465,12 +635,28 @@
           return;
         }
         if (action.type === "fix") { await fixSafeProblems(root); await refresh(); }
+      } catch (error) {
+        if (snapshotFailed) {
+          report(`Статусы не обновлены: ${error?.message || "неизвестная ошибка"}. Выполненное действие могло завершиться. Проверь его результат и нажми «Обновить».`, true);
+        } else {
+          report(`Операция не завершена: ${error?.message || "неизвестная ошибка"}. Можно повторить действие.`, true);
+          if (action.type === "check") {
+            root.querySelector("[data-security-check-result]").innerHTML = `<p class="muted">Проверка не завершена: ${escapeHtml(error?.message || "неизвестная ошибка")}. Повтори проверку целостности.</p>`;
+          }
+        }
+        toast(snapshotFailed ? "Не удалось обновить статусы" : "Не удалось завершить действие", error?.message || "Неизвестная ошибка");
       } finally {
         actionBusy = false;
-        if (trigger) trigger.disabled = false;
+        setBusy(false);
+        drainSnapshotRefresh();
+        drainExtras();
+        if (currentView !== "overview") loadExtras(currentView);
+        if (!operation.classList.contains("bad")) report("");
       }
     });
-    refresh();
+    recoveryController?.mount(root);
+    setBusy(false);
+    refresh().catch(error => report(`Статусы недоступны: ${error?.message || "неизвестная ошибка"}. Повтори чтение кнопкой «Обновить».`, true));
     return root;
   }
 
@@ -638,7 +824,7 @@
       return clearOldPwaCachesCore({ activeCacheName });
     }
 
-    async function collectCleanupPreview() {
+    async function collectCleanupPreview(known = {}) {
       const target = getState();
       const fs = Object.values(target?.fs || {});
       const oldKeys = oldLocalStorageKeys.filter(key => key !== smallSettingsKey && key !== storageKey && localStorageRef?.getItem?.(key) != null);
@@ -649,7 +835,7 @@
         try { native = await cleanupNativeArtifacts({ dryRun: true, logs: true, backups: true, temporary: true }); } catch {}
       }
       let restorePoints = 0;
-      try { restorePoints = (await readRestorePoints()).length; } catch {}
+      try { restorePoints = (known.restorePoints || await readRestorePointSummaries()).length; } catch {}
       return {
         legacyDeletedItems: fs.filter(item => item && (item.deletedAt || item.parent === trashRoot)).length,
         historyItems: Array.isArray(target?.actionHistory) ? target.actionHistory.length : 0,
@@ -729,6 +915,12 @@
       return points.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
     }
 
+    async function readRestorePointSummaries() {
+      if (!shouldUseNativeStorage()) return (await readRestorePoints()).map(describeRestorePoint);
+      const result = await loadNativeRestorePoints({summariesOnly:true});
+      return (Array.isArray(result?.points) ? result.points : []).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+    }
+
     function effectiveRestoreLimit() {
       return Math.min(restoreLimit || 12, normalizeProtectionPolicy(securityMeta().protectionPolicy).restoreLimit);
     }
@@ -761,6 +953,14 @@
       } finally {
         db.close();
       }
+    }
+
+    async function createRecoverySafetyPoint(snapshot) {
+      const point = { id: uid("restore"), app: "ZeTer OS", osVersion, createdAt: now(), name: "Перед выборочным восстановлением", reason: "pre-restore", verified: true, summary: stateSummary(snapshot), sizeBytes: byteSize(JSON.stringify(snapshot)), state: cloneForBackup(snapshot) };
+      await writeRestorePoint(point);
+      const readback = (await readRestorePoints()).find(entry => entry.id === point.id);
+      if (!readback || JSON.stringify(readback.state) !== JSON.stringify(point.state)) throw new Error("Страховочная точка не прошла контрольное чтение.");
+      return point;
     }
 
     async function createRestorePoint(root = documentRef, pointOptions = {}) {
@@ -1003,6 +1203,7 @@
     }
 
     async function maybeCreateAutomaticRestorePoint() {
+      if(options.isMutationBlocked?.()) return false;
       const meta = securityMeta();
       const policy = normalizeProtectionPolicy(meta.protectionPolicy);
       if (!policy.autoRestoreHours) return false;
@@ -1118,8 +1319,9 @@
       return report;
     }
 
-    async function collectExternalSaveSnapshot() {
+    async function collectExternalSaveSnapshot(known = {}) {
       return collectExternalSaveSnapshotModel({
+        ...known,
         workspace: currentWorkspace(),
         nativeMode: shouldUseNativeStorage(),
         supportsExternalFolderSave,
@@ -1128,14 +1330,16 @@
       });
     }
 
-    async function collectSecuritySnapshot() {
+    async function collectSecuritySnapshot({includeCleanup = true, restoreReadResult = null} = {}) {
       return collectSecuritySnapshotModel({
+        includeCleanup,
+        restoreReadResult,
         meta: securityMeta(),
         stateBytes: storedStateSizeBytes(),
         storageRuntime,
         byteSize,
         readSmallSettings,
-        readRestorePoints,
+        readRestorePoints: readRestorePointSummaries,
         nativeMode: shouldUseNativeStorage(),
         nativeStorageCall,
         getStorageEstimate,
@@ -1153,7 +1357,7 @@
         readSmallSettings,
         readLegacyState,
         readRestorePoints,
-        collectSecuritySnapshot,
+        collectSecuritySnapshot: known => collectSecuritySnapshot({...known,includeCleanup:false}),
         persist: Boolean(checkOptions.persist),
         persistStatus: (status, checkedAt, outcome, bad, warn) => {
           const meta = securityMeta();
@@ -1207,6 +1411,7 @@
         document: documentRef,
         nativeMode,
         collectSecuritySnapshot,
+        collectCleanupPreview,
         renderOptions: {
           nativeMode,
           formatSecurityTime,
@@ -1235,7 +1440,8 @@
         exportRestorePoint,
         deleteRestorePoint: deleteRestorePointById,
         setProtectionProfile,
-        exportDiagnosticReport
+        exportDiagnosticReport,
+        recoveryController: options.getRecoveryController?.() || null
       });
       scheduleProtectionCheck();
       return app;
@@ -1254,6 +1460,7 @@
       readRestorePoints,
       pruneRestorePoints,
       createRestorePoint,
+      createRecoverySafetyPoint,
       restoreLatestPoint,
       restorePointById,
       exportRestorePoint,

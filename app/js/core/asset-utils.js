@@ -230,41 +230,60 @@
     return new Blob([...localChunks, ...centralChunks, ...end], { type: "application/zip" });
   }
 
-  async function inflateZipEntry(bytes) {
-    if (!("DecompressionStream" in window)) {
-      throw new Error("Браузер не умеет распаковывать сжатые ZIP. Сохрани ZIP без сжатия или импортируй zeter-os-state.json.");
-    }
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+  async function inflateZipEntry(bytes, expectedSize, maxBytes) {
+    if (!("DecompressionStream" in window)) throw new Error("Браузер не умеет распаковывать этот ZIP. Используй актуальный браузер или ZIP без сжатия.");
+    const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+    const chunks = []; let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > expectedSize || size > maxBytes) throw new Error("Распакованный ZIP превышает допустимый размер.");
+        chunks.push(value);
+      }
+    } catch (error) { await reader.cancel().catch(() => {}); throw error; }
+    const result = new Uint8Array(size); let offset = 0;
+    for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
+    return result;
   }
 
   async function readStoredZipEntries(buffer) {
-    const view = new DataView(buffer);
-    const decoder = new TextDecoder();
-    const entries = new Map();
-    let offset = 0;
-    while (offset + 30 <= buffer.byteLength) {
-      const sig = view.getUint32(offset, true);
-      if (sig === 0x02014b50 || sig === 0x06054b50) break;
-      if (sig !== 0x04034b50) break;
-      const method = view.getUint16(offset + 8, true);
-      const compressedSize = view.getUint32(offset + 18, true);
-      const nameLength = view.getUint16(offset + 26, true);
-      const extraLength = view.getUint16(offset + 28, true);
-      const nameStart = offset + 30;
-      const dataStart = nameStart + nameLength + extraLength;
-      const dataEnd = dataStart + compressedSize;
-      if (dataEnd > buffer.byteLength) break;
-      const path = decoder.decode(new Uint8Array(buffer, nameStart, nameLength));
-      const normalizedPath = path.replace(/\\/g, "/");
-      const pathParts = normalizedPath.split("/").filter(Boolean);
-      if (path.length > 240 || normalizedPath.startsWith("/") || pathParts.some(part => part === "." || part === ".." || /[\0<>:"|?*]/.test(part))) throw new Error("ZIP содержит небезопасный путь файла.");
-      if (method === 0) entries.set(path, new Uint8Array(buffer.slice(dataStart, dataEnd)));
-      else if (method === 8) entries.set(path, await inflateZipEntry(new Uint8Array(buffer.slice(dataStart, dataEnd))));
-      else if (!path.endsWith("/")) throw new Error("ZIP использует неподдерживаемый метод сжатия.");
-      if (entries.size > BACKUP_IMPORT_MAX_ZIP_ENTRIES) throw new Error("В ZIP слишком много файлов для безопасного импорта.");
-      offset = dataEnd;
+    const limit = config.BACKUP_IMPORT_MAX_BYTES || 120 * 1024 * 1024;
+    if (!buffer || buffer.byteLength < 22 || buffer.byteLength > limit) throw new Error("ZIP повреждён или превышает допустимый размер.");
+    const view = new DataView(buffer), decoder = new TextDecoder("utf-8", { fatal: true });
+    const entries = new Map(), names = new Set(); let end = -1;
+    for (let i = buffer.byteLength - 22; i >= Math.max(0, buffer.byteLength - 65557); i--) {
+      if (view.getUint32(i, true) === 0x06054b50 && i + 22 + view.getUint16(i + 20, true) === buffer.byteLength) { end = i; break; }
     }
+    if (end < 0) throw new Error("ZIP повреждён: нет конечного каталога.");
+    const count = view.getUint16(end + 10, true), centralSize = view.getUint32(end + 12, true), centralStart = view.getUint32(end + 16, true);
+    if (view.getUint16(end + 4, true) || view.getUint16(end + 6, true) || view.getUint16(end + 8, true) !== count || count > BACKUP_IMPORT_MAX_ZIP_ENTRIES || centralStart + centralSize !== end) throw new Error("Неподдерживаемый или повреждённый каталог ZIP.");
+    let offset = centralStart, total = 0, localEnd = 0;
+    for (let index = 0; index < count; index++) {
+      if (offset + 46 > end || view.getUint32(offset, true) !== 0x02014b50) throw new Error("Повреждён каталог ZIP.");
+      const flags = view.getUint16(offset + 8, true), method = view.getUint16(offset + 10, true), crc = view.getUint32(offset + 16, true);
+      const compressed = view.getUint32(offset + 20, true), expanded = view.getUint32(offset + 24, true);
+      const nameLength = view.getUint16(offset + 28, true), extraLength = view.getUint16(offset + 30, true), commentLength = view.getUint16(offset + 32, true), local = view.getUint32(offset + 42, true);
+      if (offset + 46 + nameLength + extraLength + commentLength > end || flags & 9 || ![0, 8].includes(method) || ((view.getUint32(offset + 38, true) >>> 16) & 0xf000) === 0xa000) throw new Error("ZIP содержит неподдерживаемую запись или ссылку.");
+      const path = decoder.decode(new Uint8Array(buffer, offset + 46, nameLength));
+      const parts = path.replace(/\\/g, "/").split("/");
+      if (path.endsWith("/")) parts.pop();
+      if (!parts.length || path.length > 4096 || path.includes("\\") || parts.some(part => !part || part === "." || part === ".." || /[\0<>:\"|?*]/.test(part) || /[ .]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))) throw new Error("ZIP содержит небезопасный путь файла.");
+      const key = parts.join("/").normalize("NFC").toLowerCase();
+      if (names.has(key)) throw new Error("ZIP содержит повторяющийся путь файла.");
+      names.add(key); total += expanded;
+      if (total > limit || expanded > limit || compressed > limit || local !== localEnd || local + 30 > centralStart || view.getUint32(local, true) !== 0x04034b50) throw new Error("ZIP повреждён или превышает лимит распаковки.");
+      const localNameLength = view.getUint16(local + 26, true), localExtra = view.getUint16(local + 28, true);
+      const dataStart = local + 30 + localNameLength + localExtra, dataEnd = dataStart + compressed;
+      if (dataEnd > centralStart || view.getUint16(local + 6, true) !== flags || view.getUint16(local + 8, true) !== method || view.getUint32(local + 14, true) !== crc || view.getUint32(local + 18, true) !== compressed || view.getUint32(local + 22, true) !== expanded || decoder.decode(new Uint8Array(buffer, local + 30, localNameLength)) !== path) throw new Error("Запись ZIP не совпадает с каталогом.");
+      const data = new Uint8Array(buffer.slice(dataStart, dataEnd));
+      const bytes = method === 0 ? data : await inflateZipEntry(data, expanded, limit - (total - expanded));
+      if (bytes.byteLength !== expanded || crc32(bytes) !== crc) throw new Error("ZIP повреждён: контрольная сумма CRC не совпадает.");
+      if (!path.endsWith("/")) entries.set(path, bytes);
+      localEnd = dataEnd; offset += 46 + nameLength + extraLength + commentLength;
+    }
+    if (offset !== end || localEnd !== centralStart) throw new Error("ZIP содержит неоднозначный состав.");
     return entries;
   }
 

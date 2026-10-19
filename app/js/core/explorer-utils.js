@@ -236,6 +236,7 @@
 
   function explorerItemSize(item = {}) {
     try {
+      if (item.type === "managedFile" && Number.isFinite(item.managedFile?.size)) return Math.max(0, item.managedFile.size);
       if (item.dataURL) return dataUrlByteLength(item.dataURL);
       if (["text", "note", "markdown"].includes(item.type)) return new Blob([item.content || item.richContent || ""]).size;
       return new Blob([JSON.stringify(item)]).size;
@@ -249,19 +250,39 @@
   }
 
   function explorerFlowLayout(viewMode = "icons") {
-    return viewMode === "list" || viewMode === "table";
+    return ["list", "table", "content"].includes(viewMode);
   }
 
-  function sortExplorerItems(items = [], sortMode = "name", itemSize = explorerItemSize) {
+  const explorerNameCollator = new Intl.Collator("ru", { numeric: true, sensitivity: "base" });
+
+  function sortExplorerItems(items = [], sortMode = "name", itemSize = explorerItemSize, itemKind = item => ({ folder: "Папка", note: "Заметка", text: "Текстовый файл", table: "Таблица", image: "Изображение", markdown: "Markdown", managedFile: "Файл Windows", shortcut: "Ярлык", app: "Приложение" }[item.type] || "Файл")) {
+    const options = typeof sortMode === "string" ? { sortBy: sortMode } : (sortMode || {});
+    const key = ["name", "type", "extension", "updated", "created", "size"].includes(options.sortBy) ? options.sortBy : "name";
+    const descending = options.sortDirection === "desc" || (options.sortDirection !== "asc" && ["updated", "created", "size"].includes(key));
+    const direction = descending ? -1 : 1;
+    const compareName = (a, b) => explorerNameCollator.compare(String(a.name || ""), String(b.name || ""));
+    const fallback = (a, b) => compareName(a, b) || String(a.id || "").localeCompare(String(b.id || ""));
+    const dateValue = value => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null;
+    const value = item => {
+      if (key === "type") return String(itemKind(item) || "Файл");
+      if (key === "extension") return item.type === "folder" ? "" : (String(item.name || "").match(/^.+\.([^./\\]+)$/)?.[1] || "").toLocaleLowerCase("ru");
+      if (key === "updated") return dateValue(item.updatedAt) ?? dateValue(item.createdAt);
+      if (key === "created") return dateValue(item.createdAt);
+      if (key === "size") {
+        if (item.type === "folder") return null;
+        const size = itemSize(item);
+        return Number.isFinite(size) && size >= 0 ? size : null;
+      }
+      return String(item.name || "");
+    };
+    const values = new Map(items.map(item => [item, value(item)]));
     return [...items].sort((a, b) => {
-      if (a.pinnedInExplorer && !b.pinnedInExplorer) return -1;
-      if (!a.pinnedInExplorer && b.pinnedInExplorer) return 1;
-      if (a.type === "folder" && b.type !== "folder") return -1;
-      if (a.type !== "folder" && b.type === "folder") return 1;
-      if (sortMode === "type") return String(a.type).localeCompare(String(b.type), "ru") || String(a.name).localeCompare(String(b.name), "ru");
-      if (sortMode === "updated") return Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0);
-      if (sortMode === "size") return itemSize(b) - itemSize(a);
-      return String(a.name).localeCompare(String(b.name), "ru");
+      if (options.pinnedFirst !== false && Boolean(a.pinnedInExplorer) !== Boolean(b.pinnedInExplorer)) return a.pinnedInExplorer ? -1 : 1;
+      if (options.foldersFirst !== false && (a.type === "folder") !== (b.type === "folder")) return a.type === "folder" ? -1 : 1;
+      const av = values.get(a), bv = values.get(b);
+      if (av == null || bv == null) return av == null && bv == null ? fallback(a, b) : av == null ? 1 : -1;
+      const compared = typeof av === "number" ? av - bv : explorerNameCollator.compare(av, bv);
+      return compared ? direction * compared : fallback(a, b);
     });
   }
 
@@ -658,7 +679,7 @@
 
   function ensureExplorerSystemFolders(fs = {}, rootId = "", options = {}) {
     const {
-      specs = [{ role: "projects", name: "Проекты", x: 206, y: 32 }],
+      specs = [],
       uid = prefix => `${prefix}-${Date.now()}`,
       uniqueName = name => name,
       now = () => Date.now()

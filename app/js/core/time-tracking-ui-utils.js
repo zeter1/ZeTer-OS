@@ -35,8 +35,8 @@
     let busy = false, message = "", error = false, editor = null, journalLimit = 30, base = null;
     let recoveryEnd = "", restoreFocus = null, transferredManualDraft = null;
     const pendingTrash = new Map(), trashFailures = new Map();
-    const draft = { taskId: params.taskId || "", projectId: "", title: "", notes: "" };
-    const filters = { period: "week", query: "", project: "all", fromDate: localDateInput(localRanges().weekStart, false), toDate: localDateInput(Date.now(), false), deleted: false, grouping: "projects" };
+    const draft = { taskId: params.taskId || "", projectId: params.projectId || "", title: "", notes: "" };
+    const filters = { period: "week", query: "", project: params.projectId || "all", fromDate: localDateInput(localRanges().weekStart, false), toDate: localDateInput(Date.now(), false), deleted: false, grouping: "projects" };
     const field = name => root.querySelector(`[name="${name}"]`);
     const workspace = () => options.getWorkspace?.() || {};
     if (draft.taskId) draft.projectId = workspace().tasks?.find(task => task.id === draft.taskId)?.projectId || "";

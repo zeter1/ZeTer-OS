@@ -76,7 +76,7 @@
     if (!state.desktops.some(desktop => desktop.id === state.currentDesktop)) state.currentDesktop = "desktop";
     removeExplorerAppShortcutsFromState(state);
     removeWorkspaceDocumentsFoldersFromState(state);
-    normalizeNotesData(state, { appCenterName: apps.appcenter?.name });
+    normalizeNotesData(state, { appCenterName: apps.appcenter?.name, helpName: apps.help?.name });
     normalizeShortcutItems(state);
     normalizeItemCustomizations(state);
     normalizeTablesData(state);

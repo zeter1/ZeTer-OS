@@ -106,15 +106,15 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/business-calculations-utils.js",
     "js/core/business-calculations-ui-utils.js",
     "js/core/time-tracking-utils.js",
+    "js/core/project-overview-utils.js",
     "js/core/time-tracking-ui-utils.js",
-    "js/core/shell-ui-utils.js",
     "js/core/first-run-ui-utils.js",
     "js/core/context-menu-ui-utils.js",
     "js/core/explorer-tab-utils.js",
+    "js/core/desktop-layout-utils.js",
     "js/core/explorer-ui-utils.js",
     "js/core/pinning-utils.js",
     "js/core/trash-utils.js",
-    "js/core/desktop-layout-utils.js",
     "js/core/item-drag-ui-utils.js",
     "js/core/window-metrics-utils.js",
     "js/core/window-session-utils.js",
@@ -126,9 +126,11 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/asset-utils.js",
     "js/core/security-protection-utils.js",
     "js/core/visual-utils.js",
+    "js/core/shell-ui-utils.js",
     "js/core/item-customization-utils.js",
     "js/core/desktop-profile-utils.js",
     "js/core/desktop-ui-utils.js",
+    "js/core/preferences-writer-utils.js",
     "js/core/start-ui-utils.js",
     "js/core/file-import-utils.js",
     "js/core/file-template-utils.js",
@@ -143,6 +145,7 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/workspace-utils.js",
     "js/core/state-maintenance-utils.js",
     "js/core/task-ui-utils.js",
+    "js/core/project-overview-ui-utils.js",
     "js/core/task-app-ui-utils.js",
     "js/core/calendar-utils.js",
     "js/core/calendar-ui-utils.js",
@@ -153,6 +156,9 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/export-utils.js",
     "js/core/download-utils.js",
     "js/core/security-utils.js",
+    "js/core/security-restore-utils.js",
+    "js/core/security-vault-utils.js",
+    "js/core/security-recovery-utils.js",
     "js/core/security-ui-utils.js",
     "js/core/readable-export-utils.js",
     "js/core/table-utils.js",
@@ -1022,7 +1028,7 @@ def check_native_bridge_contract() -> list[CheckResult]:
     # The read-only installer probe has its own narrow API, not NativeStorageApi.
     probe_script = APP_DIR / "js" / "update-probe.js"
     js_source = "\n".join(read_text(path) for path in sorted((APP_DIR / "js").rglob("*.js")) if path != probe_script)
-    js_calls = set(re.findall(r"(?:nativeStorageCall|callNative)\(\s*['\"]([a-z][a-z0-9_]+)['\"]", js_source))
+    js_calls = set(re.findall(r"(?:nativeStorageCall|callNative|nativeCall)\(\s*['\"]([a-z][a-z0-9_]+)['\"]", js_source))
     js_calls.update(re.findall(r"pywebview\?\.api\?\.([a-z][a-z0-9_]+)", js_source))
     failures: list[str] = []
     if probe_script.exists():
@@ -1309,6 +1315,9 @@ def check_python_syntax() -> list[CheckResult]:
         UPDATE_FEED_TOOL,
         UPDATE_FEED_SMOKE,
         PROBLEM_LOGS_MODULE,
+        PROJECT_ROOT / "security_backup.py",
+        PROJECT_ROOT / "tools/smoke_security_backup.py",
+        PROJECT_ROOT / "tools/smoke_storage_info.py",
         Path(__file__).resolve(),
         UPDATE_DOCS_TOOL,
         NAVIGATION_INDEX_TOOL,
@@ -1318,6 +1327,7 @@ def check_python_syntax() -> list[CheckResult]:
         DESKTOP_BACKUP_SMOKE,
         PROBLEM_LOGS_SMOKE,
         BUILD_RELEASE_TOOL,
+        PROJECT_ROOT / "tools/prepare_web.py",
         RELEASE_SMOKE,
     )
     results: list[CheckResult] = []
@@ -1510,11 +1520,20 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_service_worker_assets())
     checks.extend(check_css_imports_are_cached())
     checks.extend(check_version_cache_match())
+    try:
+        from prepare_web import check_manifest
+        checks.append(ok("web.manifest", "direct-upload integrity manifest matches every app file") if check_manifest(PROJECT_ROOT)
+                      else fail("web.manifest", "run prepare_web.cmd: app/web-release.json is stale"))
+    except (OSError, ValueError, RuntimeError) as exc:
+        checks.append(fail("web.manifest", str(exc)))
     checks.extend(check_python_syntax())
     checks.extend(check_javascript_syntax(strict_node=strict_node))
     checks.extend(check_scenario_smokes(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_security_backup.py", key="python.security_backup_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_storage_info.py", key="python.storage_info_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=DESKTOP_BACKUP_SMOKE, key="python.desktop_backup_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_document_native.py", key="python.document_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=UPDATER_SMOKE, key="python.updater_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=UPDATE_FEED_SMOKE, key="python.update_feed_smoke"))
     checks.extend(check_problem_logs_smoke(strict_node=strict_node))

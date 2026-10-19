@@ -16,6 +16,151 @@
     explorerTabViewModels
   } = explorerTabUtils;
 
+  const EXPLORER_VIEW_MODES = Object.freeze([
+    { id: "huge", label: "Огромные значки", icon: "▣" },
+    { id: "large", label: "Крупные значки", icon: "▣" },
+    { id: "medium", label: "Обычные значки", icon: "▣" },
+    { id: "small", label: "Мелкие значки", icon: "⊞" },
+    { id: "list", label: "Список", icon: "☷" },
+    { id: "table", label: "Таблица", icon: "▤" },
+    { id: "icons", label: "Плитка", icon: "⊟" },
+    { id: "content", label: "Содержимое", icon: "☰" }
+  ]);
+  const EXPLORER_VIEW_FLAGS = Object.freeze({
+    navigation: "Область навигации", details: "Область сведений", preview: "Область просмотра",
+    compact: "Компактное представление", checkboxes: "Флажки элементов", extensions: "Расширения имён файлов", freePlacement: "Свободное размещение значков"
+  });
+  const EXPLORER_COLUMNS = Object.freeze([
+    { id: "name", label: "Имя", min: 120, width: 0 },
+    { id: "type", label: "Тип", min: 80, width: 110 },
+    { id: "size", label: "Размер", min: 64, width: 85 },
+    { id: "date", label: "Изменено", min: 92, width: 92 }
+  ]);
+  const EXPLORER_SORT_KEYS = Object.freeze([
+    { id: "name", label: "Имя" }, { id: "type", label: "Тип" },
+    { id: "extension", label: "Расширение" }, { id: "updated", label: "Дата изменения" },
+    { id: "created", label: "Дата создания" }, { id: "size", label: "Размер" }
+  ]);
+
+  function explorerSortMenuHTML(value, menuId = "explorer-sort") {
+    const view = normalizeExplorerView(value);
+    return `<div class="explorer-view-control explorer-sort-control">
+      <button type="button" data-sort-toggle popovertarget="${safeAttr(menuId)}" aria-label="Сортировка"><span aria-hidden="true">↕</span><span data-sort-label>Сортировка</span><span aria-hidden="true">⌄</span></button>
+      <div class="explorer-view-menu explorer-sort-menu" id="${safeAttr(menuId)}" popover="auto" aria-label="Сортировка папки">
+        <fieldset><legend>Сортировать по</legend>${EXPLORER_SORT_KEYS.map(key => `<label><input type="radio" name="${safeAttr(menuId)}-key" data-sort-key value="${key.id}"${view.sortBy === key.id ? " checked" : ""}><span>${key.label}</span></label>`).join("")}</fieldset>
+        <fieldset><legend>Направление</legend><label><input type="radio" name="${safeAttr(menuId)}-direction" data-sort-direction value="asc"${view.sortDirection === "asc" ? " checked" : ""}><span data-sort-order-label="asc">↑ По возрастанию</span></label><label><input type="radio" name="${safeAttr(menuId)}-direction" data-sort-direction value="desc"${view.sortDirection === "desc" ? " checked" : ""}><span data-sort-order-label="desc">↓ По убыванию</span></label></fieldset>
+        <fieldset><legend>Порядок групп</legend><label><input type="checkbox" data-sort-flag="foldersFirst"${view.foldersFirst ? " checked" : ""}><span>Папки сверху</span></label><label><input type="checkbox" data-sort-flag="pinnedFirst"${view.pinnedFirst ? " checked" : ""}><span>Закреплённые сверху</span></label></fieldset>
+        <p class="explorer-sort-hint">Имена с числами: файл 2, файл 10. Сортировка выстраивает значки по сетке.</p>
+        <p class="explorer-view-status" data-sort-status role="status" aria-live="polite"></p>
+      </div></div>`;
+  }
+
+  function normalizeExplorerView(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const clean = { mode: EXPLORER_VIEW_MODES.some(mode => mode.id === source.mode) ? source.mode : "icons" };
+    for (const key of Object.keys(EXPLORER_VIEW_FLAGS)) {
+      clean[key] = typeof source[key] === "boolean" ? source[key] : !["compact", "checkboxes", "freePlacement"].includes(key);
+    }
+    clean.columnWidths = {};
+    for (const column of EXPLORER_COLUMNS) {
+      const width = source.columnWidths?.[column.id];
+      if (typeof width === "number" && Number.isFinite(width)) clean.columnWidths[column.id] = Math.max(column.min, Math.min(1600, Math.round(width)));
+    }
+    clean.sortBy = EXPLORER_SORT_KEYS.some(key => key.id === source.sortBy) ? source.sortBy : "name";
+    clean.sortDirection = ["asc", "desc"].includes(source.sortDirection) ? source.sortDirection : (["updated", "created", "size"].includes(clean.sortBy) ? "desc" : "asc");
+    clean.foldersFirst = typeof source.foldersFirst === "boolean" ? source.foldersFirst : true;
+    clean.pinnedFirst = typeof source.pinnedFirst === "boolean" ? source.pinnedFirst : true;
+    return clean;
+  }
+
+  function applyExplorerColumnWidths(root, value = {}) {
+    const widths = normalizeExplorerView({ columnWidths: value }).columnWidths;
+    const name = widths.name ? `${widths.name - 32}px` : "minmax(160px, 1fr)";
+    const sizes = EXPLORER_COLUMNS.slice(1).map(column => widths[column.id] || column.width);
+    root.style.setProperty("--explorer-table-columns", `24px ${name} ${sizes.map(size => `${size}px`).join(" ")}`);
+    root.style.setProperty("--explorer-table-min-width", `${(widths.name || 192) + sizes.reduce((a, b) => a + b, 0) + 40}px`);
+    for (const handle of $$('[data-column-resize]', root)) {
+      const column = EXPLORER_COLUMNS.find(item => item.id === handle.dataset.columnResize);
+      const width = widths[column.id] || Math.round(handle.parentElement.getBoundingClientRect().width);
+      handle.setAttribute("aria-valuenow", String(Math.max(column.min, width || column.width || 192)));
+    }
+  }
+
+  function explorerTableHeaderHTML() {
+    return EXPLORER_COLUMNS.map(column => `<span class="explorer-column-heading" data-column="${column.id}"><button type="button" class="explorer-column-sort" data-sort-column="${column.id === "date" ? "updated" : column.id}" title="Сортировать: ${column.label}">${column.label}<span data-sort-arrow aria-hidden="true"></span></button><span role="separator" tabindex="0" aria-orientation="vertical" aria-label="Ширина колонки «${column.label}»" aria-valuemin="${column.min}" aria-valuemax="1600" data-column-resize="${column.id}" title="Потяни для изменения ширины. Стрелки ← →: изменить; двойной щелчок: сбросить."></span></span>`).join("");
+  }
+
+  function bindExplorerColumnResize(root, { getView, savePatch, isPending = () => false } = {}) {
+    let drag = null;
+    const stop = restore => {
+      const session = drag;
+      drag = null;
+      root.classList.remove("is-resizing-columns");
+      if (session && root.hasPointerCapture?.(session.pointerId)) root.releasePointerCapture(session.pointerId);
+      if (restore) applyExplorerColumnWidths(root, getView().columnWidths);
+      return session;
+    };
+    root.addEventListener("pointerdown", event => {
+      const handle = closestElement(event.target, '[data-column-resize]');
+      if (!handle || event.button !== 0 || isPending()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handle.focus({ preventScroll: true });
+      const column = EXPLORER_COLUMNS.find(item => item.id === handle.dataset.columnResize);
+      drag = { column, pointerId: event.pointerId, x: event.clientX, width: handle.parentElement.getBoundingClientRect().width };
+      root.setPointerCapture(event.pointerId);
+      root.classList.add("is-resizing-columns");
+    });
+    root.addEventListener("pointermove", event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      drag.next = Math.max(drag.column.min, Math.min(1600, Math.round(drag.width + event.clientX - drag.x)));
+      applyExplorerColumnWidths(root, { ...getView().columnWidths, [drag.column.id]: drag.next });
+    });
+    root.addEventListener("pointerup", event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const session = stop(false);
+      if (session.next !== undefined) savePatch({ columnWidths: { [session.column.id]: session.next } });
+    });
+    for (const type of ["pointercancel", "lostpointercapture"]) root.addEventListener(type, event => {
+      if (drag && event.pointerId === drag.pointerId) stop(true);
+    });
+    root.addEventListener("keydown", event => {
+      if (event.key === "Escape" && drag) { event.preventDefault(); stop(true); return; }
+      const handle = closestElement(event.target, '[data-column-resize]');
+      if (!handle || !["ArrowLeft", "ArrowRight", "Home"].includes(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (isPending()) return;
+      const key = handle.dataset.columnResize;
+      const width = getView().columnWidths[key] || handle.parentElement.getBoundingClientRect().width;
+      savePatch({ columnWidths: { [key]: event.key === "Home" ? null : width + (event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 50 : 10) } }, key);
+    });
+    root.addEventListener("dblclick", event => {
+      const handle = closestElement(event.target, '[data-column-resize]');
+      if (!handle) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!isPending()) savePatch({ columnWidths: { [handle.dataset.columnResize]: null } });
+    });
+  }
+
+  function explorerViewMenuHTML(value, menuId = "explorer-view") {
+    const view = normalizeExplorerView(value);
+    const label = EXPLORER_VIEW_MODES.find(mode => mode.id === view.mode).label;
+    return `<div class="explorer-view-control">
+      <button type="button" data-view-toggle popovertarget="${safeAttr(menuId)}" title="Вид папки" aria-label="Вид папки: ${label}">☷ Вид · <span data-view-label>${label}</span><span aria-hidden="true">⌄</span></button>
+      <div class="explorer-view-menu" id="${safeAttr(menuId)}" popover="auto" aria-label="Вид папки">
+        <fieldset><legend>Размер и расположение</legend>${EXPLORER_VIEW_MODES.map(mode => `<label><input type="radio" name="${safeAttr(menuId)}-mode" data-view-mode value="${mode.id}"${view.mode === mode.id ? " checked" : ""}><span class="explorer-view-symbol" aria-hidden="true">${mode.icon}</span><span>${mode.label}</span></label>`).join("")}</fieldset>
+        <fieldset><legend>Показать</legend>${Object.entries(EXPLORER_VIEW_FLAGS).map(([key, text]) => `<label><input type="checkbox" data-view-flag="${key}"${view[key] ? " checked" : ""}><span>${text}</span></label>`).join("")}</fieldset>
+        <p class="explorer-view-status" data-view-status role="status" aria-live="polite"></p>
+      </div></div>`;
+  }
+
+  function explorerDisplayName(item = {}, extensions = true) {
+    const name = String(item.name || "");
+    return extensions || item.type === "folder" ? name : name.replace(/(.+)\.[^.]+$/, "$1");
+  }
+
   function explorerBlankTabHTML() {
     return `
       <div class="explorer-empty-tab">
@@ -77,7 +222,9 @@
     pathValue = "",
     activeBlankTab = false,
     showPinButton = false,
-    pinButtonLabel = ""
+    pinButtonLabel = "",
+    view = {},
+    viewMenuId = "explorer-view"
   } = {}) {
     const placeholder = activeBlankTab ? "Вставь адрес папки и нажми Enter" : "Адрес папки";
     return `
@@ -85,8 +232,8 @@
           <button data-nav="up"${canGoUp ? "" : " disabled"}>⬆ Вверх</button>
           <input class="explorer-path-input" data-path-input value="${escapeHtml(pathValue)}" placeholder="${escapeHtml(placeholder)}" title="Адрес папки. Вставь путь и нажми Enter.">
           ${showPinButton ? `<button data-action="pin-current">${escapeHtml(pinButtonLabel)}</button>` : ""}
-          ${activeBlankTab ? "" : `<select data-sort title="Сортировка"><option value="name">Имя</option><option value="type">Тип</option><option value="updated">Дата</option><option value="size">Размер</option></select>
-          <select data-view-mode title="Вид"><option value="icons">Плитка</option><option value="list">Список</option><option value="table">Таблица</option><option value="large">Большие иконки</option></select>
+          ${activeBlankTab ? "" : `${explorerSortMenuHTML(view, `${viewMenuId}-sort`)}
+          ${explorerViewMenuHTML(view, viewMenuId)}
           <button data-bulk="select-all" title="Выделить все элементы в текущей папке">☑️ Все</button>
           <input data-search placeholder="Поиск в этой папке и подпапках" style="margin-left:auto;min-width:180px">`}
         </div>`;
@@ -196,9 +343,10 @@
     icon = "",
     name = "",
     pinned = false,
-    meta = ""
+    meta = "",
+    details = {}
   } = {}) {
-    return `<span class="file-emoji">${icon}</span><b>${pinned ? "📌 " : ""}${escapeHtml(name)}</b><small>${escapeHtml(meta)}</small>`;
+    return `<span class="explorer-item-check" aria-hidden="true">✓</span><span class="file-emoji" aria-hidden="true">${icon}</span><b class="explorer-item-name">${pinned ? "📌 " : ""}${escapeHtml(name)}</b><small class="explorer-item-meta">${escapeHtml(meta)}</small><span class="explorer-item-type">${escapeHtml(details.kind || "")}</span><span class="explorer-item-size">${escapeHtml(details.size || "")}</span><span class="explorer-item-date">${escapeHtml(details.date || "")}</span>`;
   }
 
   function explorerContentHTML({
@@ -224,7 +372,9 @@
     showPinButton = false,
     pinButtonLabel = "",
     currentFolder = "",
-    previewHTML = ""
+    previewHTML = "",
+    view = {},
+    viewMenuId = "explorer-view"
   } = {}) {
     return `
       <aside class="explorer-sidebar" data-folder-drop="${safeAttr(sidebarDropId)}">
@@ -236,7 +386,7 @@
           ${explorerTabsHTML(tabs)}
           <button class="explorer-tab-add" data-action="new-tab" title="Новая вкладка">+</button>
         </div>
-        ${explorerPathToolbarHTML({ canGoUp, pathValue, activeBlankTab, showPinButton, pinButtonLabel })}
+        ${explorerPathToolbarHTML({ canGoUp, pathValue, activeBlankTab, showPinButton, pinButtonLabel, view, viewMenuId })}
         ${explorerBulkbarHTML()}
         ${explorerContentHTML({ activeBlankTab, currentFolder, previewHTML })}
       </main>`;
@@ -429,6 +579,9 @@
       deleteItems = () => {},
       downloadExplorerItems = async () => {},
       saveState = () => {},
+      saveView = async () => { throw new Error("Сохранение вида недоступно."); },
+      itemKind = () => "Файл",
+      desktopView = {},
       renderAllFileSurfaces = () => {},
       explorerFolderMoveTargets = () => [],
       explorerPathText = () => "",
@@ -474,7 +627,48 @@
 
     const root = document.createElement("div");
     root.className = "explorer explorer-pro explorer-plus";
-    root.innerHTML = explorerShellHTML(model.shell);
+    root.dataset.viewFolder = currentFolder || "";
+    let view = normalizeExplorerView(fs[currentFolder]?.explorerView || (fs[currentFolder]?.type === "folder" ? { ...desktopView, columnWidths: {} } : desktopView));
+    root.innerHTML = explorerShellHTML({ ...model.shell, view, viewMenuId: `explorer-view-${winId}` });
+    const applyView = () => {
+      root.dataset.viewMode = view.mode;
+      applyExplorerColumnWidths(root, view.columnWidths);
+      for (const key of Object.keys(EXPLORER_VIEW_FLAGS)) root.dataset[key] = String(view[key]);
+      for (const input of $$('input[data-view-mode]', root)) input.checked = input.value === view.mode;
+      for (const input of $$('[data-view-flag]', root)) input.checked = view[input.dataset.viewFlag];
+      const label = EXPLORER_VIEW_MODES.find(mode => mode.id === view.mode).label;
+      const labelNode = $('[data-view-label]', root);
+      if (labelNode) labelNode.textContent = label;
+      $('[data-view-toggle]', root)?.setAttribute("aria-label", `Вид папки: ${label}`);
+      const sortLabel = EXPLORER_SORT_KEYS.find(key => key.id === view.sortBy).label;
+      const sortText = `${sortLabel} ${view.sortDirection === "asc" ? "↑" : "↓"}`;
+      const sortNode = $('[data-sort-label]', root);
+      if (sortNode) sortNode.textContent = sortText;
+      $('[data-sort-toggle]', root)?.setAttribute("aria-label", `Сортировка: ${sortLabel}, ${view.sortDirection === "asc" ? "по возрастанию" : "по убыванию"}`);
+      for (const input of $$('[data-sort-key]', root)) input.checked = input.value === view.sortBy;
+      for (const input of $$('[data-sort-direction]', root)) input.checked = input.value === view.sortDirection;
+      for (const input of $$('[data-sort-flag]', root)) input.checked = view[input.dataset.sortFlag];
+      const orderLabels = ["updated", "created"].includes(view.sortBy) ? ["↑ Сначала старые", "↓ Сначала новые"] : view.sortBy === "size" ? ["↑ Сначала маленькие", "↓ Сначала большие"] : ["↑ А → Я", "↓ Я → А"];
+      for (const node of $$('[data-sort-order-label]', root)) node.textContent = orderLabels[node.dataset.sortOrderLabel === "asc" ? 0 : 1];
+    };
+    applyView();
+    const viewMenu = $('.explorer-view-menu:not(.explorer-sort-menu)', root);
+    viewMenu?.addEventListener("beforetoggle", event => {
+      if (event.newState !== "open") return;
+      const rect = $('[data-view-toggle]', root).getBoundingClientRect();
+      viewMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 296))}px`;
+      viewMenu.style.top = `${Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 180))}px`;
+      viewMenu.style.maxHeight = `${Math.max(150, window.innerHeight - Math.min(rect.bottom + 6, window.innerHeight - 180) - 12)}px`;
+    });
+    const sortMenu = $('.explorer-sort-menu', root);
+    sortMenu?.addEventListener("beforetoggle", event => {
+      if (event.newState !== "open") return;
+      const rect = $('[data-sort-toggle]', root).getBoundingClientRect();
+      const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 180));
+      sortMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 296))}px`;
+      sortMenu.style.top = `${top}px`;
+      sortMenu.style.maxHeight = `${Math.max(150, window.innerHeight - top - 12)}px`;
+    });
     const folderBackground = String(folderBackgroundDataURL(fs[currentFolder]) || "");
     if (/^data:image\/(?:png|jpe?g|webp|gif|bmp)(?:;base64)?,/i.test(folderBackground)) {
       root.classList.add("has-folder-background");
@@ -501,10 +695,11 @@
 
     const draw = (drawOptions = {}) => drawExplorerGrid({
       root, options: drawOptions, activeBlankTab, currentFolder, rootId, orderedRootMode: isDesktopRoot(currentFolder), selected,
+      view,
       bindSelectionBox: bindExplorerSelectionBox,
       clearDesktopSelection, clearSelection, syncSelectionUi,
       setCurrentItems: items => { currentDrawItems = items; },
-      getItems: (query, sortMode) => sortExplorerItems(explorerSearchableItems(currentFolder, query), sortMode, explorerItemSize),
+      getItems: query => sortExplorerItems(explorerSearchableItems(currentFolder, query), view, explorerItemSize, itemKind),
       getFlowLayout: explorerFlowLayout,
       getSearchPosition: explorerSearchGridPosition,
       findFreePosition: (item, index) => findFreeFolderPosition(currentFolder, 24 + (index % 4) * 158, 24 + Math.floor(index / 4) * 146, item.id),
@@ -512,6 +707,7 @@
       getLocation: item => explorerResultLocationText(item, currentFolder, rootId),
       getCardMeta: (item, viewMode, locationText) => explorerCardMeta(item, { viewMode, locationText, itemDescription, itemSize: explorerItemSize, formatBytes: bytesToHuman }),
       getCardIcon: itemIcon,
+      getCardDetails: item => ({ kind: itemKind(item), size: item.type === "folder" ? "—" : bytesToHuman(explorerItemSize(item)), date: item.updatedAt || item.createdAt ? new Date(item.updatedAt || item.createdAt).toLocaleDateString("ru-RU") : "—" }),
       selectItem: selectByClick,
       openItem,
       openFolder: folderId => navigateFolder(folderId),
@@ -535,6 +731,58 @@
       showItemMenu,
       enableDrag: enableItemPointerDrag,
       gridMinSize: explorerGridMinSize
+    });
+
+    root.addEventListener("explorer-view-change", event => {
+      view = normalizeExplorerView(event.detail);
+      applyView();
+      draw();
+    });
+
+    let viewPending = false;
+    const saveViewPatch = async (patch, focusColumn = "") => {
+      if (viewPending) return;
+      viewPending = true;
+      const controls = $$('input', viewMenu).concat($$('input', sortMenu));
+      controls.forEach(control => { control.disabled = true; });
+      const statuses = $$('[data-view-status], [data-sort-status]', root);
+      statuses.forEach(status => { status.textContent = "Сохранение…"; });
+      try {
+        view = normalizeExplorerView(await saveView(currentFolder, patch));
+        applyView();
+        draw({ resetScroll: true });
+        for (const other of $$('.explorer[data-view-folder]', document)) {
+          if (other !== root && other.dataset.viewFolder === currentFolder) {
+            other.dispatchEvent(new window.CustomEvent("explorer-view-change", { detail: view }));
+          }
+        }
+        if (focusColumn) $(`[data-column-resize="${focusColumn}"]`, root)?.focus();
+        statuses.forEach(status => { status.textContent = ""; });
+      } catch (error) {
+        applyView();
+        statuses.forEach(status => { status.textContent = "Не удалось сохранить настройки. Повтори выбор."; });
+        toast("Вид не сохранён", "Прежние настройки сохранены. Повтори выбор.");
+      } finally {
+        viewPending = false;
+        controls.forEach(control => { control.disabled = false; });
+      }
+    };
+    bindExplorerColumnResize(root, { getView: () => view, savePatch: saveViewPatch, isPending: () => viewPending });
+    root.addEventListener("change", event => {
+      const input = event.target;
+      if (input.matches('[data-sort-key], [data-sort-direction], [data-sort-flag]')) {
+        const patch = input.matches('[data-sort-key]') ? { sortBy: input.value, sortDirection: ["updated", "created", "size"].includes(input.value) ? "desc" : "asc" } : input.matches('[data-sort-direction]') ? { sortDirection: input.value } : { [input.dataset.sortFlag]: input.checked };
+        saveViewPatch({ ...patch, freePlacement: false });
+        return;
+      }
+      if (!input.matches('[data-view-mode], [data-view-flag]')) return;
+      saveViewPatch(input.matches('[data-view-mode]') ? { mode: input.value } : { [input.dataset.viewFlag]: input.checked });
+    });
+    root.addEventListener("click", event => {
+      const button = closestElement(event.target, '[data-sort-column]');
+      if (!button) return;
+      const key = button.dataset.sortColumn;
+      saveViewPatch({ sortBy: key, sortDirection: key === view.sortBy ? (view.sortDirection === "asc" ? "desc" : "asc") : (["updated", "created", "size"].includes(key) ? "desc" : "asc"), freePlacement: false });
     });
 
     const createByAction = action => runExplorerCreateAction(action, {
@@ -1170,11 +1418,11 @@
   function explorerGridLayoutMode({
     viewMode = "icons",
     searchMode = false,
-    orderedRootMode = false
+    orderedRootMode = false,
+    freePlacement = false
   } = {}) {
-    if (viewMode === "list" || viewMode === "table") return "flow";
-    if (orderedRootMode && !searchMode) return "ordered";
-    return "free";
+    if (["list", "table", "content"].includes(viewMode)) return "flow";
+    return freePlacement && !searchMode && !orderedRootMode ? "free" : "ordered";
   }
 
   function drawExplorerGrid({
@@ -1204,18 +1452,22 @@
     showFolderMenu = () => {},
     showItemMenu = () => {},
     enableDrag = () => {},
-    gridMinSize = () => ({ minWidth: "100%", minHeight: "520px" })
+    gridMinSize = () => ({ minWidth: "100%", minHeight: "520px" }),
+    view = {},
+    getCardDetails = () => ({})
   } = {}) {
     const q = ($("[data-search]", root)?.value || "").trim().toLowerCase();
     const grid = $(".file-grid", root);
     if (!grid) return;
     bindSelectionBox(grid, { isDisabled: () => activeBlankTab, clearDesktopSelection, clearSelection, selected, syncSelectionUi });
     const resetScroll = Boolean(options.resetScroll);
+    grid._iconLayoutObserver?.disconnect();
+    grid._iconLayout = null;
     grid.innerHTML = "";
-    const sortMode = $("[data-sort]", root)?.value || "name";
-    const viewMode = $("[data-view-mode]", root)?.value || "icons";
+    const sortMode = view.sortBy || "name";
+    const viewMode = normalizeExplorerView(view).mode;
     const searchMode = Boolean(q);
-    const layoutMode = explorerGridLayoutMode({ viewMode, searchMode, orderedRootMode });
+    const layoutMode = explorerGridLayoutMode({ viewMode, searchMode, orderedRootMode, freePlacement: view.freePlacement });
     const flowLayout = layoutMode === "flow" || getFlowLayout(viewMode);
     const orderedLayout = layoutMode === "ordered";
     const naturalLayout = flowLayout || orderedLayout;
@@ -1229,8 +1481,8 @@
     const visibleHeight = () => Math.max(520, grid.parentElement?.clientHeight || 0, grid.closest(".explorer-content")?.clientHeight || 0, grid.clientHeight || 0);
     if (!items.length) {
       grid.classList.add("is-empty");
-      grid.style.minWidth = "100%";
-      grid.style.minHeight = `${visibleHeight()}px`;
+      grid.style.minWidth = "0";
+      grid.style.minHeight = "0";
       const empty = document.createElement("div");
       empty.className = "explorer-empty";
       empty.innerHTML = explorerGridEmptyHTML({ searchMode });
@@ -1239,30 +1491,31 @@
       syncSelectionUi();
       return;
     }
-    let maxBottom = 220;
-    let maxRight = 620;
-    items.forEach((item, index) => {
-      const searchPosition = getSearchPosition(index);
-      let cardX = Number.isFinite(item.x) ? item.x : null;
-      let cardY = Number.isFinite(item.y) ? item.y : null;
-      if (searchMode) { cardX = searchPosition.x; cardY = searchPosition.y; }
-      else if (!naturalLayout && (cardX === null || cardY === null)) {
-        const position = findFreePosition(item, index);
-        applyPosition(item, position);
-        cardX = position.x;
-        cardY = position.y;
+    const positionedCards = [];
+    if (viewMode === "table") {
+      const header = document.createElement("div");
+      header.className = "explorer-table-header";
+      header.innerHTML = explorerTableHeaderHTML();
+      for (const button of $$('[data-sort-column]', header)) {
+        const active = button.dataset.sortColumn === sortMode;
+        button.setAttribute("aria-pressed", String(active));
+        const arrow = $('[data-sort-arrow]', button);
+        if (active && arrow) arrow.textContent = view.sortDirection === "desc" ? " ↓" : " ↑";
       }
+      grid.appendChild(header);
+    }
+    items.forEach((item, index) => {
       const card = document.createElement("button");
       card.className = "file-card explorer-file-icon";
       card.dataset.itemId = item.id;
       if (item.type === "folder") card.dataset.folderTarget = item.id;
-      if (naturalLayout) { card.style.removeProperty("left"); card.style.removeProperty("top"); }
-      else { card.style.left = `${cardX ?? 16}px`; card.style.top = `${cardY ?? 16}px`; }
-      card.innerHTML = explorerFileCardHTML({ icon: getCardIcon(item), name: item.name, pinned: Boolean(item.pinnedInExplorer), meta: getCardMeta(item, viewMode, searchMode ? getLocation(item) : "") });
+      card.title = item.name;
+      card.setAttribute("aria-label", item.name);
+      card.innerHTML = explorerFileCardHTML({ icon: getCardIcon(item), name: explorerDisplayName(item, view.extensions !== false), pinned: Boolean(item.pinnedInExplorer), meta: getCardMeta(item, viewMode, searchMode ? getLocation(item) : ""), details: getCardDetails(item) });
       card.addEventListener("click", event => {
         if (card.dataset.dragJustEnded === "1") return;
         event.stopPropagation();
-        selectItem(item.id, event);
+        selectItem(item.id, closestElement(event.target, ".explorer-item-check") ? { ctrlKey: true } : event);
       });
       card.addEventListener("dblclick", event => {
         event.preventDefault();
@@ -1277,18 +1530,34 @@
       });
       enableDrag(card, item.id, { source: "explorer" });
       grid.appendChild(card);
-      if (!naturalLayout) {
-        const cardW = Math.max(150, card.offsetWidth || card.scrollWidth || 150);
-        const cardH = Math.max(124, card.offsetHeight || card.scrollHeight || 124);
-        maxRight = Math.max(maxRight, (cardX || 0) + cardW + 20);
-        maxBottom = Math.max(maxBottom, (cardY || 0) + cardH + 20);
-      }
+      if (!naturalLayout) positionedCards.push({ card, item });
     });
-    const size = orderedLayout
-      ? { minWidth: "100%", minHeight: "100%" }
-      : gridMinSize({ flowLayout, itemCount: items.length, visibleWidth: Math.max(grid.parentElement?.clientWidth || 0, grid.clientWidth || 0), visibleHeight: visibleHeight(), maxRight, maxBottom });
-    grid.style.minWidth = size.minWidth;
-    grid.style.minHeight = size.minHeight;
+    const reflow = () => {
+      if (!grid.isConnected || grid._iconLayout !== reflow || naturalLayout) return;
+      const occupied = [];
+      positionedCards.forEach(({ card, item }, index) => {
+        const position = window.ZETER_DESKTOP_LAYOUT_UTILS.resolveIconPosition({
+          x: Number.isFinite(item.x) ? item.x : 12 + (index % 4) * 120,
+          y: Number.isFinite(item.y) ? item.y : 12 + Math.floor(index / 4) * 140,
+          w: card.offsetWidth, h: card.offsetHeight
+        }, occupied, { width: grid.clientWidth, gap: 4 });
+        card.style.left = `${position.x}px`;
+        card.style.top = `${position.y}px`;
+        applyPosition(item, position);
+        occupied.push({ ...position, w: card.offsetWidth, h: card.offsetHeight });
+      });
+    };
+    grid._iconLayout = reflow;
+    reflow();
+    if (!naturalLayout && typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(reflow);
+    if (!naturalLayout && typeof window.ResizeObserver === "function") {
+      grid._iconLayoutObserver = new window.ResizeObserver(reflow);
+      grid._iconLayoutObserver.observe(grid);
+      positionedCards.forEach(({ card }) => grid._iconLayoutObserver.observe(card));
+    }
+    grid.style.minWidth = "0";
+    grid.style.minHeight = "0";
+    applyExplorerColumnWidths(root, view.columnWidths);
     if (resetScroll) { grid.scrollLeft = 0; grid.scrollTop = 0; }
     syncSelectionUi();
   }
@@ -1347,7 +1616,7 @@
     root.addEventListener("click", event => {
       const grid = closestElement(event.target, ".explorer-free-grid");
       if (grid?.dataset.selectionJustEnded === "1") return;
-      if (grid && !closestElement(event.target, ".explorer-file-icon,.file-card") && !closestElement(event.target, ".explorer-empty")) clearSelection();
+      if (grid && !closestElement(event.target, ".explorer-file-icon,.file-card,.explorer-table-header") && !closestElement(event.target, ".explorer-empty")) clearSelection();
     });
     root.addEventListener("keydown", event => {
       if (event.target.matches("[data-path-input]") && event.key === "Enter") {
@@ -1380,11 +1649,6 @@
     });
     root.addEventListener("input", event => {
       if (!event.target.matches("[data-search]")) return;
-      clearSelection();
-      redraw({ resetScroll: true });
-    });
-    root.addEventListener("change", event => {
-      if (!event.target.matches("[data-sort], [data-view-mode]")) return;
       clearSelection();
       redraw({ resetScroll: true });
     });
@@ -1484,6 +1748,7 @@
 
     grid.addEventListener("pointerdown", event => {
       if (event.button !== 0 || isDisabled()) return;
+      if (closestElement(event.target, ".explorer-table-header")) return;
       if (closestElement(event.target, ".explorer-file-icon,.file-card,.explorer-empty,.context-menu,input,textarea,select,button")) return;
       event.preventDefault();
       event.stopPropagation();
@@ -1565,7 +1830,11 @@
       const valid = new Set(currentItems().map(item => item.id).filter(Boolean));
       [...selected].forEach(id => { if (!valid.has(id)) selected.delete(id); });
       if (!root) return;
-      $$(".explorer-file-icon", root).forEach(card => card.classList.toggle("selected", selected.has(card.dataset.itemId)));
+      $$(".explorer-file-icon", root).forEach(card => {
+        const isSelected = selected.has(card.dataset.itemId);
+        card.classList.toggle("selected", isSelected);
+        card.setAttribute("aria-pressed", String(isSelected));
+      });
       const items = selectedItems();
       const bulkbar = $("[data-bulkbar]", root);
       if (bulkbar) bulkbar.classList.toggle("hidden", items.length < 2);
@@ -1624,6 +1893,13 @@
   }
 
   window.ZETER_EXPLORER_UI_UTILS = Object.freeze({
+    explorerSortMenuHTML,
+    explorerTableHeaderHTML,
+    bindExplorerColumnResize,
+    EXPLORER_VIEW_MODES,
+    normalizeExplorerView,
+    explorerViewMenuHTML,
+    explorerDisplayName,
     explorerBlankTabHTML,
     explorerTreeHTML,
     explorerPinnedHTML,
