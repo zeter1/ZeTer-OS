@@ -25,13 +25,26 @@
 > GitHub Releases are marked **Prerelease**: they are preview builds intended for testing.
 
 1. Open [Releases](https://github.com/zeter1/ZeTer-OS/releases) and select a build.
-2. Under **Assets**, download `ZeTer-OS-<version>-Windows-x64.zip` and the matching `.sha256.txt` checksum file.
-3. Optionally verify the downloaded ZIP against the SHA-256 in that file. In PowerShell: `Get-FileHash .\ZeTer-OS-*-Windows-x64.zip -Algorithm SHA256`.
-4. **Extract the entire ZIP** into its own folder, then launch `ZeTer-OS.exe`.
+2. Under **Assets**, download `ZeTer-OS-<version>-Windows-x64.zip`.
+3. **Extract the entire ZIP** into its own folder, then launch `ZeTer-OS.exe`.
 
 The portable distribution includes Python and the application's other runtime files. It does **not** remove the requirement for **Microsoft Edge WebView2 Runtime**, which may need to be installed separately on the target PC. Get it from [Microsoft's official WebView2 page](https://developer.microsoft.com/en-us/microsoft-edge/webview2/). Keep the EXE, DLLs, `app/`, `zeter-update.json`, and other packaged files together.
 
-The EXE is not publisher-signed, so Windows/SmartScreen may display a warning. Download builds only from [this repository's Releases](https://github.com/zeter1/ZeTer-OS/releases) and compare the checksum.
+The EXE is not publisher-signed, so Windows/SmartScreen may display a warning. Download builds only from [this repository's Releases](https://github.com/zeter1/ZeTer-OS/releases).
+
+#### Optional: verify ZIP integrity
+
+**The SHA-256 file is not required to install or launch the app.** It is available if you want to check that your ZIP matches the published archive.
+
+1. Under **Assets** of the same release, download `ZeTer-OS-<version>-Windows-x64.sha256.txt` alongside the ZIP.
+2. Open the `.sha256.txt` file to find the published checksum.
+3. Open PowerShell in the folder containing the ZIP and run:
+
+```powershell
+Get-FileHash .\ZeTer-OS-*-Windows-x64.zip -Algorithm SHA256
+```
+
+Compare the displayed `Hash` with the checksum in the TXT file. They must match. If they differ, download the ZIP again. A matching hash verifies integrity against the published checksum, but does not by itself authenticate the publisher.
 
 ### Browser / PWA
 
