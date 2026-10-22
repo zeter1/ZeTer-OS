@@ -1,18 +1,18 @@
 **Язык / Language:** **Русский** · [English](README_EN.md)
 
-<div align="center">
+<p align="center">
   <img src="app/assets/icons/zeter-logo.svg" alt="ZeTer OS" width="100" height="100">
+</p>
 
-  # ZeTer OS
+# ZeTer OS
 
-  **Настольное рабочее пространство с интерфейсом операционной системы — в Windows и браузере.**
+**Настольное рабочее пространство с интерфейсом операционной системы — в Windows и браузере.**
 
-  Рабочие столы · окна и «Пуск» · Проводник · заметки и задачи · файлы · резервные копии
+Рабочие столы · окна и «Пуск» · Проводник · заметки и задачи · файлы · резервные копии
 
-  [🚀 Запустить онлайн](https://dkl.do.am/zeteros/index.html) · [⬇️ Скачать Windows-версию](https://github.com/zeter1/ZeTer-OS/releases) · [📋 История изменений](CHANGELOG.md) · [🐞 Сообщить об ошибке](https://github.com/zeter1/ZeTer-OS/issues)
+[🚀 Запустить онлайн](https://dkl.do.am/zeteros/index.html) · [⬇️ Скачать Windows-версию](https://github.com/zeter1/ZeTer-OS/releases) · [📋 История изменений](CHANGELOG.md) · [🐞 Сообщить об ошибке](https://github.com/zeter1/ZeTer-OS/issues)
 
-  [![CI](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml/badge.svg)](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml)
-</div>
+[![CI](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml/badge.svg)](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml)
 
 ![ZeTer OS — рабочий стол и приложения](docs/images/zeter-os-banner.png)
 
@@ -153,7 +153,7 @@ Get-FileHash .\ZeTer-OS-*-Windows-x64.zip -Algorithm SHA256
 - [**CHANGELOG.md**](CHANGELOG.md) — история функций, исправлений и изменений.
 - [**Releases**](https://github.com/zeter1/ZeTer-OS/releases) — опубликованные Windows ZIP, SHA-256 и дата релиза.
 - [**RELEASE_NOTES_RU.md**](RELEASE_NOTES_RU.md) — примечания к Windows-сборке.
-- [**`version.js`](app/js/core/version.js) — версия исходного web-приложения в `main`.
+- [**`version.js`**](app/js/core/version.js) — версия исходного web-приложения в `main`.
 
 **Важно различать:** коммит в `main`, опубликованный Windows ZIP и файлы на uCoz могут иметь разные даты и версии.
 

@@ -1,18 +1,18 @@
 **Language / Язык:** [Русский](README.md) · **English**
 
-<div align="center">
+<p align="center">
   <img src="app/assets/icons/zeter-logo.svg" alt="ZeTer OS" width="100" height="100">
+</p>
 
-  # ZeTer OS
+# ZeTer OS
 
-  **An OS-inspired productivity workspace for Windows and the browser.**
+**An OS-inspired productivity workspace for Windows and the browser.**
 
-  Desktops · windows and Start menu · File Explorer · notes and tasks · files · backups
+Desktops · windows and Start menu · File Explorer · notes and tasks · files · backups
 
-  [🚀 Try online](https://dkl.do.am/zeteros/index.html) · [⬇️ Download for Windows](https://github.com/zeter1/ZeTer-OS/releases) · [📋 Changelog](CHANGELOG.md) · [🐞 Report a bug](https://github.com/zeter1/ZeTer-OS/issues)
+[🚀 Try online](https://dkl.do.am/zeteros/index.html) · [⬇️ Download for Windows](https://github.com/zeter1/ZeTer-OS/releases) · [📋 Changelog](CHANGELOG.md) · [🐞 Report a bug](https://github.com/zeter1/ZeTer-OS/issues)
 
-  [![CI](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml/badge.svg)](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml)
-</div>
+[![CI](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml/badge.svg)](https://github.com/zeter1/ZeTer-OS/actions/workflows/ci.yml)
 
 ![ZeTer OS desktop and applications](docs/images/zeter-os-banner.png)
 
@@ -153,7 +153,7 @@ Read the [data model](docs/DATA_MODEL.md), [state lifecycle](docs/STATE_LIFECYCL
 - [**CHANGELOG.md**](CHANGELOG.md) — features, fixes and project changes.
 - [**Releases**](https://github.com/zeter1/ZeTer-OS/releases) — Windows ZIP, SHA-256 and release dates.
 - [**RELEASE_NOTES_RU.md**](RELEASE_NOTES_RU.md) — Windows release notes (Russian).
-- [**`version.js`](app/js/core/version.js) — web-application source version on `main`.
+- [**`version.js`**](app/js/core/version.js) — web-application source version on `main`.
 
 A commit in `main`, the newest published Windows ZIP, and the uCoz website may have different release dates and versions.
 
