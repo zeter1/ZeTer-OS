@@ -83,7 +83,7 @@
   }
 
   function taskStoreSnapshot(store, currentWorkspace = () => ({})) {
-    const target = store?.item || currentWorkspace();
+    const target = taskStoreSaveTarget(store, currentWorkspace);
     return {
       tasks: structuredClone(target.tasks || []),
       taskProjects: structuredClone(target.taskProjects || []),
@@ -95,7 +95,7 @@
 
   function restoreTaskStoreSnapshot(store, snapshot, currentWorkspace = () => ({})) {
     if (!store || !snapshot) return;
-    const target = store.item || currentWorkspace();
+    const target = taskStoreSaveTarget(store, currentWorkspace);
     target.tasks = snapshot.tasks;
     target.taskProjects = snapshot.taskProjects;
     if ((taskProjectNavigationStates.get(target)?.revision || 0) === (snapshot.navigationRevision || 0)) target.activeTaskProjectId = snapshot.activeTaskProjectId;
@@ -211,6 +211,31 @@
   }
 
   // Uses the same store lock and canonical factories as the task board/editor.
+  function createTaskCompletionController(options) {
+    async function complete(taskId) {
+      const workspace = options.getWorkspace();
+      const task = workspace?.tasks?.find(item => item.id === taskId);
+      if (!task) throw new Error("Задача удалена или недоступна.");
+      if (taskStoreSaveLocks.has(workspace)) throw new Error("Сохранение задач выполняется. Дождитесь завершения и повторите.");
+      if (task.status === "done") return { saved: true, unchanged: true };
+      taskStoreSaveLocks.add(workspace);
+      try {
+        return await options.persistTransaction(async write => {
+          if (options.getWorkspace() !== workspace || !workspace.tasks.includes(task)) throw new Error("Задача удалена или недоступна.");
+          const candidate = { tasks: structuredClone(workspace.tasks) };
+          const updatedAt = Date.now();
+          Object.assign(candidate.tasks.find(item => item.id === taskId), { status: "done", updatedAt });
+          const saved = await options.saveSnapshot(write, candidate);
+          if (saved?.saved !== true) throw new Error("Хранилище не подтвердило сохранение задачи.");
+          // Publish only the accepted fields; concurrent text edits retain their values.
+          if (options.getWorkspace() === workspace && workspace.tasks.includes(task)) Object.assign(task, { status: "done", updatedAt });
+          return { saved: true };
+        });
+      } finally { taskStoreSaveLocks.delete(workspace); }
+    }
+    return Object.freeze({ complete });
+  }
+
   function createTaskCreationController(options) {
     async function create(kind, title, projectId = "") {
       const workspace = options.getWorkspace();
@@ -258,6 +283,10 @@
       const name = String(input.name || "").trim();
       if (!name || name.length > 160) throw new Error("Укажите название проекта: от 1 до 160 символов.");
       if (String(input.description || "").length > 2000) throw new Error("Описание должно содержать не больше 2000 символов.");
+      if (input.goal !== undefined && (typeof input.goal !== "string" || input.goal.length > 1000)) throw new Error("Цель проекта: не больше 1000 символов.");
+      if (input.status !== undefined && !["planned", "active", "paused", "completed"].includes(input.status)) throw new Error("Выберите статус проекта из списка.");
+      for (const key of ["startDate", "deadline"]) if (input[key] !== undefined && input[key] !== "" && !dataNormalizers.isCalendarDate(input[key])) throw new Error("Укажите существующую дату проекта.");
+      if (input.startDate && input.deadline && input.startDate > input.deadline) throw new Error("Срок проекта должен быть не раньше даты начала.");
       if (taskStoreSaveLocks.has(store)) throw new Error("Сохранение задач выполняется. Дождитесь завершения и повторите.");
       taskStoreSaveLocks.add(store);
       try {
@@ -285,7 +314,7 @@
     ["#a78bfa", "Лаванда"], ["#c4a484", "Песочный"], ["#94a3b8", "Серый"], ["#cbd5e1", "Серебряный"]
   ]);
 
-  function showTaskProjectSettingsDialog(documentRef, project, controller, onSaved) {
+  function showTaskProjectSettingsDialog(documentRef, project, controller, onSaved, { autoSave = false } = {}) {
     const existing = documentRef.querySelector("[data-project-settings-dialog][open]");
     if (existing) { existing.querySelector("input")?.focus(); return; }
     const expected = structuredClone(project), previousFocus = documentRef.activeElement;
@@ -297,6 +326,8 @@
       <div class="desktop-delete-body">
         <fieldset><legend>О проекте</legend><label>Название проекта<input name="name" required maxlength="160" autocomplete="off"></label>
         <label>Описание<textarea name="description" maxlength="2000" rows="3" placeholder="Цель проекта и важные подробности"></textarea></label>
+        <label>Цель и ожидаемый результат<textarea name="goal" maxlength="1000" rows="2" placeholder="Какой результат нужно получить?"></textarea></label>
+        <div class="task-project-settings-grid"><label>Статус проекта<select name="status"><option value="planned">Планируется</option><option value="active">В работе</option><option value="paused">Приостановлен</option><option value="completed">Завершён</option></select></label><label>Дата начала<input name="startDate" type="date"></label><label>Срок проекта<input name="deadline" type="date"></label></div><p>Статус и даты — справочные. Они не меняют задачи, события и учёт времени.</p>
         <fieldset class="task-project-color-section"><legend>Цвет проекта</legend><p>Выберите готовый оттенок или создайте свой в палитре.</p>
         <div class="task-project-colors">${PROJECT_COLOR_PRESETS.map(([value, label]) => `<label data-project-color="${value}" title="${label}"><input type="radio" name="color" value="${value}" aria-label="${label}"><span aria-hidden="true"></span><small>${label}</small></label>`).join("")}</div>
         <div class="task-project-custom-color"><label class="task-project-custom-toggle"><input type="radio" name="color" value="custom">Свой цвет</label><input type="color" name="customPicker" aria-label="Выбрать цвет в палитре"><label class="task-project-hex-label">HEX<input type="text" name="customHex" aria-label="Код цвета HEX" pattern="#[0-9a-fA-F]{6}" maxlength="7" required spellcheck="false" autocomplete="off" title="Введите # и шесть символов: 0–9, A–F"></label></div>
@@ -313,7 +344,7 @@
     const fields = form.elements;
     fields.namedItem("name").value = project.name;
     const settings = normalizeTaskProjectSettings(project);
-    for (const key of ["description", "defaultView", "sortBy", "defaultPriority"]) fields.namedItem(key).value = settings[key];
+    for (const key of ["description", "defaultView", "sortBy", "defaultPriority", "goal", "status", "startDate", "deadline"]) fields.namedItem(key).value = settings[key] ?? (key === "status" ? "active" : "");
     const preset = PROJECT_COLOR_PRESETS.some(([value]) => value === settings.color);
     fields.namedItem("color").value = preset ? settings.color : "custom";
     const accent = documentRef.defaultView?.getComputedStyle(documentRef.documentElement).getPropertyValue("--accent").trim();
@@ -340,6 +371,63 @@
       previewColor();
     });
     fields.namedItem("hideCompleted").checked = settings.hideCompleted;
+    if (autoSave) {
+      const status = documentRef.createElement("p"), errorBox = dialog.querySelector("[role=alert]"), closeButton = dialog.querySelector("[data-settings-cancel]");
+      status.className = "muted"; status.setAttribute("role", "status"); status.setAttribute("data-project-autosave-status", "");
+      dialog.querySelector("footer").prepend(status);
+      dialog.querySelector("[type=submit]").remove(); closeButton.textContent = "Закрыть";
+      const retry = documentRef.createElement("button"), discard = documentRef.createElement("button");
+      for (const button of [retry, discard]) { button.type = "button"; button.className = "app-btn"; button.hidden = true; }
+      retry.textContent = "Повторить сохранение"; retry.setAttribute("data-project-settings-retry", "");
+      discard.textContent = "Отменить несохранённое"; discard.setAttribute("data-project-settings-discard", "");
+      closeButton.before(retry, discard);
+      let timer = null, closeRequested = false, baseline = structuredClone(expected);
+      const readInput = () => {
+        const input = { name: fields.namedItem("name").value, hideCompleted: fields.namedItem("hideCompleted").checked };
+        for (const key of ["description", "color", "defaultView", "sortBy", "defaultPriority", "goal", "status", "startDate", "deadline"]) input[key] = fields.namedItem(key).value;
+        if (input.color === "custom") input.color = fields.namedItem("customHex").value;
+        return input;
+      };
+      const finishClose = () => { if (timer) clearTimeout(timer); dialog.close(); dialog.remove(); if (previousFocus?.isConnected) previousFocus.focus(); };
+      const showState = state => {
+        errorBox.hidden = !state.error;
+        if (state.error) errorBox.textContent = `${state.error.message || "Не удалось сохранить."} Ввод сохранён для повтора.`;
+        status.textContent = state.error ? "Изменения не сохранены" : state.pending ? "Сохранение…" : timer || state.dirty ? "Ожидание сохранения…" : state.lastSavedAt ? "Сохранено" : "Изменения сохраняются автоматически.";
+        retry.hidden = discard.hidden = !state.error;
+        retry.disabled = discard.disabled = state.pending;
+        closeButton.disabled = state.pending;
+        dialog.setAttribute("aria-busy", String(state.pending));
+        if (closeRequested && !state.dirty && !state.pending && !timer) finishClose();
+      };
+      const writer = window.ZETER_PREFERENCES_WRITER_UTILS.createPreferencesWriter({
+        keys: ["settings"], getPreferences: () => ({ settings: baseline }), requireAck: true,
+        save: async ({ settings }) => {
+          if (!form.checkValidity()) throw new Error("Проверьте обязательные поля, даты и код цвета.");
+          const previous = baseline;
+          const saved = await controller.save(project.id, settings, baseline);
+          baseline = structuredClone(saved); onSaved(saved, previous);
+          return { saved: true };
+        },
+        onChange: showState
+      });
+      let lastQueued = JSON.stringify(readInput());
+      const flush = () => {
+        if (timer) clearTimeout(timer); timer = null;
+        const input = readInput(), signature = JSON.stringify(input);
+        if (signature !== lastQueued) { lastQueued = signature; writer.update({ settings: input }); }
+        else showState(writer.getState());
+      };
+      form.addEventListener("input", () => { if (timer) clearTimeout(timer); timer = setTimeout(flush, 450); showState(writer.getState()); });
+      form.addEventListener("change", flush);
+      form.addEventListener("submit", event => { event.preventDefault(); flush(); });
+      retry.addEventListener("click", () => { if (timer) flush(); writer.retry(); });
+      discard.addEventListener("click", () => { if (writer.discard()) finishClose(); });
+      const requestClose = () => { closeRequested = true; if (timer) flush(); else showState(writer.getState()); };
+      closeButton.addEventListener("click", requestClose);
+      dialog.addEventListener("cancel", event => { event.preventDefault(); requestClose(); });
+      documentRef.body.append(dialog); dialog.showModal(); fields.namedItem("name").focus(); showState(writer.getState());
+      return;
+    }
     let pending = false;
     const close = () => { if (!pending) { dialog.close(); dialog.remove(); if (previousFocus?.isConnected) previousFocus.focus(); } };
     dialog.querySelector("[data-settings-cancel]").addEventListener("click", close);
@@ -348,7 +436,7 @@
       event.preventDefault();
       if (pending) return;
       const input = { name: fields.namedItem("name").value, hideCompleted: fields.namedItem("hideCompleted").checked };
-      for (const key of ["description", "color", "defaultView", "sortBy", "defaultPriority"]) input[key] = fields.namedItem(key).value;
+      for (const key of ["description", "color", "defaultView", "sortBy", "defaultPriority", "goal", "status", "startDate", "deadline"]) input[key] = fields.namedItem(key).value;
       if (input.color === "custom") input.color = normalizeTaskProjectColor(fields.namedItem("customHex").value);
       pending = true;
       const errorBox = dialog.querySelector("[role=alert]"); errorBox.hidden = true;
@@ -404,7 +492,7 @@
   }
 
   function taskStoreSaveTarget(store, currentWorkspace = () => ({})) {
-    const target = store?.item || currentWorkspace();
+    const target = store?.item || store?.workspace || currentWorkspace();
     return target && typeof target === "object" ? target : null;
   }
 
@@ -684,8 +772,8 @@
           if (task.indefinite) {
             const due = promptUser("Дата выполнения задачи:", task.due || todayISO());
             if (due === null) return;
-            const normalizedDue = /^\d{4}-\d{2}-\d{2}$/.test(String(due).trim()) ? String(due).trim() : "";
-            if (!normalizedDue) return toast("Срок не сохранён", "Введите дату в формате ГГГГ-ММ-ДД.");
+            const normalizedDue = String(due).trim();
+            if (!window.ZETER_PROJECT_OVERVIEW_UTILS.validProjectDue(normalizedDue)) return toast("Срок не сохранён", "Введите существующую дату в формате ГГГГ-ММ-ДД.");
             setTaskIndefinite(task, false, normalizedDue);
           } else setTaskIndefinite(task, true);
           void saveTasks(snapshot, () => toast(task.indefinite ? "Задача стала бессрочной" : "Срок задачи возвращён", task.title));
@@ -1185,6 +1273,7 @@
     applyTaskBoardFilterAction,
     taskStoreSnapshot,
     restoreTaskStoreSnapshot,
+    createTaskCompletionController,
     createTaskCreationController,
     createTaskProjectNavigationController,
     showTaskProjectDialog,

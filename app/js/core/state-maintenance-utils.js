@@ -1,8 +1,6 @@
 (() => {
   "use strict";
 
-  const config = window.ZETER_OS_CONFIG || {};
-  const TRASH_ROOT = config.TRASH_ROOT || "trash";
 
   const REMOVED_APP_IDS = new Set(["browser", "paint", "tools", "explorer", "recycle", "ter" + "minal"]);
   const REMOVED_APP_NAMES = new Set([
@@ -114,6 +112,11 @@
     const ids = asIdSet(deletedIds);
     if (!target || !ids.size) return target;
     const blocked = id => ids.has(id);
+    const removedApps = new Set([...ids].map(id => target.fs?.[id]).filter(item => item?.type === "app").map(item => item.appId));
+    if (Array.isArray(target.taskbarPinnedApps) && removedApps.size) {
+      target.taskbarPinnedApps = target.taskbarPinnedApps.filter(appId => !removedApps.has(appId) || Object.values(target.fs || {}).some(item => item?.type === "app" && item.appId === appId && !item.deletedAt && !ids.has(item.id)));
+    }
+
 
     target.actionHistory = Array.isArray(target.actionHistory)
       ? (options.dropActionHistory ? [] : target.actionHistory.filter(action => !(action?.items || []).some(item => blocked(item?.id))))
@@ -136,24 +139,6 @@
         : [];
     });
     return target;
-  }
-
-  function purgeDeletedItemsFromStorageState(target = {}, options = {}) {
-    const fs = target?.fs || {};
-    const baseIds = Object.values(fs)
-      .filter(item => item && (item.deletedAt || item.parent === TRASH_ROOT))
-      .map(item => item.id);
-    const deletedIds = expandItemIdsInTarget(target, baseIds);
-
-    if (!deletedIds.size) {
-      if (options.dropActionHistory) target.actionHistory = [];
-      return 0;
-    }
-
-    pruneTargetReferencesForRemovedItems(target, deletedIds, options);
-    deletedIds.forEach(id => delete fs[id]);
-    if (typeof options.normalizeStartPinnedState === "function") options.normalizeStartPinnedState(target);
-    return deletedIds.size;
   }
 
   function rememberDeletedIdsForNativePurge(target = {}, deletedIds = new Set()) {
@@ -291,7 +276,6 @@
     expandItemIdsInTarget,
     pushActionHistory,
     pruneTargetReferencesForRemovedItems,
-    purgeDeletedItemsFromStorageState,
     rememberDeletedIdsForNativePurge,
     normalizeNotesData,
     createRemovedItemReferencesController

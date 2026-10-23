@@ -7,7 +7,7 @@
 
   const { $, clamp } = coreUtils;
 
-  const STANDARD_WINDOW_TOP_OVERLAP = 14;
+  const STANDARD_WINDOW_TOP_OVERLAP = 0;
   const STANDARD_WINDOW_SIDE_GAP = 0;
   const STANDARD_WINDOW_MIN_FILL = 0.88;
 
@@ -57,7 +57,7 @@
     const height = Math.max(240, Math.round(areaH + topOverlap));
     return {
       left: `${STANDARD_WINDOW_SIDE_GAP}px`,
-      top: `-${topOverlap}px`,
+      top: `${-topOverlap}px`,
       width: `${width}px`,
       height: `${height}px`
     };

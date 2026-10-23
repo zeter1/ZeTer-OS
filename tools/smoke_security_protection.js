@@ -6,7 +6,7 @@ const vm = require("node:vm");
 const { webcrypto } = require("node:crypto");
 
 const context = vm.createContext({
-  window: { ZETER_OS_CONFIG: { BACKUP_IMPORT_MAX_ZIP_ENTRIES: 200, ALLOWED_IMAGE_MIME_TYPES: ["image/png"], TRASH_ROOT: "trash" } },
+  window: { ZETER_OS_CONFIG: { BACKUP_IMPORT_MAX_ZIP_ENTRIES: 200, ALLOWED_IMAGE_MIME_TYPES: ["image/png"], LEGACY_DELETED_ROOT: "trash" } },
   console,
   Blob,
   Uint8Array,
@@ -70,7 +70,7 @@ async function main() {
     "app/js/core/fs-item-utils.js",
     "app/js/core/item-properties-ui-utils.js",
     "app/js/core/readable-export-utils.js",
-    "app/js/core/trash-utils.js"
+    "app/js/core/deletion-utils.js"
   ].forEach(file => {
     assert.doesNotMatch(fs.readFileSync(file, "utf8"), /Корзин/, `${file} must not expose a current Trash label`);
   });

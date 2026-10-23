@@ -9,7 +9,7 @@ const corePath = path.join(__dirname, "../app/js/core/prompt-library-utils.js");
 assert.ok(fs.existsSync(corePath), "Prompts must have a production model");
 vm.runInContext(fs.readFileSync(corePath, "utf8"), sandbox);
 const lib = sandbox.ZETER_PROMPT_LIBRARY_UTILS;
-for (const name of ["utils.js", "prompt-library-ui-utils.js", "shortcut-utils.js", "link-library-utils.js", "config.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
+for (const name of ["utils.js", "contacts-utils.js", "prompt-library-ui-utils.js", "shortcut-utils.js", "link-library-utils.js", "config.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core", name), "utf8"), sandbox);
 }
 sandbox.ZETER_DATA_NORMALIZERS = { TASK_TITLE_MAX_CHARS: 500, TASK_TAG_MAX_CHARS: 160, TASK_CHECKLIST_TEXT_MAX_CHARS: 500 };

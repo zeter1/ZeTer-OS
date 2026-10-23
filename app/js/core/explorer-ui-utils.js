@@ -976,6 +976,7 @@
       )
     });
     draw();
+    if (params.focusItemId && currentDrawItems.some(item => item.id === params.focusItemId)) selectByClick(params.focusItemId, {});
     return root;
   }
 

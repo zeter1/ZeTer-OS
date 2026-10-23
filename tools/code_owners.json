@@ -115,6 +115,14 @@
       "manual": "Добавить и убрать карточки, перетащить за ручку на позицию выбранной карточки внутри окна, проверить обе половины и кнопки выше/ниже, сохранение полей и порядка, два окна и столы, reload и узкую ширину."
     },
     {
+      "id": "contacts", "title": "Контакты, проекты и категории", "keywords": ["contacts", "контакты", "телефон", "email", "соцсети", "поля контакта"],
+      "js": ["app/js/core/contacts-utils.js", "app/js/core/contacts-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js"],
+      "app_anchors": ["renderContactsApp"], "css": ["app/css/69-contacts.css"],
+      "state": ["workspace.contacts.projects[]", "workspace.contacts.categories[]", "workspace.contacts.entries[]"],
+      "smokes": ["tools/smoke_contacts.js", "tools/smoke_contacts_integration.js", "tools/smoke_contacts_ui.js", "tools/smoke_contacts_edges_ui.js"],
+      "manual": "Проекты слева; категории только внутри проекта. Создать контакт с несколькими телефонами, email, соцсетями и своим полем; найти, изменить, скопировать, перенести, проверить отказ и повтор записи, два окна, reload и узкий экран."
+    },
+    {
       "id": "prompt-library", "title": "Проекты и категории промптов", "keywords": ["prompts", "промпты", "название промпта", "скопировать промпт"],
       "js": ["app/js/core/prompt-library-utils.js", "app/js/core/prompt-library-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js"],
       "app_anchors": ["renderPromptLibraryApp"], "css": ["app/css/65-link-library.css", "app/css/66-prompt-library.css"],
@@ -206,19 +214,19 @@
       "app_anchors": ["taskAppRuntimeController"],
       "css": ["app/css/30-app-common.css", "app/css/40-app-foundation.css"],
       "state": ["workspace.tasks", "workspace.taskProjects", "workspace.notifications"],
-      "smokes": ["tools/smoke_state_migration.js"],
-      "manual": "Создать и изменить задачу, checklist, filter и reminder; открыть её из уведомления."
+      "smokes": ["tools/smoke_state_migration.js", "tools/smoke_persistence_ack.js", "tools/smoke_tasks_edges_ui.js", "tools/smoke_tasks_layout.js"],
+      "manual": "Создать и изменить задачу, checklist, filter и reminder; открыть её из уведомления. Проверить отказ записи после смены стола, сохранность соседнего стола и reload; отклонение несуществующей даты и повтор с верной датой."
     },
     {
       "id": "calendar",
       "title": "Календарь, события и повторы",
       "keywords": ["calendar", "events", "repeat", "agenda", "календарь", "события", "повтор"],
       "js": ["app/js/core/calendar-utils.js", "app/js/core/calendar-ui-utils.js", "app/js/core/data-normalizers.js", "app/js/core/app-catalog.js"],
-      "app_anchors": ["renderCalendarApp", "renderCalendarEventEditorApp"],
+      "app_anchors": ["renderCalendarApp", "renderCalendarEventEditorApp", "calendarPersistenceOptions", "calendarWorkspaceTools"],
       "css": ["app/css/30-app-common.css", "app/css/60-apps-calendar-notes-tables.css", "app/css/80-overrides.css"],
-      "state": ["workspace.events", "workspace.calendarState"],
-      "smokes": ["tools/smoke_calendar_runtime.js", "tools/smoke_state_migration.js"],
-      "manual": "Проверить, что «Добавить событие» недоступно до сегодняшней локальной даты, а сегодня и позже открывает редактор; вручную ввести прошлую дату и проверить отказ кнопкой и Ctrl+Enter, включая окно, открытое до полуночи. Проверить просмотр, изменение и удаление старого события, рост списка выбранного дня, repeat, reminder и все views."
+      "state": ["workspace.events", "workspace.calendarState", "workspace.calendarCategories"],
+      "smokes": ["tools/smoke_calendar_runtime.js", "tools/smoke_calendar_persistence.js", "tools/smoke_calendar_planner.js", "tools/smoke_calendar_workspace.js", "tools/smoke_calendar_integrations.js", "tools/smoke_calendar_ui.js", "tools/smoke_calendar_planner_ui.js", "tools/smoke_calendar_exports.py", "tools/smoke_state_migration.js"],
+      "manual": "Проверить прошлую дату кнопкой и Ctrl+Enter, включая переход через полночь; сегодня/будущее и редактирование старых событий. Сохранение и удаление: ACK, отмена, отказ → повтор, два редактора и конфликт, смена стола во время записи, доставка напоминания до transaction и во время записи, соседние события; repeat, reminder и все views. Категории: независимые создание и настройки выбранной категории рядом с фильтром, отмена удаления, выбор переноса событий, отказ → повтор, ожидание ACK, старый снимок и сохранность файлов/другого стола. Создание и настройки общего с задачами проекта из календаря: отмена, отказ → повтор, ACK и выбор сохранённого проекта. Настройки категории сразу после фильтра, панель целиком без внутренней прокрутки; настройки выбранного проекта перед кнопкой создания."
     },
     {
       "id": "automations-object-links",
@@ -247,11 +255,11 @@
       "title": "Глобальный поиск и приложение поиска",
       "keywords": ["search", "global search", "filters", "commands", "поиск", "фильтры", "команды"],
       "js": ["app/js/core/search-utils.js", "app/js/core/search-ui-utils.js"],
-      "app_anchors": ["renderSearchApp", "renderGlobalSearch"],
+      "app_anchors": ["renderSearchApp", "renderGlobalSearch", "persistSearchAwareTransaction", "persistSearchPreferences", "runSearchResultAction"],
       "css": ["app/css/10-shell.css", "app/css/80-overrides.css"],
-      "state": ["state.searchSettings", "state.fs", "workspace.tasks", "workspace.events"],
-      "smokes": [],
-      "manual": "Искать файл, задачу и событие; проверить фильтр, команду и переход к результату."
+      "state": ["state.searchSettings", "state.fs", "workspace.tasks", "workspace.events", "workspace.taskProjects", "workspace.library", "workspace.promptLibrary", "workspace.timeTracking"],
+      "smokes": ["tools/smoke_search_ui.js", "tools/smoke_search_index.js", "tools/smoke_search_controller.js", "tools/smoke_search_actions.js", "tools/smoke_search_settings.js", "tools/smoke_search_upgrade_browser.js"],
+      "manual": "Все типы, текущий/все столы, проекты/даты, явные исправления, preview/actions, history/reload, rename/index, refusal/retry; клавиатура, 320px и низкое окно."
     },
     {
       "id": "storage",
@@ -287,15 +295,15 @@
       "manual": "Создать проверенный ZIP и зашифрованный .zeterbak, открыть readable-data и проверить повторную верифицированную запись во внешнюю папку."
     },
     {
-      "id": "trash-history",
-      "title": "Удаление, undo и legacy-совместимость",
-      "keywords": ["trash", "delete", "restore", "undo", "retention", "корзина", "удаление", "восстановление"],
-      "js": ["app/js/core/trash-utils.js", "app/js/core/state-maintenance-utils.js", "app/js/core/fs-item-utils.js"],
-      "app_anchors": ["normalizeTrashState", "saveState"],
+      "id": "permanent-deletion",
+      "title": "Прямое удаление и legacy-совместимость",
+      "keywords": ["delete", "permanent", "legacy", "удаление", "корзина"],
+      "js": ["app/js/core/deletion-utils.js", "app/js/core/state-maintenance-utils.js", "app/js/core/fs-item-utils.js"],
+      "app_anchors": ["deleteItem", "saveState"],
       "css": ["app/css/50-explorer.css", "app/css/85-explorer-plus.css"],
-      "state": ["state.fs[*].trashedAt", "state.actionHistory", "saved window/item references"],
+      "state": ["state.fs[*].deletedAt (legacy only)", "state.actionHistory", "saved window/item references"],
       "smokes": ["tools/smoke_state_migration.js"],
-      "manual": "Удалить объект после подтверждения, перезапустить и убедиться, что он не вернулся; отдельно загрузить временный legacy-state с deletedAt/TRASH_ROOT и проверить migration/cleanup без появления отдельной Корзины."
+      "manual": "Удалить объект после подтверждения, перезапустить и убедиться, что он не вернулся; отдельно загрузить временный legacy-state с deletedAt/LEGACY_DELETED_ROOT и проверить сохранность прежних записей без интерфейса восстановления и автоочистки."
     },
     {
       "id": "security-monitor",
@@ -321,14 +329,14 @@
     },
     {
       "id": "about-system",
-      "title": "О ZeTer OS: описание, версия, обновления и разработчик",
+      "title": "О ZeTer OS: описание, запуск, версия, обновления и разработчик",
       "keywords": ["about", "version", "developer", "о системе", "о ZeTer OS", "разработчик", "что нового", "обновления", "контакты", "копировать"],
       "js": ["app/js/core/about-ui-utils.js", "app/js/core/config.js", "app/js/core/version.js", "app/js/core/app-catalog.js", "app/js/core/shell-ui-utils.js"],
       "app_anchors": ["renderAboutApp", "copyTextToClipboard", "openExternalTarget"],
       "css": ["app/css/40-app-foundation.css"],
       "state": ["ui.windows (обычное окно; содержимое О ZeTer OS не хранит пользовательских данных)"],
       "smokes": ["tools/smoke_about_ui.js", "tools/smoke_help_content.js", "tools/smoke_shell_runtime.js"],
-      "manual": "Верхняя панель → О ZeTer OS: описание, ссылка Руководство пользователя ZeTer OS → отдельное внутреннее окно, версия, 13 внешних ссылок, контакты; выделение → ПКМ → Копировать, Ctrl+C; широкое/узкое окно, повторное открытие. В Настройках нет Разработчика и О системе."
+      "manual": "Верхняя панель → О ZeTer OS: описание, ссылка Руководство пользователя ZeTer OS → отдельное внутреннее окно, версия; между обновлениями и разработчиком три варианта запуска (браузер, EXE, Python), команды, ссылки, предупреждение о раздельном хранении; контакты; выделение → ПКМ → Копировать, Ctrl+C; широкое/узкое окно, повторное открытие. В Настройках нет Разработчика и О системе."
     },
     {
       "id": "tables",
@@ -371,7 +379,7 @@
       "app_anchors": ["renderPhotosApp", "renderCalculatorApp", "renderHelpApp"],
       "css": ["app/css/30-app-common.css", "app/css/40-app-foundation.css", "app/css/41-first-run.css"],
       "state": ["state.fs image items", "calculator runtime input", "state.firstRunCompleted", "state.systemSettings", "state.desktops[].name", "workspace.settings.wallpaper", "workspace.settings.desktopAppearance", "state.taskbarPinnedApps"],
-      "smokes": ["tools/smoke_help_content.js", "tools/smoke_first_run_setup.js"],
+      "smokes": ["tools/smoke_help_content.js", "tools/smoke_help_ui.js", "tools/smoke_first_run_setup.js"],
       "manual": "Первый запуск: шесть этапов настройки, приложения на столе/taskbar, размеры/зазоры/расширения, startup, первый проверенный ZIP или «Позже», Назад/вперёд, отказ записи/повтор, сохранение/перезагрузка и 14 подсказок. «Посмотреть возможности»: главная, раздел → поиск → Escape, пустой результат/очистка, раскрытие тем клавиатурой, кнопки приложений и окно 390 px внутри широкого viewport; отдельно открыть галерею и калькулятор."
     },
     {
@@ -406,7 +414,7 @@
     {
       "id": "time-tracking-app", "title": "Таймер и история работы", "scenario": "time-tracking", "keywords": ["учёт времени", "timetracking UI", "таймер"],
       "files": ["app/js/core/time-tracking-utils.js", "app/js/core/time-tracking-ui-utils.js", "app/js/core/calendar-utils.js", "app/js/core/calendar-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/app-catalog.js", "app/js/app.js", "app/css/68-time-tracking.css"],
-      "hooks": ["time-tracking-app", "data-time-start", "data-time-recovery", "data-time-edit", "data-time-manual", "data-time-goal-form", "data-time-create", "data-time-purge", "data-time-end-preview", "data-plan-status", "data-time-action", "data-time-id", "data-time-clock", "data-time-status", "data-time-day", "data-time-results", "data-time-row", "data-time-pending-id", "time-entry-pending", "time-row-error", "time-entry", "time-entry-kind", "time-entry-context", "time-entry-duration", "time-task-picker"],
+      "hooks": ["time-tracking-app", "data-time-start", "data-time-recovery", "data-time-edit", "data-time-manual", "data-time-goal-form", "data-time-create", "data-time-end-preview", "data-plan-status", "data-time-action", "data-time-id", "data-time-clock", "data-time-status", "data-time-day", "data-time-results", "data-time-row", "data-time-pending-id", "time-entry-pending", "time-row-error", "time-entry", "time-entry-kind", "time-entry-context", "time-entry-duration", "time-task-picker"],
       "smokes": ["tools/smoke_time_tracking.js", "tools/smoke_time_tracking_upgrade.js", "tools/smoke_time_tracking_management.js", "tools/smoke_time_tracking_clarity.js"]
     },
     {
@@ -446,6 +454,11 @@
         "data-calc-catalog",
         "data-calc-catalog-list"
       ]
+    },
+    {
+      "id": "contacts-app", "title": "Приложение Контакты", "scenario": "contacts", "keywords": ["contacts UI", "контакты", "карточка", "телефон"],
+      "files": ["app/js/core/contacts-ui-utils.js", "app/js/core/app-catalog.js", "app/js/app.js", "app/css/69-contacts.css"],
+      "hooks": ["contacts-app", "data-contact-project", "data-contact-filter", "data-contact-open", "data-contact-search", "data-contact-action", "data-contact-copy", "data-contact-fields", "data-contact-field-row", "data-contact-field-add", "data-contact-field-remove", "data-contact-field-type", "data-contact-field-label", "data-contact-field-value", "data-contact-dialog-submit", "data-contact-dialog-error"]
     },
     {
       "id": "prompt-library-app", "title": "Приложение Промпты", "scenario": "prompt-library", "keywords": ["prompts UI", "промпты", "копировать"],
@@ -541,8 +554,8 @@
       "title": "Календарь и отдельное окно события",
       "scenario": "calendar",
       "keywords": ["calendar", "event form", "календарь"],
-      "files": ["app/js/core/calendar-ui-utils.js", "app/js/core/app-catalog.js", "app/css/30-app-common.css", "app/css/60-apps-calendar-notes-tables.css"],
-      "hooks": ["calendar-app", "calendar-event-editor-app", "data-cal", "data-add-event", "data-save-event"]
+      "files": ["app/js/core/calendar-ui-utils.js", "app/js/core/task-app-ui-utils.js", "app/js/core/app-catalog.js", "app/css/30-app-common.css", "app/css/60-apps-calendar-notes-tables.css"],
+      "hooks": ["calendar-app", "calendar-event-editor-app", "data-cal", "data-add-event", "data-save-event", "data-delete-category", "data-category-replacement", "data-create-category", "data-new-category-name", "calendar-category-settings-trigger", "data-create-project", "data-project-settings", "data-category-description", "data-category-icon", "data-retry-category-settings", "data-project-autosave-status", "refreshCalendar"]
     },
     {
       "id": "automations-app",
@@ -606,12 +619,12 @@
       "scenario": "small-apps",
       "keywords": ["help", "guide", "first run", "search", "справка", "путеводитель", "возможности", "первый запуск", "поиск"],
       "files": ["app/js/core/first-run-ui-utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/help-content.js", "app/js/core/app-catalog.js", "app/css/40-app-foundation.css", "app/css/41-first-run.css"],
-      "hooks": ["data-first-create", "data-first-import", "data-first-help", "data-first-error", "data-first-windows-startup", "data-first-backup-create", "data-first-backup-later", "data-first-backup-done", "first-run-setup-form", "data-setup-back", "data-tour-next", "data-tour-back", "data-setup-skip", "help-page", "data-help-search", "data-help-target", "data-help-app", "data-help-home", "data-help-results", "data-help-clear", "data-help-query"]
+      "hooks": ["data-first-create", "data-first-import", "data-first-help", "data-first-error", "data-first-windows-startup", "data-first-backup-create", "data-first-backup-later", "data-first-backup-done", "first-run-setup-form", "data-setup-back", "data-tour-next", "data-tour-back", "data-setup-skip", "help-page", "data-help-search", "data-help-target", "data-help-app", "data-help-home", "data-help-results", "data-help-clear", "data-help-query", "data-help-menu-toggle", "data-help-topic-target", "data-help-expand", "data-help-collapse"]
     }
   ],
   "state_lifecycle": [
     {
-      "id": "time-tracking", "title": "История, корзина, цель и активный таймер рабочего стола", "state_paths": ["workspace.timeTracking.entries[]", "workspace.timeTracking.active", "workspace.timeTracking.dailyGoalMinutes"],
+      "id": "time-tracking", "title": "История, цель и активный таймер рабочего стола", "state_paths": ["workspace.timeTracking.entries[]", "workspace.timeTracking.active", "workspace.timeTracking.dailyGoalMinutes"],
       "stages": {
         "defaults": [{"path": "app/js/core/workspace-utils.js", "anchors": ["workspaceDefaults"]}],
         "normalizers": [{"path": "app/js/core/time-tracking-utils.js", "anchors": ["normalizeTimeTracking"]}],
@@ -681,6 +694,17 @@
         "tools/smoke_business_calculations.js",
         "tools/smoke_state_migration.js"
       ]
+    },
+    {
+      "id": "contacts", "title": "Контакты рабочего стола", "state_paths": ["workspace.contacts"],
+      "stages": {
+        "defaults": [{"path": "app/js/core/workspace-utils.js", "anchors": ["workspaceDefaults"]}],
+        "normalizers": [{"path": "app/js/core/contacts-utils.js", "anchors": ["normalizeContacts"]}],
+        "migration": [{"path": "app/js/core/workspace-utils.js", "anchors": ["normalizeWorkspaceData"]}],
+        "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedStateForImport"]}],
+        "serializer": [{"path": "app/js/core/export-utils.js", "anchors": ["buildDownloadOsDataZipModel"]}],
+        "storage": [{"path": "app/js/core/storage-utils.js", "anchors": ["createPrimaryStateSaveQueue"]}]
+      }, "smokes": ["tools/smoke_contacts.js", "tools/smoke_contacts_integration.js"]
     },
     {
       "id": "prompt-library", "title": "Библиотека промптов рабочего стола", "state_paths": ["workspace.promptLibrary"],
@@ -805,14 +829,14 @@
     {
       "id": "calendar",
       "title": "Календарные события",
-      "state_paths": ["workspace.events", "workspace.calendarState"],
+      "state_paths": ["workspace.events", "workspace.calendarState", "workspace.calendarCategories"],
       "stages": {
         "defaults": [{"path": "app/js/core/initial-state-utils.js", "anchors": ["defaultState"]}],
         "normalizers": [{"path": "app/js/core/data-normalizers.js", "anchors": ["normalizeCalendarEvent", "normalizeCalendarStore"]}],
         "migration": [{"path": "app/js/core/state-migration-utils.js", "anchors": ["migrateState"]}],
         "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedEvents"]}],
         "serializer": [{"path": "app/js/core/storage-utils.js", "anchors": ["buildPrimaryStateRecord"]}],
-        "storage": [{"path": "app/js/core/workspace-utils.js", "anchors": ["deskEvents"]}]
+        "storage": [{"path": "app/js/core/workspace-utils.js", "anchors": ["deskEvents"]}, {"path": "app/js/core/calendar-utils.js", "anchors": ["createCalendarEventController"]}, {"path": "app/js/app.js", "anchors": ["calendarPersistenceOptions", "calendarWorkspaceTools"]}]
       },
       "smokes": ["tools/smoke_state_migration.js"]
     },
@@ -901,13 +925,13 @@
       "smokes": ["tools/smoke_state_migration.js", "tools/smoke_storage_runtime.js"]
     },
     {
-      "id": "filesystem-trash",
+      "id": "filesystem-deletion",
       "title": "Файловая система и удалённые legacy-ссылки",
       "state_paths": ["state.fs", "state.actionHistory", "workspace.openWindows"],
       "stages": {
         "defaults": [{"path": "app/js/core/initial-state-utils.js", "anchors": ["defaultState"]}],
-        "normalizers": [{"path": "app/js/core/trash-utils.js", "anchors": ["normalizeTrashState"]}, {"path": "app/js/core/state-maintenance-utils.js", "anchors": ["normalizeNotesData"]}],
-        "migration": [{"path": "app/js/core/state-maintenance-utils.js", "anchors": ["purgeDeletedItemsFromStorageState"]}],
+        "normalizers": [{"path": "app/js/core/state-maintenance-utils.js", "anchors": ["normalizeNotesData"]}],
+        "migration": [{"path": "app/js/core/state-migration-utils.js", "anchors": ["migrateState"]}],
         "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedStateForImport"]}],
         "serializer": [{"path": "app/js/core/storage-utils.js", "anchors": ["buildPrimaryStateRecord"]}],
         "storage": [{"path": "app/js/core/state-maintenance-utils.js", "anchors": ["createRemovedItemReferencesController"]}]

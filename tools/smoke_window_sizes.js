@@ -7,7 +7,7 @@ const vm = require("node:vm");
 const sandbox = {
   console, document: { documentElement: { clientWidth: 1600 } },
   innerWidth: 1600, innerHeight: 1000,
-  getComputedStyle: () => ({ getPropertyValue: () => "0" }),
+  getComputedStyle: () => ({ getPropertyValue: name => name === "--topbar" ? "36px" : "0" }),
   ZETER_CORE_UTILS: {
     $: selector => selector === "#window-layer" ? { clientHeight: 900 } : null,
     $$: () => [], clamp: (v, min, max) => Math.min(max, Math.max(min, v)),
@@ -25,6 +25,7 @@ for (const name of ["system-settings-utils", "window-metrics-utils", "window-ui-
 }
 const settings = sandbox.ZETER_SYSTEM_SETTINGS_UTILS;
 const metrics = sandbox.ZETER_WINDOW_METRICS_UTILS;
+assert.equal(parseFloat(metrics.standardWindowRect().top), 0, "full windows must stay below the compact menu");
 assert.equal(settings.normalizeSystemSettings().windows.openingSize, "full");
 assert.equal(settings.normalizeSystemSettings({ windows: { openingSize: "bad", future: 1 } }).windows.openingSize, "full");
 assert.equal(settings.normalizeSystemSettings({ windows: { openingSize: "compact", future: 1 } }).windows.future, 1);

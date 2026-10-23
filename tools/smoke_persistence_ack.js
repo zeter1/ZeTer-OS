@@ -38,7 +38,8 @@ assert.ok(appCenterUI.appCenterCardHTML({ description: "<img src=x onerror=alert
 const mixedCatalog = appCenterUI.appCenterEntries(visibleApps, id => id === "editor");
 const mixedCatalogHTML = appCenterUI.appCenterHTML(mixedCatalog);
 assert.ok(mixedCatalogHTML.includes('class="app-center-summary"'), "catalog must summarize installed and available apps");
-assert.ok(mixedCatalogHTML.includes('<dd>17</dd>') && mixedCatalogHTML.includes('<dd>1</dd>'), "summary must reflect the displayed apps and desktop installation state");
+assert.equal(mixedCatalog.filter(entry => entry.id === "contacts").length, 1, "Contacts must appear once in the application catalog");
+assert.ok(mixedCatalogHTML.includes(`<dd>${visibleApps.length}</dd>`) && mixedCatalogHTML.includes('<dd>1</dd>'), "summary must reflect the displayed apps and desktop installation state");
 assert.ok(appCenterUI.appCenterCardHTML(mixedCatalog[0]).includes('class="app-center-status installed"'), "installed state must have an explicit card label");
 
 async function testAppCenterRollback() {
@@ -176,11 +177,27 @@ async function testTaskEditorRetry() {
   }
 }
 
+function testTaskWorkspaceRollbackOwner() {
+  const tasks = sandbox.window.ZETER_TASK_APP_UI_UTILS, ui = sandbox.window.ZETER_TASK_UI_UTILS;
+  const first = {tasks:[{id:'a',title:'Original'}],taskProjects:[{id:'p',name:'A'}],activeTaskProjectId:'p'};
+  const second = {tasks:[{id:'b',title:'Neighbor'}],taskProjects:[{id:'q',name:'B'}],activeTaskProjectId:'q'};
+  let active = first;
+  const store = ui.taskStoreFromParams({}, {currentWorkspace:() => active});
+  const snapshot = tasks.taskStoreSnapshot(store, () => active);
+  first.tasks[0].title = 'Pending'; active = second;
+  const neighbor = structuredClone(second);
+  tasks.restoreTaskStoreSnapshot(store, snapshot, () => active);
+  assert.equal(first.tasks[0].title, 'Original', 'rollback must return to its original workspace');
+  assert.deepEqual(second, neighbor, 'late rollback must not replace the active desktop');
+  assert.equal(tasks.taskStoreSnapshot(store, () => active).tasks[0].id, 'a', 'snapshot must retain its store owner after switching desktops');
+}
+
 (async () => {
   await testAppCenterRollback();
   await testAppCenterBlocksConcurrentMutation();
   testTaskSnapshotRollbackContract();
   await testTaskEditorRetry();
+  testTaskWorkspaceRollbackOwner();
   console.log("persistence acknowledgement smoke: ok");
 })().catch(error => {
   console.error(error);

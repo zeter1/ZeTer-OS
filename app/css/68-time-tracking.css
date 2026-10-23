@@ -63,16 +63,11 @@
 .time-binding-hint { margin: 8px 0 14px; }
 .time-plan-instead { width: 100%; margin: 4px 0; text-align: left; }
 .time-tracking-app .time-danger { color: var(--danger); border-color: var(--danger); }
-.time-purge-list { max-height: 220px; overflow: auto; margin: 0; padding: 12px 12px 12px 30px; border: 1px solid var(--stroke); border-radius: 10px; }
-.time-purge-list li { padding: 6px 0; overflow-wrap: anywhere; font-size: 12px; }
-.time-purge-list small { display: block; margin-top: 4px; color: var(--muted); }
 .time-end-preview { padding: 10px 12px; background: var(--glass-2); border-radius: 8px; font-size: 12px; }
 .time-end-preview.error { color: var(--danger); }
 .time-history { border-top: 1px solid var(--stroke); padding-top: 17px; }
 .time-history-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
 .time-history-heading > .app-btn { color: var(--muted); font-size: 11px; }
-.time-tabs { display: flex; gap: 6px; }
-.time-tabs [aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--glass-2); }
 .time-filters { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: 11px; }
 .time-date-range, .time-form-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .time-date-range { margin-top: 11px; }

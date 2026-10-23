@@ -5,7 +5,6 @@
   const visualUtils = window.ZETER_VISUAL_UTILS;
   const systemSettingsUtils = window.ZETER_SYSTEM_SETTINGS_UTILS;
   const pinningUtils = window.ZETER_PINNING_UTILS;
-  const trashUtils = window.ZETER_TRASH_UTILS;
   const searchUtils = window.ZETER_SEARCH_UTILS;
   const stateMaintenanceUtils = window.ZETER_STATE_MAINTENANCE_UTILS;
   const tableUtils = window.ZETER_TABLE_UTILS;
@@ -15,7 +14,7 @@
   const shortcutUtils = window.ZETER_SHORTCUT_UTILS;
   const itemCustomizationUtils = window.ZETER_ITEM_CUSTOMIZATION_UTILS;
   const workspaceUtils = window.ZETER_WORKSPACE_UTILS;
-  if (!config || !visualUtils || !systemSettingsUtils || !pinningUtils || !trashUtils || !searchUtils ||
+  if (!config || !visualUtils || !systemSettingsUtils || !pinningUtils || !searchUtils ||
       !stateMaintenanceUtils || !tableUtils || !dataNormalizers || !securityUtils || !initialStateUtils || !shortcutUtils || !itemCustomizationUtils || !workspaceUtils) {
     throw new Error("ZeTer OS state migration utils require config and state normalizer modules.");
   }
@@ -24,7 +23,6 @@
   const { normalizeVisualSettings, defaultDesktopDescription, normalizeDesktopRecord } = visualUtils;
   const { normalizeSystemSettings } = systemSettingsUtils;
   const { normalizeStartPinnedState, normalizeTaskbarPinnedApps } = pinningUtils;
-  const { normalizeTrashRetentionDays } = trashUtils;
   const { normalizeSearchSettings } = searchUtils;
   const {
     removeExplorerAppShortcutsFromState,
@@ -45,16 +43,9 @@
   const { syncLegacyWorkspaceAliases } = workspaceUtils;
 
   function migrateState(state, options = {}) {
-    const normalizeTrashState = options.normalizeTrashState;
-    const purgeExpiredTrashItems = options.purgeExpiredTrashItems;
-    if (typeof normalizeTrashState !== "function" || typeof purgeExpiredTrashItems !== "function") {
-      throw new Error("ZeTer OS state migration requires trash normalization callbacks.");
-    }
-
     const apps = options.apps || {};
     const defaults = defaultState();
     state.settings = normalizeVisualSettings({ ...defaults.settings, ...(state.settings || {}) });
-    state.settings.trashRetentionDays = normalizeTrashRetentionDays(state.settings.trashRetentionDays);
     state.systemSettings = normalizeSystemSettings({ ...defaults.systemSettings, ...(state.systemSettings || {}) });
     state.fs = state.fs || defaults.fs;
     state.tasks = Array.isArray(state.tasks) ? state.tasks : defaults.tasks;
@@ -85,8 +76,6 @@
     normalizeNotificationStore(state);
     normalizeTaskListsData(state);
     syncLegacyWorkspaceAliases(state);
-    normalizeTrashState(state);
-    purgeExpiredTrashItems(state, { dropActionHistory: true });
     state.security = normalizeSecurityMeta(state.security);
     state.version = OS_VERSION_NUMBER;
     state.osVersion = OS_VERSION;

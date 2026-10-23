@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -347,7 +348,73 @@ def smoke_diagnostic_identity_and_caps() -> None:
         assert "SECRET" not in summary_path.read_text(encoding="utf-8")
 
 
+def smoke_usage_scan() -> None:
+    """Budget scans validate directory ancestry once, retaining per-entry safety."""
+    with tempfile.TemporaryDirectory(prefix="zeter-log-scan-") as temp:
+        app_root = Path(temp)
+        root = app_root / "Логи проблем"
+        nested = root / "day" / "session"
+        nested.mkdir(parents=True)
+        expected_bytes = 0
+        for index in range(40):
+            payload = bytes(index + 1)
+            (nested / f"{index}.json").write_bytes(payload)
+            expected_bytes += len(payload)
+        logger = ProblemLogs.__new__(ProblemLogs)
+        logger.app_root = app_root
+        with patch.object(problem_logs, "plain_path", wraps=problem_logs.plain_path) as validate:
+            assert logger._usage(root) == expected_bytes
+        assert validate.call_count <= 3, "Budget scan repeats ancestry checks for every file"
+        assert logger._usage(root, max_entries=42) == expected_bytes
+        try:
+            logger._usage(root, max_entries=41)
+        except problem_logs.DiagnosticLimitError:
+            pass
+        else:
+            raise AssertionError("Diagnostic entry cap was bypassed")
+        (nested / "new.json").write_bytes(b"new")
+        assert logger._usage(root) == expected_bytes + 3, "Budget scan reused a stale size"
+
+        def expect_scan_error():
+            try:
+                logger._usage(root)
+            except OSError:
+                return
+            raise AssertionError("Unsafe or incomplete diagnostic scan returned a size")
+
+        original_scandir = problem_logs.os.scandir
+        original_plain_path = problem_logs.plain_path
+        with patch.object(problem_logs, "plain_path", return_value=False), patch.object(problem_logs.os, "scandir") as scan:
+            expect_scan_error()
+            scan.assert_not_called()
+        with patch.object(problem_logs, "plain_path", side_effect=lambda base, path: path != nested and original_plain_path(base, path)):
+            expect_scan_error()
+        with patch.object(problem_logs.os, "scandir", side_effect=PermissionError("synthetic scan denial")):
+            expect_scan_error()
+
+        for target in (nested, nested / "0.json"):
+            for failure in ("symlink", "reparse", "denied"):
+                @contextlib.contextmanager
+                def altered_scandir(directory):
+                    with original_scandir(directory) as entries:
+                        proxies = []
+                        for entry in entries:
+                            def entry_stat(*, follow_symlinks=True, entry=entry):
+                                assert follow_symlinks is False
+                                if Path(entry.path) != target:
+                                    return entry.stat(follow_symlinks=False)
+                                if failure == "denied":
+                                    raise PermissionError("synthetic stat denial")
+                                return SimpleNamespace(st_mode=problem_logs.stat.S_IFLNK if failure == "symlink" else problem_logs.stat.S_IFDIR,
+                                                       st_file_attributes=0x400 if failure == "reparse" else 0, st_size=0)
+                            proxies.append(SimpleNamespace(path=entry.path, name=entry.name, stat=entry_stat))
+                        yield iter(proxies)
+                with patch.object(problem_logs.os, "scandir", side_effect=altered_scandir):
+                    expect_scan_error()
+
+
 def main() -> None:
+    smoke_usage_scan()
     smoke_diagnostic_context()
     smoke_diagnostic_identity_and_caps()
     assert SESSION_LIMIT == 2 * 1024 * 1024

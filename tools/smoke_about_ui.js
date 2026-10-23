@@ -19,6 +19,8 @@ assert.ok(html.includes(sandbox.window.ZETER_OS_CONFIG.OS_VERSION), "About must 
 const expectedLinks = [
   "https://github.com/zeter1/ZeTer-OS/blob/main/CHANGELOG.md", "https://github.com/zeter1/ZeTer-OS/releases",
   "https://github.com/zeter1/ZeTer-OS",
+  "https://dkl.do.am/zeteros/index.html", "https://github.com/zeter1/ZeTer-OS/releases",
+  "https://developer.microsoft.com/microsoft-edge/webview2/", "https://github.com/zeter1/ZeTer-OS/blob/main/README_PYTHON.md",
   "https://t.me/zeter1", "https://www.linkedin.com/in/zeter/", "https://www.facebook.com/zeter1", "https://vk.ru/zeter1",
   "https://www.instagram.com/zeter1992/", "https://tenchat.ru/zeter", "https://x.com/zeter1", "https://www.threads.com/@zeter1992",
   "https://ok.ru/zeter1", "https://t.me/zeterchat"
@@ -26,6 +28,11 @@ const expectedLinks = [
 assert.deepEqual([...html.matchAll(/href="([^"]+)"/g)].map(match => match[1]), expectedLinks, "all requested destinations must be preserved");
 assert.match(html, /Дмитрий Колесниченко/);
 assert.match(html, /zeter11@gmail\.com/);
+assert.ok(html.indexOf('about-release"') < html.indexOf('about-launch"') && html.indexOf('about-launch"') < html.indexOf('about-developer"'), "launch instructions belong between updates and developer");
+assert.equal([...html.matchAll(/class="about-launch-card"/g)].length, 3);
+assert.match(html, /py -3 -m pip install -r requirements\.txt\npy -3 run_zeter_os\.py/);
+assert.match(html, /start_zeter_os\.cmd/);
+assert.match(html, /Автоматической синхронизации между вариантами нет/);
 
 async function main() {
   const handlers = {};

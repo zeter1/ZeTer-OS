@@ -10,7 +10,7 @@ async function runSecurityRecoverySmoke({chromium,startPreview,outputDir}) {
    if(!route.request().url().startsWith(preview.url))return route.abort();
    if(new URL(route.request().url()).pathname==='/js/app.js'){
     let code=fs.readFileSync(path.join(root,'app/js/app.js'),'utf8');
-    code=code.replace('transaction:operation=>primaryStateSaveQueue.transaction(operation)','transaction:operation=>primaryStateSaveQueue.transaction(write=>operation((...args)=>window.__failRecoveryWrite?Promise.reject(new Error("Тестовый отказ primary")):write(...args)))');
+    code=code.replace('transaction:operation=>persistSearchAwareTransaction(operation)','transaction:operation=>persistSearchAwareTransaction(write=>operation((...args)=>window.__failRecoveryWrite?Promise.reject(new Error("Тестовый отказ primary")):write(...args)))');
     const last=code.lastIndexOf('})();');code=code.slice(0,last)+`window.__securityTest={getState:()=>state,recovery:securityRecoveryController};\n`+code.slice(last);
     return route.fulfill({contentType:'application/javascript',body:seed+'\n'+code});
    }return route.continue();

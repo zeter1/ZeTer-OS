@@ -22,6 +22,7 @@
   } = utils;
 
   const CALENDAR_CATEGORY_IDS = new Set(config.CALENDAR_CATEGORY_IDS);
+  const CALENDAR_CATEGORY_ICONS = Object.freeze(["", "💼", "🏠", "❤️", "⭐", "📚", "💡", "🎯", "🛒"]);
   const CALENDAR_REPEAT_IDS = new Set(config.CALENDAR_REPEAT_IDS);
   const CALENDAR_REMINDER_IDS = new Set(config.CALENDAR_REMINDER_IDS);
 
@@ -232,6 +233,10 @@
   function normalizeTaskProjectSettings(project = {}) {
     return {
       description: String(project.description || "").trim().slice(0, 2000),
+      ...(project.goal === undefined ? {} : { goal: String(project.goal || "").trim().slice(0, 1000) }),
+      ...(project.status === undefined ? {} : { status: ["planned", "active", "paused", "completed"].includes(project.status) ? project.status : "active" }),
+      ...(project.startDate === undefined ? {} : { startDate: isCalendarDate(project.startDate) ? project.startDate : "" }),
+      ...(project.deadline === undefined ? {} : { deadline: isCalendarDate(project.deadline) ? project.deadline : "" }),
       color: normalizeTaskProjectColor(project.color),
       defaultView: ["overview", "board", "list"].includes(project.defaultView) ? project.defaultView : "overview",
       sortBy: ["created", "due", "priority", "title"].includes(project.sortBy) ? project.sortBy : "created",
@@ -325,7 +330,18 @@
 
   function normalizeCalendarCategory(value = "") {
     const category = String(value || "").trim();
-    return CALENDAR_CATEGORY_IDS.has(category) ? category : "personal";
+    return CALENDAR_CATEGORY_IDS.has(category) || /^calcat_[A-Za-z0-9_-]{1,180}$/.test(category) ? category : "personal";
+  }
+
+  function normalizeCalendarCategories(value = []) {
+    const seen = new Set();
+    return (Array.isArray(value) ? value : []).flatMap(category => {
+      if (!category || typeof category !== "object" || !/^calcat_[A-Za-z0-9_-]{1,180}$/.test(category.id || "") || seen.has(category.id)) return [];
+      const name = String(category.name || "").trim().slice(0, 80);
+      if (!name || seen.size >= 100) return [];
+      seen.add(category.id);
+      return [{ ...category, id: category.id, name, color: /^#[0-9a-f]{6}$/i.test(category.color || "") ? category.color.toLowerCase() : "#8b7dff", ...(category.description === undefined ? {} : { description: String(category.description || "").trim().slice(0, 1000) }), ...(category.icon === undefined ? {} : { icon: CALENDAR_CATEGORY_ICONS.includes(category.icon) ? category.icon : "" }) }];
+    });
   }
 
   function normalizeCalendarRepeat(value = "") {
@@ -348,15 +364,34 @@
     return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : todayISO();
   }
 
+  function isCalendarDate(value) {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value < "0001-01-01") return false;
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(+parsed) && parsed.toISOString().slice(0, 10) === value;
+  }
+
   function normalizeCalendarEvent(event = {}) {
     const clean = event && typeof event === "object" ? event : {};
     clean.id = normalizeSafeId(clean.id, "event");
     clean.title = truncateText(String(clean.title || "Без названия").trim() || "Без названия", 500);
     clean.date = normalizeCalendarDate(clean.date);
+    clean.endDate = isCalendarDate(clean.endDate) ? clean.endDate : clean.date;
+    clean.allDay = clean.allDay === true;
     clean.start = normalizeCalendarTime(clean.start);
     clean.end = normalizeCalendarTime(clean.end);
     clean.category = normalizeCalendarCategory(clean.category);
     clean.repeat = normalizeCalendarRepeat(clean.repeat);
+    clean.repeatInterval = Math.max(1, Math.min(365, Math.trunc(Number(clean.repeatInterval) || 1)));
+    clean.repeatWeekdays = [...new Set((Array.isArray(clean.repeatWeekdays) ? clean.repeatWeekdays : []).filter(day => Number.isInteger(day) && day >= 0 && day <= 6))].sort((a, b) => a - b);
+    if (!clean.repeatWeekdays.length && isCalendarDate(clean.date)) clean.repeatWeekdays = [new Date(`${clean.date}T00:00:00Z`).getUTCDay()];
+    clean.repeatUntil = isCalendarDate(clean.repeatUntil) ? clean.repeatUntil : "";
+    clean.excludedDates = [...new Set((Array.isArray(clean.excludedDates) ? clean.excludedDates : []).filter(isCalendarDate))].sort().slice(0, 1000);
+    clean.taskId = isSafeId(String(clean.taskId || "")) ? String(clean.taskId) : "";
+    clean.projectId = isSafeId(String(clean.projectId || "")) ? String(clean.projectId) : "";
+    clean.projectName = truncateText(String(clean.projectName || ""), 160);
+    const attachments = Array.isArray(clean.attachments) ? clean.attachments.filter(ref => ref?.kind === "fs") : [];
+    // Same bounded references as project materials; bytes and missing-file resolution belong to fs.
+    clean.attachments = attachments.length ? window.ZETER_PROJECT_OVERVIEW_UTILS.normalizeProjectAttachments(attachments) : [];
     clean.reminder = normalizeCalendarReminder(clean.reminder);
     clean.reminderNotifiedOccurrence = truncateText(String(clean.reminderNotifiedOccurrence || ""), 80);
     clean.location = truncateText(clean.location || "", 500);
@@ -371,6 +406,7 @@
   function normalizeCalendarStore(store = {}) {
     if (!store || typeof store !== "object") return store;
     store.events = normalizeCalendarEvents(store.events);
+    store.calendarCategories = normalizeCalendarCategories(store.calendarCategories);
     return store;
   }
 
@@ -453,10 +489,13 @@
       normalizeTaskStore,
       normalizeTaskListsData,
       normalizeCalendarCategory,
+      normalizeCalendarCategories,
+      CALENDAR_CATEGORY_ICONS,
       normalizeCalendarRepeat,
       normalizeCalendarReminder,
       normalizeCalendarTime,
       normalizeCalendarDate,
+      isCalendarDate,
       normalizeCalendarEvent,
       normalizeCalendarEvents,
       normalizeCalendarStore,

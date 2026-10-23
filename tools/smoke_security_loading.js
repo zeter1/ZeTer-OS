@@ -1,7 +1,7 @@
 "use strict";
 // Pure synthetic model/controller checks: no browser profile, native API or data/ I/O.
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const context=vm.createContext({window:{ZETER_OS_CONFIG:{TRASH_ROOT:'trash'},ZETER_CORE_UTILS:{pad:n=>String(n),isSafeId:()=>true,escapeHtml:s=>String(s)}},console,document:{},Blob,TextEncoder,TextDecoder,Uint8Array,Uint32Array,ArrayBuffer,DataView,Date,JSON,Math,Map,Set,Promise});
+const context=vm.createContext({window:{ZETER_OS_CONFIG:{LEGACY_DELETED_ROOT:'trash'},ZETER_CORE_UTILS:{pad:n=>String(n),isSafeId:()=>true,escapeHtml:s=>String(s)}},console,document:{},Blob,TextEncoder,TextDecoder,Uint8Array,Uint32Array,ArrayBuffer,DataView,Date,JSON,Math,Map,Set,Promise});
 for(const name of ['asset-utils','security-protection-utils','security-utils','security-ui-utils','security-recovery-utils'])vm.runInContext(fs.readFileSync('app/js/core/'+name+'.js','utf8'),context);
 const api=context.window.ZETER_SECURITY_UTILS;
 async function main(){

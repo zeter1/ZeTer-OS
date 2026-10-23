@@ -482,7 +482,7 @@ ITEM_ASSET_KIND_LAYOUT = {
     "folder-background": ("Папки", "фон"),
     "shortcut-icon": ("Ярлыки", "значок"),
 }
-TRASH_ROOT_ID = "__zeter_trash__"
+LEGACY_DELETED_ROOT_ID = "__zeter_trash__"
 
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
@@ -1047,34 +1047,49 @@ def tasks_csv_rows(tasks: list[Dict[str, Any]], projects: list[Dict[str, Any]] |
     return rows
 
 
-def event_text(event: Dict[str, Any]) -> str:
+def event_text(event: Dict[str, Any], categories: Optional[list[Dict[str, Any]]] = None) -> str:
+    category = next((row.get("name") for row in categories or [] if isinstance(row, dict) and row.get("id") == event.get("category")), None)
     lines = [
         f"Название: {event.get('title') or 'Без названия'}",
-        f"Дата: {event.get('date') or '—'}",
-        f"Время: {(event.get('start') or '—')} — {(event.get('end') or '—')}",
-        f"Категория: {event.get('category') or '—'}",
+        f"Дата: {event.get('date') or '—'}" + (f" — {event['endDate']}" if event.get("endDate") and event["endDate"] != event.get("date") else ""),
+        "Время: весь день" if event.get("allDay") else f"Время: {(event.get('start') or '—')} — {(event.get('end') or '—')}",
+        f"Категория: {category or event.get('categoryName') or event.get('category') or '—'}",
         f"Место: {event.get('location') or '—'}",
         f"Повтор: {event.get('repeat') or '—'}",
         f"Напоминание: {event.get('reminder') or '—'}",
     ]
+    if event.get("repeat") in {"daily", "weekly", "monthly"}:
+        lines.append(f"Интервал повтора: {event.get('repeatInterval') or 1}")
+        if event.get("repeat") == "weekly" and event.get("repeatWeekdays"):
+            lines.append("Дни недели (0=вс): " + ", ".join(map(str, event["repeatWeekdays"])))
+        if event.get("repeatUntil"):
+            lines.append(f"Повторять по: {event['repeatUntil']}")
+    if event.get("excludedDates"):
+        lines.append("Исключения: " + ", ".join(map(str, event["excludedDates"])))
+    if event.get("taskId"):
+        lines.append(f"Задача: {event['taskId']}")
+    if event.get("projectId") or event.get("projectName"):
+        lines.append(f"Проект: {event.get('projectName') or ''} ({event.get('projectId') or ''})")
+    if event.get("attachments"):
+        lines.append("Материалы: " + ", ".join(f"{ref.get('kind', 'fs')}:{ref.get('id', '')}" for ref in event["attachments"] if isinstance(ref, dict)))
     if event.get("description"):
         lines.extend(["", "Описание:", str(event.get("description"))])
     return "\n".join(lines).strip()
 
 
-def events_document_text(events: list[Dict[str, Any]], title: str) -> str:
+def events_document_text(events: list[Dict[str, Any]], title: str, categories: Optional[list[Dict[str, Any]]] = None) -> str:
     if not events:
         return f"{title}\n\nСобытий пока нет."
     blocks = [title, ""]
     for i, event in enumerate(sorted([e for e in events if isinstance(e, dict)], key=lambda e: (str(e.get("date") or ""), str(e.get("start") or ""))), 1):
         blocks.append(f"{i}. {event.get('title') or 'Без названия'}")
-        blocks.append(event_text(event))
+        blocks.append(event_text(event, categories))
         blocks.append("-" * 40)
     return "\n".join(blocks).strip()
 
 
-def events_csv_rows(events: list[Dict[str, Any]]) -> list[list[Any]]:
-    rows = [["Название", "Дата", "Начало", "Конец", "Категория", "Место", "Описание", "Повтор", "Напоминание"]]
+def events_csv_rows(events: list[Dict[str, Any]], categories: Optional[list[Dict[str, Any]]] = None) -> list[list[Any]]:
+    rows = [["Название", "Дата", "Начало", "Конец", "Категория", "Место", "Описание", "Повтор", "Напоминание", "Дата окончания", "Весь день", "Интервал повтора", "Дни недели (0=вс)", "Повторять по", "Исключения", "ID задачи", "ID проекта", "Проект", "Название категории", "Материалы"]]
     for event in sorted([e for e in events or [] if isinstance(e, dict)], key=lambda e: (str(e.get("date") or ""), str(e.get("start") or ""))):
         rows.append([
             event.get("title") or "Без названия",
@@ -1086,35 +1101,121 @@ def events_csv_rows(events: list[Dict[str, Any]]) -> list[list[Any]]:
             event.get("description") or "",
             event.get("repeat") or "",
             event.get("reminder") or "",
+            event.get("endDate") or event.get("date") or "",
+            "Да" if event.get("allDay") else "Нет",
+            event.get("repeatInterval") or 1,
+            ",".join(map(str, event.get("repeatWeekdays") or [])),
+            event.get("repeatUntil") or "",
+            ",".join(map(str, event.get("excludedDates") or [])),
+            event.get("taskId") or "",
+            event.get("projectId") or "",
+            event.get("projectName") or "",
+            next((row.get("name") for row in categories or [] if isinstance(row, dict) and row.get("id") == event.get("category")), None) or event.get("categoryName") or event.get("category") or "",
+            ",".join(f"{ref.get('kind', 'fs')}:{ref.get('id', '')}" for ref in event.get("attachments") or [] if isinstance(ref, dict)),
         ])
     return rows
 
 
-def make_ics(events: list[Dict[str, Any]]) -> str:
+def make_ics(events: list[Dict[str, Any]], categories: Optional[list[Dict[str, Any]]] = None) -> str:
+    from datetime import timedelta
+
     def esc(v: Any) -> str:
-        return str(v or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+        return str(v or "").replace("\r\n", "\n").replace("\r", "\n").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+    def date_value(value: Any) -> datetime:
+        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            raise ValueError("Некорректная дата события при экспорте календаря.")
+        return datetime.strptime(value, "%Y-%m-%d")
+
+    def clock(value: Any, fallback: str) -> str:
+        value = value or fallback
+        if not isinstance(value, str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value):
+            raise ValueError("Некорректное время события при экспорте календаря.")
+        return value.replace(":", "") + "00"
+
+    def fold(line: str) -> list[str]:
+        # RFC 5545: 75 octets per physical line, without splitting a UTF-8 character.
+        result, part, size = [], "", 0
+        for char in line:
+            width = len(char.encode("utf-8"))
+            if size + width > 75:
+                result.append(part)
+                part, size = " ", 1
+            part += char
+            size += width
+        return [*result, part]
+
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//ZeTer OS//Windows Data Export//RU"]
     for event in events or []:
         if not isinstance(event, dict) or not event.get("date"):
             continue
-        date = re.sub(r"[^0-9]", "", str(event.get("date") or ""))[:8]
-        start = re.sub(r"[^0-9]", "", str(event.get("start") or ""))[:4] or "0000"
-        end = re.sub(r"[^0-9]", "", str(event.get("end") or ""))[:4] or start
+        base = date_value(event["date"])
+        end_date = date_value(event.get("endDate") or event["date"])
+        if end_date < base:
+            raise ValueError("Окончание события раньше начала при экспорте календаря.")
+        all_day = event.get("allDay") is True
+        start = clock(event.get("start"), "00:00")
+        end = clock(event.get("end"), "00:00") if event.get("end") else None
+        repeat = event.get("repeat") or "none"
+        interval_raw = event.get("repeatInterval") or 1
+        if isinstance(interval_raw, bool) or not isinstance(interval_raw, (int, float)) or not 1 <= interval_raw <= 365 or int(interval_raw) != interval_raw:
+            raise ValueError("Некорректный интервал повторения при экспорте календаря.")
+        interval = int(interval_raw)
+        raw_days = event.get("repeatWeekdays") or [(base.weekday() + 1) % 7]
+        if not isinstance(raw_days, list) or len(raw_days) > 7 or any(type(day) is not int or not 0 <= day <= 6 for day in raw_days):
+            raise ValueError("Некорректные дни повторения при экспорте календаря.")
+        weekdays = sorted(set(raw_days), key=lambda day: (day + 6) % 7)
+        first = base
+        if repeat == "weekly":
+            anchor = base - timedelta(days=base.weekday())
+            offsets = [(day + 6) % 7 for day in weekdays]
+            first = min(anchor + timedelta(days=offset if offset >= base.weekday() else interval * 7 + offset) for offset in offsets)
+        shifted_end = end_date + (first - base)
+        # Match calendarEventDurationMinutes: a missing end adds one hour to the
+        # start clock on endDate, capped at midnight following that date.
+        end_minutes = int(end[:2]) * 60 + int(end[2:4]) if end else min(1440, int(start[:2]) * 60 + int(start[2:4]) + 60)
+        timed_end = shifted_end + timedelta(minutes=end_minutes)
+        date = first.strftime("%Y%m%d")
         lines += [
             "BEGIN:VEVENT",
             f"UID:{esc(event.get('id') or event.get('title') or date)}@zeter-os",
             f"DTSTAMP:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
-            f"DTSTART:{date}T{start}00",
-            f"DTEND:{date}T{end}00",
+            f"DTSTART;VALUE=DATE:{date}" if all_day else f"DTSTART:{date}T{start}",
+            f"DTEND;VALUE=DATE:{(shifted_end + timedelta(days=1)).strftime('%Y%m%d')}" if all_day else f"DTEND:{timed_end.strftime('%Y%m%dT%H%M%S')}",
             f"SUMMARY:{esc(event.get('title') or 'Событие')}",
         ]
+        until = date_value(event["repeatUntil"]) if event.get("repeatUntil") else None
+        if repeat in {"daily", "weekly", "monthly"} and (until is None or until >= first):
+            rule = f"FREQ={repeat.upper()};INTERVAL={interval}"
+            if repeat == "weekly":
+                rule += ";BYDAY=" + ",".join(["SU", "MO", "TU", "WE", "TH", "FR", "SA"][day] for day in weekdays) + ";WKST=MO"
+            if until:
+                rule += ";UNTIL=" + until.strftime("%Y%m%d") + ("" if all_day else "T235959")
+            lines.append("RRULE:" + rule)
+        exclusions = event.get("excludedDates") or []
+        if not isinstance(exclusions, list) or len(exclusions) > 1000:
+            raise ValueError("Некорректные исключения повторения при экспорте календаря.")
+        excluded = sorted({date_value(value).strftime("%Y%m%d") for value in exclusions})
+        if until is not None and until < first:
+            excluded = sorted(set([*excluded, date]))
+        if excluded:
+            lines.append("EXDATE;VALUE=DATE:" + ",".join(excluded) if all_day else "EXDATE:" + ",".join(value + "T" + start for value in excluded))
+        category = next((row.get("name") for row in categories or [] if isinstance(row, dict) and row.get("id") == event.get("category")), None) or event.get("categoryName") or event.get("category")
+        if category:
+            lines.append("CATEGORIES:" + esc(category))
+        for key, field in [("taskId", "X-ZETER-TASK-ID"), ("projectId", "X-ZETER-PROJECT-ID"), ("projectName", "X-ZETER-PROJECT-NAME")]:
+            if event.get(key):
+                lines.append(field + ":" + esc(event[key]))
+        for ref in event.get("attachments") or []:
+            if isinstance(ref, dict):
+                lines.append("X-ZETER-ATTACHMENT:" + esc(f"{ref.get('kind', 'fs')}:{ref.get('id', '')}"))
         if event.get("description"):
             lines.append(f"DESCRIPTION:{esc(event.get('description'))}")
         if event.get("location"):
             lines.append(f"LOCATION:{esc(event.get('location'))}")
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
-    return "\r\n".join(lines) + "\r\n"
+    return "\r\n".join(part for line in lines for part in fold(line)) + "\r\n"
 
 
 def table_to_csv_rows(item: Dict[str, Any]) -> list[list[Any]]:
@@ -1142,58 +1243,6 @@ def all_table_pages(item: Dict[str, Any]) -> list[tuple[str, list[list[Any]]]]:
         rows = page.get("rows") if isinstance(page.get("rows"), list) else []
         result.append((str(page.get("name") or f"Страница {i}"), [[str(cell or "") for cell in row] for row in rows if isinstance(row, list)]))
     return result or [("Таблица", [])]
-
-
-def purge_deleted_items_from_state(state: Dict[str, Any]) -> int:
-    """Permanently remove deleted/trash items before saving to ./data."""
-    if not isinstance(state, dict):
-        return 0
-    removed = 0
-    # JS may permanently remove items from the working state before saving.
-    # Existing restore points and backups remain immutable recovery snapshots.
-    if isinstance(state.get("_zeterDeletedIdsToPurge"), list):
-        state.pop("_zeterDeletedIdsToPurge", None)
-    fs = state.get("fs")
-    if isinstance(fs, dict):
-        deleted_ids: set[str] = set()
-        for item_id, item in fs.items():
-            if isinstance(item, dict) and (item.get("deletedAt") or item.get("parent") == TRASH_ROOT_ID):
-                deleted_ids.add(str(item_id))
-        changed = True
-        while changed:
-            changed = False
-            for item_id, item in fs.items():
-                if str(item_id) in deleted_ids or not isinstance(item, dict):
-                    continue
-                if str(item.get("parent") or "") in deleted_ids:
-                    deleted_ids.add(str(item_id))
-                    changed = True
-        for item_id in list(deleted_ids):
-            if item_id in fs:
-                fs.pop(item_id, None)
-                removed += 1
-
-    def clear_trash_keys(container: Any) -> None:
-        nonlocal removed
-        if not isinstance(container, dict):
-            return
-        for key in ("trash", "trashItems", "deletedItems", "recycleBin", "binItems"):
-            value = container.get(key)
-            if isinstance(value, list) and value:
-                removed += len(value)
-                container[key] = []
-            elif isinstance(value, dict) and value:
-                removed += len(value)
-                container[key] = {}
-
-    clear_trash_keys(state)
-    for desk in state.get("desktops") if isinstance(state.get("desktops"), list) else []:
-        if isinstance(desk, dict):
-            clear_trash_keys(desk)
-            clear_trash_keys(desk.get("data"))
-    return removed
-
-
 
 
 def _write_windows_readable_data(
@@ -1281,7 +1330,7 @@ def _write_windows_readable_data(
                 continue
             if item.get("type") == "app":
                 continue
-            deleted = bool(item.get("deletedAt") or item.get("parent") == TRASH_ROOT_ID)
+            deleted = bool(item.get("deletedAt") or item.get("parent") == LEGACY_DELETED_ROOT_ID)
             if deleted and not include_trash:
                 continue
             if not deleted and include_trash:
@@ -1397,10 +1446,10 @@ def _write_windows_readable_data(
             exported_global_events = True
         cal_dir = ddir(desk_id, "Календарь")
         if events:
-            ev_text = events_document_text(events, f"Календарь — {title}")
+            ev_text = events_document_text(events, f"Календарь — {title}", data.get("calendarCategories") or [])
             write_doc_bundle(cal_dir / "События календаря", f"Календарь — {title}", ev_text)
-            write_csv_file(cal_dir / "События календаря.csv", events_csv_rows(events))
-            write_windows_text(cal_dir / "События календаря.ics", make_ics(events))
+            write_csv_file(cal_dir / "События календаря.csv", events_csv_rows(events, data.get("calendarCategories") or []))
+            write_windows_text(cal_dir / "События календаря.ics", make_ics(events, data.get("calendarCategories") or []))
             counters["events"] += len(events)
 
         notifications = data.get("notifications") if isinstance(data.get("notifications"), list) else []
@@ -2467,7 +2516,7 @@ class NativeStorageApi:
             if isinstance(state, dict):
                 normalized_portable_metadata = normalize_portable_state_metadata(state)
                 normalized_workspace_aliases = sync_legacy_workspace_aliases(state)
-                purged_deleted = purge_deleted_items_from_state(state)
+                purged_deleted = 0  # Legacy deleted records are preserved; no trash cleanup.
                 if (purged_deleted or normalized_portable_metadata or normalized_workspace_aliases) and isinstance(record, dict):
                     record["state"] = state
                     record["stateBytes"] = json_bytes(state)
@@ -3325,7 +3374,7 @@ class NativeStorageApi:
                 raise ValueError("В записи состояния нет объекта state.")
             normalized_portable_metadata = normalize_portable_state_metadata(state)
             normalized_workspace_aliases = sync_legacy_workspace_aliases(state)
-            purged_deleted = purge_deleted_items_from_state(state)
+            purged_deleted = 0  # Legacy deleted records are preserved; no trash cleanup.
 
             updated_at = now_ms()
             clean_record = {

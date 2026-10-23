@@ -1377,7 +1377,7 @@
       const operation = tail.catch(() => {}).then(async () => {
         await load();
         const item = getItem();
-        if (!item || item.deletedAt) throw new Error("Документ удалён или перемещён в Корзину. Изменения остались в редакторе.");
+        if (!item || item.deletedAt) throw new Error("Документ удалён или больше недоступен. Изменения остались в редакторе.");
         if (editorVersion.revision !== revision || item.managedFile?.managedPath !== loadedPath) throw new Error("Документ изменён в другом окне. Скопируйте свой текст и откройте документ заново.");
         const previousFile = item.managedFile;
         const title = String(payload.title || item.name).trim() || item.name;

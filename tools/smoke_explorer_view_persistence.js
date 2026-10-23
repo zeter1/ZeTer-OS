@@ -12,7 +12,7 @@ for (const name of ["explorer-tab-utils", "explorer-ui-utils", "storage-utils"])
   vm.runInContext(read(`app/js/core/${name}.js`), context);
 }
 const normalize = context.window.ZETER_EXPLORER_UI_UTILS.normalizeExplorerView;
-const adapter = read("app/js/app.js").match(/saveView: (\(folderId, patch\) => primaryStateSaveQueue\.transaction\(async write => \{[\s\S]*?\n      \}\)),/);
+const adapter = read("app/js/app.js").match(/saveView: (\(folderId, patch\) => persistSearchAwareTransaction\(async write => \{[\s\S]*?\n      \}\)),/);
 assert.ok(adapter, "exercise the real adapter rather than a duplicate");
 const state = {
   fs: { f: { id: "f", type: "folder", name: "keep", explorerView: { mode: "large" } }, child: { id: "child", type: "folder" } },
@@ -36,10 +36,10 @@ const queue = context.window.ZETER_STORAGE_UTILS.createPrimaryStateSaveQueue({
   }
 });
 // Legacy aliases do not own visual settings; all storage and view logic is real.
-const save = new Function("state", "viewDesktopId", "primaryStateSaveQueue",
+const save = new Function("state", "viewDesktopId", "persistSearchAwareTransaction",
   "syncLegacyWorkspaceAliases", "cloneForBackup", "isDesktopRoot", "explorerUiUtils",
   "return " + adapter[1])(
-  state, "desktop", queue, () => {}, structuredClone,
+  state, "desktop", operation => queue.transaction(operation), () => {}, structuredClone,
   id => state.desktops.some(desktop => desktop.id === id), { normalizeExplorerView: normalize }
 );
 (async () => {

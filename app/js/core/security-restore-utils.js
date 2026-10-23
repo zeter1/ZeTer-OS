@@ -5,7 +5,7 @@
   const SAFE_ID = /^[A-Za-z0-9_-]{1,220}$/;
   const FORBIDDEN = new Set(["__proto__", "prototype", "constructor"]);
   const ITEM_TYPES = new Set(["folder", "note", "text", "markdown", "table", "image", "paint", "managedFile"]);
-  const ALIASES = ["tasks", "taskProjects", "activeTaskProjectId", "events", "notifications", "automations", "automationCategories", "automationRuntime", "objectLinks"];
+  const ALIASES = ["tasks", "taskProjects", "activeTaskProjectId", "events", "calendarCategories", "notifications", "automations", "automationCategories", "automationRuntime", "objectLinks"];
   const array = value => Array.isArray(value) ? value : [];
   const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
@@ -102,11 +102,14 @@
     const projectIds = new Set(projects.map(row => row.id));
     const tasks = choice.kind === "desktop" ? array(data.tasks) : array(data.tasks).filter(row => projectIds.has(row.projectId));
     const taskIds = new Set(tasks.map(row => row.id));
-    const addReference = ref => {
+    const addReference = (ref, allowMissingFile = false) => {
       safeId(ref?.id);
       const kind = ref.kind || ref.type;
       if (kind === "fs") {
-        if (!source.fs?.[ref.id]) throw new Error("Связанный файл в копии не найден. Выборочное восстановление отменено.");
+        if (!source.fs?.[ref.id]) {
+          if (allowMissingFile) return;
+          throw new Error("Связанный файл в копии не найден. Выборочное восстановление отменено.");
+        }
         if (ownerOf(source, ref.id) !== choice.desktopId) throw new Error("Связь ведёт на другой рабочий стол. Восстановите связанные данные отдельно.");
         descendants(source, ref.id).forEach(id => fsIds.add(id));
       } else if (kind === "event") {
@@ -117,16 +120,20 @@
     if (choice.kind === "desktop") desktopFiles(source, choice.desktopId).forEach(id => fsIds.add(id));
     if (choice.kind === "item") addReference({ kind: "fs", id: choice.id });
     if (choice.kind === "desktop") array(data.events).forEach(row => eventIds.add(row.id));
-    const scanAttachments = value => {
+    if (choice.kind === "project") array(data.events).forEach(row => {
+      if (projectIds.has(row.projectId) || taskIds.has(row.taskId)) eventIds.add(row.id);
+    });
+    const scanAttachments = (value, allowMissingFile = false) => {
       if (!value || typeof value !== "object") return;
-      if (Array.isArray(value.attachments)) value.attachments.forEach(addReference);
-      Object.entries(value).forEach(([key, entry]) => { if (key !== "attachments" && typeof entry === "object") scanAttachments(entry); });
+      if (Array.isArray(value.attachments)) value.attachments.forEach(ref => addReference(ref, allowMissingFile));
+      Object.entries(value).forEach(([key, entry]) => { if (key !== "attachments" && typeof entry === "object") scanAttachments(entry, allowMissingFile); });
     };
-    projects.forEach(scanAttachments); tasks.forEach(scanAttachments);
+    projects.forEach(row => scanAttachments(row)); tasks.forEach(row => scanAttachments(row));
     let previous = "";
     while (previous !== `${fsIds.size}:${eventIds.size}`) {
       previous = `${fsIds.size}:${eventIds.size}`;
       [...fsIds].forEach(id => scanAttachments(source.fs[id]));
+      array(data.events).filter(event => eventIds.has(event.id)).forEach(event => scanAttachments(event, true));
       array(data.objectLinks).forEach(link => {
         const a = endpoint(link, "a"), b = endpoint(link, "b");
         const selected = ref => (ref?.kind || ref?.type) === "fs" ? fsIds.has(ref.id) : (ref?.kind || ref?.type) === "event" && eventIds.has(ref.id);
@@ -138,6 +145,7 @@
     const selectedData = choice.kind === "desktop" ? detached(data) : {
       taskProjects: detached(projects), tasks: detached(tasks),
       events: detached(array(data.events).filter(row => eventIds.has(row.id))),
+      calendarCategories: detached(array(data.calendarCategories).filter(category => array(data.events).some(event => eventIds.has(event.id) && event.category === category.id))),
       objectLinks: detached(array(data.objectLinks).filter(link => {
         const ref = endpoint(link, "a");
         return (ref?.kind || ref?.type) === "fs" ? fsIds.has(ref.id) : eventIds.has(ref?.id);
@@ -160,9 +168,11 @@
     Object.keys(current.fs || {}).forEach(id => used.add(id));
     let serial = 0;
     return kind => {
-      const preferred = typeof createId === "function" ? safeId(createId(kind)) : `restore_${kind}`;
+      const generated = typeof createId === "function" ? safeId(createId(kind)) : `restore_${kind}`;
+      const maxLength = kind === "calendarCategory" ? 180 : 220;
+      const preferred = (kind === "calendarCategory" && !/^calcat_[A-Za-z0-9_-]+$/.test(generated) ? `calcat_${generated}` : generated).slice(0, maxLength);
       let id = preferred;
-      while (used.has(id)) id = `${preferred.slice(0, 200)}_${++serial}`;
+      while (used.has(id)) id = `${preferred.slice(0, maxLength - 20)}_${++serial}`;
       used.add(id);
       return id;
     };
@@ -181,6 +191,8 @@
 
   function remapCopy(selection, sourceDesktopId, targetDesktopId, allocate) {
     const map = new Map([[sourceDesktopId, targetDesktopId]]), records = new Map();
+    const selectedRefs = { taskId: new Set(array(selection.data.tasks).map(row => row.id)), projectId: new Set(array(selection.data.taskProjects).map(row => row.id)) };
+    const selectedFiles = new Set(Object.keys(selection.files));
     function register(value, path) {
       if (!value || typeof value !== "object") return;
       if (typeof value.id === "string") {
@@ -190,7 +202,7 @@
           safeId(value.id);
           if (records.has(value.id)) throw new Error(`Повтор ID «${value.id}» в выбранных данных: однозначная копия невозможна. Выберите меньший объект.`);
           records.set(value.id, path);
-          map.set(value.id, allocate("object"));
+          map.set(value.id, allocate(path.includes(".calendarCategories.") ? "calendarCategory" : "object"));
         }
       }
       Object.entries(value).forEach(([key, entry]) => {
@@ -203,23 +215,37 @@
     const historical = new Map();
     function reference(id, key, history) {
       if (!id || ["none", "all", "last"].includes(id)) return id;
-      if (map.has(id)) return map.get(id);
       // Time entries intentionally retain snapshots of deleted task/project identities.
       if (history && ["taskId", "projectId"].includes(key)) {
+        if (selectedRefs[key].has(id) && map.has(id)) return map.get(id);
         safeId(id);
-        if (!historical.has(id)) historical.set(id, allocate("history"));
+        const identity = `${key}:${id}`;
+        if (!historical.has(identity)) historical.set(identity, allocate("history"));
+        return historical.get(identity);
+      }
+      if (map.has(id)) return map.get(id);
+      if (key === "calendarCategory" && /^calcat_[A-Za-z0-9_-]+$/.test(id)) {
+        safeId(id);
+        if (!historical.has(id)) historical.set(id, allocate("calendarCategory"));
         return historical.get(id);
       }
       throw new Error(`Связь «${key}» ведёт к недоступному объекту «${id}». Выберите рабочий стол целиком.`);
     }
     function rewrite(value, history = false, role = "") {
       if (!value || typeof value !== "object") return value;
-      const isHistory = history || Array.isArray(value.segments);
+      const isHistory = history || Array.isArray(value.segments) || role === "calendar-event";
       Object.keys(value).forEach(key => {
         const entry = value[key];
-        if (key === "id" && typeof entry === "string") value[key] = reference(entry, key, isHistory);
+        if (key === "id" && role === "event-attachment" && (value.kind || value.type) === "fs" && !selectedFiles.has(entry)) {
+          safeId(entry);
+          const identity = `missing-file:${entry}`;
+          if (!historical.has(identity)) historical.set(identity, allocate("history"));
+          value[key] = historical.get(identity);
+        }
+        else if (key === "id" && typeof entry === "string") value[key] = reference(entry, key, isHistory);
         else if (key === "parent" && typeof entry === "string") value[key] = map.get(entry) || targetDesktopId;
         else if (key === "desktopId" && entry === sourceDesktopId) value[key] = targetDesktopId;
+        else if (key === "category" && role === "calendar-event" && typeof entry === "string" && entry.startsWith("calcat_")) value[key] = reference(entry, "calendarCategory", false);
         else if (REFERENCE_FIELDS.has(key) && typeof entry === "string") value[key] = reference(entry, key, isHistory);
         else if (key === "value" && role === "condition" && typeof entry === "string" && (["file_source_folder", "task_project"].includes(value.type) || value.type === "object_exists" && value.mode === "selected")) value[key] = reference(entry, `condition.${value.type}`, isHistory);
         else if ((key === "target" && value.kind === "zeter" || key === "shortcutTarget" && value.kind === "shortcut") && typeof entry === "string" && /^zeter:\/\/item\//i.test(entry)) {
@@ -231,7 +257,7 @@
         }
         else if (REFERENCE_ARRAYS.has(key) && Array.isArray(entry)) value[key] = entry.map(id => typeof id === "string" ? reference(id, key, isHistory) : rewrite(id, isHistory));
         else if (entry && typeof entry === "object") {
-          const nextRole = key === "automations" ? "automation-list" : role === "automation-list" ? "automation" : role === "automation" && key === "conditions" ? "condition-list" : role === "condition-list" ? "condition" : "";
+          const nextRole = key === "events" ? "calendar-event-list" : role === "calendar-event-list" ? "calendar-event" : role === "calendar-event" && key === "attachments" ? "event-attachment-list" : role === "event-attachment-list" ? "event-attachment" : key === "automations" ? "automation-list" : role === "automation-list" ? "automation" : role === "automation" && key === "conditions" ? "condition-list" : role === "condition-list" ? "condition" : "";
           rewrite(entry, isHistory, nextRole);
         }
       });
@@ -315,6 +341,32 @@
     if (choice.kind === "desktop" && mode === "copy") targetDesktopId = allocate("desktop");
     else workspace(state, targetDesktopId);
     if (mode === "copy") remapCopy(selection, choice.desktopId, targetDesktopId, allocate);
+    else {
+      // Deleted source identities must not bind to unrelated objects created since the backup.
+      const sourceData = workspace(source, choice.desktopId), historical = new Map();
+      array(selection.data.events).forEach(event => {
+        if (typeof event.category === "string" && event.category.startsWith("calcat_") && !array(sourceData.calendarCategories).some(row => row.id === event.category)) {
+          safeId(event.category);
+          const identity = `calendarCategory:${event.category}`;
+          if (!historical.has(identity)) historical.set(identity, allocate("calendarCategory"));
+          event.category = historical.get(identity);
+        }
+        array(event.attachments).forEach(ref => {
+          if ((ref.kind || ref.type) !== "fs" || source.fs?.[ref.id]) return;
+          safeId(ref.id);
+          const identity = `missing-file:${ref.id}`;
+          if (!historical.has(identity)) historical.set(identity, allocate("history"));
+          ref.id = historical.get(identity);
+        });
+        for (const [key, records] of [["taskId", sourceData.tasks], ["projectId", sourceData.taskProjects]]) {
+          if (!event[key] || array(records).some(row => row.id === event[key])) continue;
+          safeId(event[key]);
+          const identity = `${key}:${event[key]}`;
+          if (!historical.has(identity)) historical.set(identity, allocate("history"));
+          event[key] = historical.get(identity);
+        }
+      });
+    }
     stopRecoveredTimer(selection.data, warnings);
     if (choice.kind === "desktop" && array(selection.data.automations).length) {
       selection.data.automations.forEach(rule => { rule.enabled = false; });
@@ -350,7 +402,7 @@
         ["tasks", "taskProjects", "events", "notifications", "objectLinks", "automations"].forEach(key => array(oldData[key]).forEach(row => {
           if (!array(selection.data[key]).some(restored => restored.id === row.id)) changes.push({ kind: key, label: row.name || row.title || row.id, action: "remove" });
         }));
-        for (const [group, key] of [["timeTracking", "entries"], ["library", "entries"], ["library", "categories"], ["promptLibrary", "entries"], ["promptLibrary", "projects"], ["promptLibrary", "categories"]]) {
+        for (const [group, key] of [["timeTracking", "entries"], ["library", "entries"], ["library", "categories"], ["promptLibrary", "entries"], ["promptLibrary", "projects"], ["promptLibrary", "categories"], ["contacts", "entries"], ["contacts", "projects"], ["contacts", "categories"]]) {
           array(oldData[group]?.[key]).forEach(row => {
             if (!array(selection.data[group]?.[key]).some(restored => restored.id === row.id)) changes.push({ kind: group, label: row.name || row.title || row.id, action: "remove" });
           });
@@ -363,7 +415,7 @@
     } else {
       const target = workspace(state, targetDesktopId);
       if (mode === "copy") selection.data.taskProjects.forEach(project => { project.name = restoredName(project.name, array(target.taskProjects).map(row => row.name)); });
-      for (const [key, kind] of [["taskProjects", "project"], ["tasks", "task"], ["events", "event"], ["objectLinks", "link"]]) {
+      for (const [key, kind] of [["taskProjects", "project"], ["tasks", "task"], ["events", "event"], ["calendarCategories", "calendarCategory"], ["objectLinks", "link"]]) {
         if (array(selection.data[key]).length) target[key] = mergeRecords(target[key], selection.data[key], mode, kind, changes);
       }
       if (array(selection.data.timeTracking?.entries).length) {

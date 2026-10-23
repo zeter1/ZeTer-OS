@@ -4,7 +4,7 @@
   const config = window.ZETER_OS_CONFIG;
   if (!config) throw new Error("ZeTer OS fs item utils require config.");
 
-  const { TRASH_ROOT } = config;
+  const { LEGACY_DELETED_ROOT } = config;
 
   function fsItems(fs = {}) {
     return Array.isArray(fs) ? fs : Object.values(fs || {});
@@ -53,7 +53,7 @@
       const desktopName = typeof options.desktopName === "function" ? options.desktopName(item.parent) : item.parent;
       parts.unshift(desktopName || "Рабочий стол");
     }
-    if (item.parent === (options.trashRoot || TRASH_ROOT)) parts.unshift("Удалённые записи старой версии");
+    if (item.parent === (options.trashRoot || LEGACY_DELETED_ROOT)) parts.unshift("Удалённые записи старой версии");
     return parts.join(" / ");
   }
 
@@ -203,7 +203,7 @@
     const notify = typeof options.toast === "function" ? options.toast : () => {};
     const requestText = typeof options.prompt === "function" ? options.prompt : () => null;
     const desktopName = typeof options.desktopName === "function" ? options.desktopName : id => id;
-    const trashRoot = options.trashRoot || TRASH_ROOT;
+    const trashRoot = options.trashRoot || LEGACY_DELETED_ROOT;
     const normalizeTaskStore = typeof options.normalizeTaskStore === "function" ? options.normalizeTaskStore : () => {};
     const refreshOpenEditors = typeof options.refreshOpenEditors === "function" ? options.refreshOpenEditors : () => {};
     const refreshOpenTaskListTitles = typeof options.refreshOpenTaskListTitles === "function" ? options.refreshOpenTaskListTitles : () => {};

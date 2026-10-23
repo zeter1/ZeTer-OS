@@ -166,7 +166,6 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
           <label><input type="checkbox" data-security-clean="temporary" ${nativeMode ? "checked" : "disabled"}> Служебные временные файлы${nativeMode ? "" : " · только при запуске через Python"}</label>
           <label><input type="checkbox" data-security-clean="logs" ${nativeMode ? "" : "disabled"}> Старые части журналов${nativeMode ? "" : " · только при запуске через Python"}</label>
           <label><input type="checkbox" data-security-clean="backups" ${nativeMode ? "" : "disabled"}> Автокопии старше 90 дней${nativeMode ? "" : " · только при запуске через Python"}</label>
-          <label><input type="checkbox" data-security-clean="trash"> Следы удаления из старых версий без возможности восстановления</label>
           <label><input type="checkbox" data-security-clean="history"> История отмены действий</label>
           <label><input type="checkbox" data-security-clean="restore"> Все точки восстановления</label>
         </div>
@@ -682,8 +681,6 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       saveState = async () => {},
       confirmUser = () => false,
       promptUser = () => null,
-      purgeDeletedItemsFromStorageState = () => 0,
-      purgeExpiredTrashItems = () => 0,
       clearLegacyLocalStorageDataCore = () => 0,
       oldLocalStorageKeys = [],
       smallSettingsKey = "",
@@ -695,7 +692,6 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       deleteIndexedDatabaseByName = async () => false,
       clearOldPwaCachesCore = async () => 0,
       activeCacheName = "",
-      refreshRecycleBinWindows = () => {},
       localStorageRef = window.localStorage,
       indexedDbAvailable = () => Boolean(window.indexedDB),
       clearNativeState = async () => {},
@@ -850,18 +846,18 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
 
     function selectedCleanupOptions(root) {
       const selected = new Set([...(root?.querySelectorAll?.("[data-security-clean]:checked") || [])].map(input => input.dataset.securityClean));
-      return Object.fromEntries(["legacy", "cache", "temporary", "logs", "backups", "trash", "history", "restore"].map(key => [key, selected.has(key)]));
+      return Object.fromEntries(["legacy", "cache", "temporary", "logs", "backups", "history", "restore"].map(key => [key, selected.has(key)]));
     }
 
     async function cleanOldOsBrowserData(root = documentRef) {
       const selection = selectedCleanupOptions(root);
-      const names = Object.entries(selection).filter(([, enabled]) => enabled).map(([key]) => ({ legacy: "старые ключи и базы", cache: "PWA-кеши", temporary: "временные файлы", logs: "старые части журналов", backups: "автокопии старше 90 дней", trash: "следы удаления из старых версий", history: "история отмены", restore: "точки восстановления" }[key]));
+      const names = Object.entries(selection).filter(([, enabled]) => enabled).map(([key]) => ({ legacy: "старые ключи и базы", cache: "PWA-кеши", temporary: "временные файлы", logs: "старые части журналов", backups: "автокопии старше 90 дней", history: "история отмены", restore: "точки восстановления" }[key]));
       if (!names.length) return toast("Нечего очищать", "Выбери хотя бы одну категорию.");
       const preview = await collectCleanupPreview();
-      const warning = `Будут очищены: ${names.join(", ")}. Старые записи удаления: ${preview.legacyDeletedItems}, история: ${preview.historyItems}, точки восстановления: ${preview.restorePoints}, служебные файлы: ${preview.nativeFiles}. Продолжить?`;
+      const warning = `Будут очищены: ${names.join(", ")}. История: ${preview.historyItems}, точки восстановления: ${preview.restorePoints}, служебные файлы: ${preview.nativeFiles}. Продолжить?`;
       if (!confirmUser(warning)) return false;
 
-      const destructive = selection.trash || selection.history || selection.restore;
+      const destructive = selection.history || selection.restore;
       if (destructive) {
         const backup = await exportBackup({ source: "pre-cleanup" });
         if (!backup) return toast("Очистка отменена", "Не удалось создать проверенный страховочный ZIP-бэкап.");
@@ -869,9 +865,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       }
 
       const before = storedStateSizeBytes();
-      let deletedItems = 0;
-      if (selection.trash) deletedItems = purgeDeletedItemsFromStorageState(getState(), { dropActionHistory: selection.history });
-      else if (selection.history) getState().actionHistory = [];
+      if (selection.history) getState().actionHistory = [];
       const legacyKeys = selection.legacy ? clearLegacyLocalStorageData() : 0;
       const oldCaches = selection.cache ? await clearOldPwaCaches() : 0;
       const oldDbs = selection.legacy ? await clearOldIndexedDbData() : 0;
@@ -886,11 +880,10 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       securityMeta().lastCleanupAt = now();
       const after = storedStateSizeBytes();
       const freed = Math.max(0, before - after) + Number(nativeResult?.reclaimBytes || 0);
-      const details = `старых записей удаления: ${deletedItems} · старых ключей: ${legacyKeys} · кешей: ${oldCaches} · баз: ${oldDbs} · освобождено не менее ${bytesToHuman(freed)}`;
+      const details = `старых ключей: ${legacyKeys} · кешей: ${oldCaches} · баз: ${oldDbs} · освобождено не менее ${bytesToHuman(freed)}`;
       addJournalEvent({ type: "cleanup", tone: "ok", title: "Безопасная очистка завершена", detail: details });
       await saveState({ skipProtectionCheck: true });
       renderAllFileSurfaces();
-      refreshRecycleBinWindows();
       toast("Очистка завершена", details);
       return true;
     }
@@ -974,7 +967,6 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
         }
         if (!name) name = reason === "automatic" ? "Автоматическая точка" : "Страховочная точка";
         syncLiveEditorsBeforeExport();
-        purgeExpiredTrashItems(getState(), { dropActionHistory: true });
         await saveState({ skipExternalBackup: true, skipProtectionCheck: true });
         const snapshot = cloneForBackup(getState());
         const point = {

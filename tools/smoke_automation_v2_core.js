@@ -456,6 +456,7 @@ async function verifyCategories() {
     ui: { windows: new Map([["automations_window", { appId: "automations" }]]) },
     currentView: { error: "" },
     renderAllFileSurfaces: () => {}, renderNotifications: () => {},
+    cleanupRemovedItemReferences: () => assert.fail("failed persistence must not clean references"),
     refreshWindow: () => { tx.currentView = { error: "" }; },
     saveState: () => Promise.reject(new Error("storage unavailable"))
   };
@@ -477,12 +478,14 @@ async function verifySeparateWindowAdapters() {
   let failSave = false;
   const refreshed = [];
   const navigation = [];
+  const cleanedIds = [];
   const tx = {
     state: { automations: utils.normalizeAutomations([{ id: "edit", name: "Existing", type: "startup", lastRunKey: "latest-run" }, { id: "other", type: "startup" }]), automationCategories: [] },
     normalizeAutomations: utils.normalizeAutomations, normalizeAutomationCategories: utils.normalizeAutomationCategories,
     cloneForBackup: plain, getDesktopRoot: () => root,
     ui: { windows: new Map() },
     renderAllFileSurfaces() {}, renderNotifications() {},
+    cleanupRemovedItemReferences: ids => cleanedIds.push(plain(ids)),
     refreshWindow: id => refreshed.push(id),
     saveState: async () => { if (failSave) throw new Error("storage unavailable"); },
     closeWindow: id => { navigation.push(["close", id]); tx.ui.windows.delete(id); },
@@ -527,6 +530,15 @@ async function verifySeparateWindowAdapters() {
   tx.ui.windows.clear();
   tx.returnToAutomations("editor", "");
   assert.deepEqual(navigation.at(-1), ["open", "automations", { categoryId: "" }], "closed main app is reopened after save");
+  assert.deepEqual(cleanedIds, [[], []], "only confirmed saves may clean removed references");
+  tx.state.fs = { kept: { id: "kept" }, removed: { id: "removed" } };
+  await tx.persistAutomationMutation(() => { delete tx.state.fs.removed; });
+  assert.deepEqual(cleanedIds.at(-1), ["removed"], "cleanup must receive the exact IDs removed by the confirmed transaction");
+  failSave = true;
+  const cleanupCount = cleanedIds.length;
+  await assert.rejects(tx.persistAutomationMutation(() => { delete tx.state.fs.kept; }), /storage unavailable/);
+  assert.ok(tx.state.fs.kept, "failed save must restore the material");
+  assert.equal(cleanedIds.length, cleanupCount, "rollback must preserve its references");
 }
 
 Promise.resolve()
@@ -554,7 +566,8 @@ Promise.resolve()
     assert.match(appSource, /linkObjects: \(left, right, meta = \{\}\)/, "action chains need the object-link adapter");
     assert.match(appSource, /saveState: saveStateWithTaskAutomation/, "task completion events must reach automations");
     assert.match(appSource, /saveState: saveStateWithNoteAutomation/, "note change events must reach automations");
-    assert.match(appSource, /saveState: saveStateWithCalendarAutomation/, "created events must reach automations");
+    // Calendar event + automation persistence is exercised through the production
+    // renderer/adapter and actual primary queue in smoke_calendar_persistence.js.
     assert.match(appSource, /type: "startup", startupKey: automationStartupKey/, "startup rules must be queued once per boot");
     assert.doesNotMatch(appSource, /automationRuntimeController\.resetFileAddedSeenIds\(/, "persisted file baselines must survive startup and desktop switching");
     assert.doesNotMatch(appSource, /bulkMoveItemsToFolder\(\[fileId\]/, "automation move actions must not invoke an inner save");

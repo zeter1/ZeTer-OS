@@ -650,6 +650,10 @@
   }
 
   function eventOccursOnDate(event, day) {
+    const occursOn = window.ZETER_CALENDAR_UTILS?.occursOn;
+    if (typeof occursOn === "function") return occursOn(event, localDateKey(day));
+    // Legacy standalone consumers can evaluate old events. Extended rules require the common owner.
+    if (Number(event?.repeatInterval || 1) !== 1 || event?.repeatUntil || event?.excludedDates?.length || event?.repeatWeekdays?.length) return false;
     const base = parseLocalDate(event?.date);
     if (!base || day.getTime() < base.getTime()) return false;
     const repeat = String(event?.repeat || "none");
@@ -699,11 +703,11 @@
     for (let offset = 0; offset <= searchDays; offset += 1) {
       const day = new Date(nowDay.getFullYear(), nowDay.getMonth(), nowDay.getDate() + offset, 0, 0, 0, 0);
       if (!eventOccursOnDate(event, day)) continue;
-      const eventAt = dateWithTime(day, event.start || "00:00");
+      const eventAt = dateWithTime(day, event.allDay ? "09:00" : event.start || "00:00");
       const dueAt = eventAt.getTime() - automation.minutesBefore * 60 * 1000;
       if (now.getTime() < dueAt || now.getTime() > eventAt.getTime()) continue;
       return Object.freeze({
-        runKey: `event_before:${event.id}:${localDateKey(day)}:${normalizeClockTime(event.start || "00:00", "00:00")}:${automation.minutesBefore}`.slice(0, AUTOMATION_RUN_KEY_MAX_CHARS),
+        runKey: `event_before:${event.id}:${localDateKey(day)}:${normalizeClockTime(event.allDay ? "09:00" : event.start || "00:00", "00:00")}:${automation.minutesBefore}`.slice(0, AUTOMATION_RUN_KEY_MAX_CHARS),
         type: "event_before",
         eventId: event.id,
         eventDate: localDateKey(day),
@@ -716,12 +720,14 @@
   function eventRelativeDueRun(automation, now, events) {
     const event = (Array.isArray(events) ? events : []).find(item => item?.id === automation.eventId);
     if (!event) return null;
-    const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const searchDays = Math.min(8, Math.ceil(Math.abs(automation.offsetMinutes) / (24 * 60)) + 1);
-    for (let offset = -1; offset <= searchDays; offset += 1) {
-      const day = new Date(nowDay.getFullYear(), nowDay.getMonth(), nowDay.getDate() + offset, 0, 0, 0, 0);
+    // An eligible occurrence starts in [now - offset - grace, now - offset].
+    // Convert those instants to local dates before scanning, including DST boundaries.
+    const latest = new Date(now.getTime() - automation.offsetMinutes * 60 * 1000);
+    const earliest = new Date(latest.getTime() - 24 * 60 * 60 * 1000);
+    const lastDay = new Date(latest.getFullYear(), latest.getMonth(), latest.getDate());
+    for (const day = new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate()); day <= lastDay; day.setDate(day.getDate() + 1)) {
       if (!eventOccursOnDate(event, day)) continue;
-      const eventAt = dateWithTime(day, event.start || "00:00");
+      const eventAt = dateWithTime(day, event.allDay ? "09:00" : event.start || "00:00");
       const dueAt = eventAt.getTime() + automation.offsetMinutes * 60 * 1000;
       if (now.getTime() < dueAt) continue;
       if (now.getTime() > dueAt + 24 * 60 * 60 * 1000) continue;

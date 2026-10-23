@@ -24,7 +24,7 @@
   const START_QUICK_ACTIONS = Object.freeze({ note: ["📝", "Создать заметку"], task: ["＋", "Добавить задачу"], explorer: ["📁", "Открыть проводник"] });
 
   function startAppCategory(id = "") {
-    if (["tasks", "tasklist", "calendar", "timetracking", "prompts"].includes(id)) return "work";
+    if (["tasks", "tasklist", "calendar", "timetracking", "prompts", "contacts"].includes(id)) return "work";
     if (["editor", "notes", "markdown", "table", "photos", "links", "folder"].includes(id)) return "documents";
     if (["calculator", "calculations", "automations"].includes(id)) return "tools";
     return "system";

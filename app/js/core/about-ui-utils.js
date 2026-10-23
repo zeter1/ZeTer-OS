@@ -41,6 +41,50 @@
         <small class="muted">Откройте страницу обновлений, чтобы скачать опубликованную сборку. Перед обновлением сохраните ZIP-бэкап в Центре безопасности данных.</small>
         <div class="about-update-panel" data-update-panel><p role="status">Проверка обновлений…</p><div class="about-update-actions"><button type="button" data-update-check>Проверить обновления</button></div></div>
       </section>
+      <section class="setting-card about-launch">
+        <h3>Как запустить ZeTer OS</h3>
+        <p class="muted">Выберите удобный вариант: откройте сайт, скачайте готовое приложение или запустите исходники через Python.</p>
+        <div class="about-launch-grid">
+          <article class="about-launch-card">
+            <h4>В браузере</h4>
+            <p>Без установки EXE и Python.</p>
+            <ol>
+              <li>Откройте веб-версию по ссылке ниже.</li>
+              <li>Работайте в одном и том же профиле браузера: здесь сохраняются ваши материалы.</li>
+            </ol>
+            <p class="muted">Некоторые функции Windows и операции с локальными документами доступны только в настольной версии.</p>
+            <div class="about-links">${linkHTML("Открыть веб-версию", "https://dkl.do.am/zeteros/index.html")}</div>
+          </article>
+          <article class="about-launch-card">
+            <h4>Приложение .exe</h4>
+            <p>Готовая сборка для Windows x64. Python не нужен.</p>
+            <ol>
+              <li>Откройте Releases и в разделе Assets скачайте <code>ZeTer-OS-&lt;версия&gt;-Windows-x64.zip</code>.</li>
+              <li>Распакуйте весь ZIP в отдельную папку.</li>
+              <li>Запустите <code>ZeTer-OS.exe</code> из распакованной папки.</li>
+            </ol>
+            <p class="muted">Не переносите EXE отдельно от остальных файлов. Для окна приложения нужен Microsoft Edge WebView2 Runtime.</p>
+            <div class="about-links">
+              ${linkHTML("Скачать Windows-версию", "https://github.com/zeter1/ZeTer-OS/releases")}
+              ${linkHTML("Установить WebView2 Runtime", "https://developer.microsoft.com/microsoft-edge/webview2/")}
+            </div>
+          </article>
+          <article class="about-launch-card">
+            <h4>Из Python</h4>
+            <p>Для работы с исходниками на Windows.</p>
+            <ol>
+              <li>Установите Python 3.10 или новее с сайта python.org и Microsoft Edge WebView2 Runtime.</li>
+              <li>На GitHub выберите Code → Download ZIP и распакуйте архив.</li>
+              <li>Откройте папку с <code>run_zeter_os.py</code> и запустите <code>start_zeter_os.cmd</code>.</li>
+            </ol>
+            <p>Или откройте терминал в этой папке и выполните по очереди:</p>
+            <pre><code>py -3 -m pip install -r requirements.txt
+py -3 run_zeter_os.py</code></pre>
+            <div class="about-links">${linkHTML("Исходники и инструкция", "https://github.com/zeter1/ZeTer-OS/blob/main/README_PYTHON.md")}</div>
+          </article>
+        </div>
+        <p class="muted about-launch-storage">В браузере данные хранятся в его профиле, в EXE и Python — в папке <code>data/</code> рядом с программой. Автоматической синхронизации между вариантами нет. Перед переходом сохраните ZIP-бэкап в Центре безопасности данных; для переноса используйте восстановление из него. Не очищайте данные сайта без резервной копии.</p>
+      </section>
       <section class="setting-card about-developer">
         <h3>Разработчик</h3>
         <div class="developer-profile"><span class="developer-avatar" aria-hidden="true">ДК</span><div><b>${escapeHtml(developer.name)}</b><small>Автор и разработчик ZeTer OS</small></div></div>

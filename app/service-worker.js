@@ -1,5 +1,5 @@
 const ZETER_CACHE_REVISION = "web-snapshots-1";
-const ZETER_CACHE = "zeter-os-4.0.64-web-snapshots-1";
+const ZETER_CACHE = "zeter-os-4.0.87-web-snapshots-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -27,6 +27,9 @@ const ZETER_ASSETS = [
   "./js/core/link-library-utils.js",
   "./js/core/link-library-ui-utils.js",
   "./js/core/prompt-library-utils.js",
+  "./js/core/contacts-utils.js",
+  "./js/core/contacts-ui-utils.js",
+  "./css/69-contacts.css",
   "./js/core/prompt-library-ui-utils.js",
   "./js/core/business-calculations-utils.js",
   "./js/core/business-calculations-ui-utils.js",
@@ -42,7 +45,7 @@ const ZETER_ASSETS = [
   "./js/core/explorer-tab-utils.js",
   "./js/core/explorer-ui-utils.js",
   "./js/core/pinning-utils.js",
-  "./js/core/trash-utils.js",
+  "./js/core/deletion-utils.js",
   "./js/core/desktop-layout-utils.js",
   "./js/core/item-drag-ui-utils.js",
   "./js/core/window-metrics-utils.js",

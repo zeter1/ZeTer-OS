@@ -306,7 +306,7 @@
       ].join("\n"));
 
       const data = normalizeTaskStore(desk.data || workspaceDefaults());
-      addEntry(`Календарь/${safeTitle}_calendar.txt`, formatEventsAsText(Array.isArray(data.events) ? data.events : [], title));
+      addEntry(`Календарь/${safeTitle}_calendar.txt`, formatEventsAsText(Array.isArray(data.events) ? data.events : [], title, data.calendarCategories || []));
       addEntry(`Задачи/${safeTitle}_tasks.txt`, formatTasksAsText(Array.isArray(data.tasks) ? data.tasks : [], title, data.taskProjects));
     });
   }
@@ -392,7 +392,7 @@
     return lines.join("\n");
   }
 
-  function formatEventsAsText(events = [], desktopTitle = "Рабочий стол") {
+  function formatEventsAsText(events = [], desktopTitle = "Рабочий стол", categories = []) {
     const sorted = [...events].sort((a, b) => `${a.date || ""} ${a.start || ""}`.localeCompare(`${b.date || ""} ${b.start || ""}`));
     const lines = ["Календарь ZeTer OS", `Рабочий стол: ${desktopTitle}`, `Сохранено: ${humanDateTime()}`, ""];
     if (!sorted.length) {
@@ -402,11 +402,21 @@
     sorted.forEach((event, index) => {
       const time = [event.start, event.end].filter(Boolean).join("–");
       lines.push(`${index + 1}. ${event.title || "Без названия"}`);
-      if (event.date) lines.push(`   Дата: ${formatReadableDate(event.date)}`);
-      if (time) lines.push(`   Время: ${time}`);
-      if (event.category) lines.push(`   Категория: ${categoryName(event.category)}`);
+      if (event.date) lines.push(`   Дата: ${formatReadableDate(event.date)}${event.endDate && event.endDate !== event.date ? ` — ${formatReadableDate(event.endDate)}` : ""}`);
+      if (event.allDay) lines.push("   Время: весь день");
+      else if (time) lines.push(`   Время: ${time}`);
+      if (event.category) lines.push(`   Категория: ${categories.find(row => row.id === event.category)?.name || event.categoryName || (event.category.startsWith("calcat_") ? event.category : categoryName(event.category))}`);
       if (event.location) lines.push(`   Место: ${event.location}`);
       if (event.repeat) lines.push(`   Повтор: ${repeatName(event.repeat)}`);
+      if (event.repeat && event.repeat !== "none") {
+        lines.push(`   Интервал повтора: ${event.repeatInterval || 1}`);
+        if (event.repeat === "weekly" && event.repeatWeekdays?.length) lines.push(`   Дни недели (0=вс): ${event.repeatWeekdays.join(", ")}`);
+        if (event.repeatUntil) lines.push(`   Повторять по: ${formatReadableDate(event.repeatUntil)}`);
+      }
+      if (event.excludedDates?.length) lines.push(`   Исключения: ${event.excludedDates.join(", ")}`);
+      if (event.taskId) lines.push(`   Задача: ${event.taskId}`);
+      if (event.projectId || event.projectName) lines.push(`   Проект: ${event.projectName || event.projectId}${event.projectName && event.projectId ? ` (${event.projectId})` : ""}`);
+      if (event.attachments?.length) lines.push(`   Материалы: ${event.attachments.map(ref => `${ref.kind}:${ref.id}`).join(", ")}`);
       if (event.reminder) lines.push(`   Напоминание: ${event.reminder} мин.`);
       if (event.description) lines.push(`   Описание: ${event.description}`);
       lines.push("");

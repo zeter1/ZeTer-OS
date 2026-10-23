@@ -14,6 +14,7 @@
     calendaredit: Object.freeze({ name: "Добавление события", icon: "📅", w: 680, h: 580, pinned: false, hidden: true, render: "calendarEventEditor", title: "calendarEventEditor" }),
     automations: Object.freeze({ name: "Автоматизации", description: "Создавайте правила для рутины.\nВыбирайте условия и действия.\nПроверяйте итоги выполнения.", icon: "⚡", w: 920, h: 640, pinned: false, render: "automations" }),
     links: Object.freeze({ name: "Ссылки", description: "Собирайте полезные ссылки.\nДобавляйте сайты, файлы и папки.\nРаспределяйте их по категориям.", icon: "🔗", w: 980, h: 660, pinned: false, render: "links" }),
+    contacts: Object.freeze({ name: "Контакты", description: "Храните людей из разных сфер.\nРазделяйте по проектам и категориям.\nНаходите нужный способ связи.", icon: "📇", w: 1160, h: 740, pinned: false, render: "contacts" }),
     calculations: Object.freeze({ name: "Подсчёты", description: "Считайте маржу, скидки и прибыль.\nОценивайте затраты и окупаемость.\nВыбирайте нужные калькуляторы.", icon: "∑", w: 980, h: 740, pinned: false, render: "calculations" }),
     prompts: Object.freeze({ name: "Промпты", description: "Храните запросы для нейросетей.\nРазделяйте шаблоны по категориям.\nКопируйте текст для новой беседы.", icon: "✦", w: 980, h: 700, pinned: false, render: "prompts" }),
     timetracking: Object.freeze({ name: "Учёт времени", description: "Засекайте время работы таймером.\nЗаписывайте занятия вручную.\nСмотрите историю и итоги недели.", icon: "⏱️", w: 1040, h: 760, pinned: false, render: "timeTracking" }),

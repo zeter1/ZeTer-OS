@@ -110,6 +110,10 @@
       if (project?.id) validateImportSafeId(project.id, `${label}: ID проекта #${index + 1}`);
       validateImportString(project?.name, `${label}: имя проекта #${index + 1}`, 160);
       validateImportString(project?.description, `${label}: описание проекта #${index + 1}`, 2000);
+      validateImportString(project?.goal, `${label}: цель проекта #${index + 1}`, 1000);
+      if (project?.status !== undefined) validateImportEnum(project.status, new Set(["planned", "active", "paused", "completed"]), `${label}: статус проекта`);
+      for (const key of ["startDate", "deadline"]) if (project?.[key] !== undefined && project[key] !== "" && !dataNormalizers.isCalendarDate(project[key])) throw new Error(`${label}: неверная дата проекта ${key}.`);
+      if (project?.startDate && project?.deadline && project.startDate > project.deadline) throw new Error(`${label}: срок проекта раньше даты начала.`);
       if (project?.color !== undefined && !["default", "blue", "green", "orange", "pink", "purple"].includes(project.color) && !(typeof project.color === "string" && /^#[0-9a-fA-F]{6}$/.test(project.color))) throw new Error(`${label}: неверный цвет проекта.`);
       for (const [key, values] of Object.entries({ defaultView: ["overview", "board", "list"], sortBy: ["created", "due", "priority", "title"], defaultPriority: ["low", "medium", "high"] })) {
         if (project?.[key] !== undefined) validateImportEnum(project[key], new Set(values), `${label}: настройка проекта ${key}`);
@@ -156,11 +160,42 @@
       validateImportString(event?.title, `${label}: название события #${index + 1}`, 500);
       validateImportString(event?.location, `${label}: место события #${index + 1}`, 500);
       validateImportString(event?.description, `${label}: описание события #${index + 1}`);
-      if (event?.category) validateImportEnum(event.category, CALENDAR_CATEGORY_IDS, `${label}: категория события #${index + 1}`);
+      for (const key of ["endDate", "repeatUntil"]) {
+        if (event?.[key] !== undefined && event[key] !== "" && !dataNormalizers.isCalendarDate(event[key])) throw new Error(`${label}: неверная дата события (${key}).`);
+      }
+      if (event?.endDate && dataNormalizers.isCalendarDate(event.date) && event.endDate < event.date) throw new Error(`${label}: окончание события раньше начала.`);
+      if (event?.allDay !== undefined && typeof event.allDay !== "boolean") throw new Error(`${label}: признак «Весь день» должен быть логическим значением.`);
+      if (event?.repeatInterval !== undefined && (!Number.isInteger(event.repeatInterval) || event.repeatInterval < 1 || event.repeatInterval > 365)) throw new Error(`${label}: неверный интервал повторения.`);
+      if (event?.repeatWeekdays !== undefined && (!Array.isArray(event.repeatWeekdays) || event.repeatWeekdays.length > 7 || event.repeatWeekdays.some(day => !Number.isInteger(day) || day < 0 || day > 6))) throw new Error(`${label}: неверные дни недели повторения.`);
+      if (event?.excludedDates !== undefined && (!Array.isArray(event.excludedDates) || event.excludedDates.length > 1000 || event.excludedDates.some(date => !dataNormalizers.isCalendarDate(date)))) throw new Error(`${label}: неверные исключения повторения.`);
+      for (const key of ["taskId", "projectId"]) if (event?.[key]) validateImportSafeId(event[key], `${label}: связь события (${key})`);
+      validateImportString(event?.projectName, `${label}: имя проекта события #${index + 1}`, 160);
+      if (event?.attachments !== undefined) {
+        if (!Array.isArray(event.attachments) || event.attachments.length > 200) throw new Error(`${label}: неверный список вложений события.`);
+        event.attachments.forEach(ref => {
+          if (!ref || typeof ref !== "object" || ref.kind !== "fs" || typeof ref.id !== "string" || !ref.id) throw new Error(`${label}: неверное вложение события.`);
+          validateImportSafeId(ref.id, `${label}: ID вложения события`);
+        });
+      }
+      if (event?.category && !CALENDAR_CATEGORY_IDS.has(event.category) && !(typeof event.category === "string" && /^calcat_[A-Za-z0-9_-]{1,180}$/.test(event.category))) throw new Error(`${label}: неверная категория события #${index + 1}.`);
       if (event?.repeat) validateImportEnum(event.repeat, CALENDAR_REPEAT_IDS, `${label}: повтор события #${index + 1}`);
       if (event?.reminder) validateImportEnum(String(event.reminder), CALENDAR_REMINDER_IDS, `${label}: напоминание события #${index + 1}`);
       validateImportString(event?.reminderNotifiedOccurrence, `${label}: отметка напоминания события #${index + 1}`, 80);
     });
+  }
+
+  function validateImportedCalendarCategories(categories, label) {
+    if (categories === undefined) return;
+    if (!Array.isArray(categories) || categories.length > 100) throw new Error(`${label}: неверный список категорий календаря.`);
+    const seen = new Set();
+    for (const category of categories) {
+      if (!category || typeof category !== "object" || typeof category.id !== "string" || !/^calcat_[A-Za-z0-9_-]{1,180}$/.test(category.id) || seen.has(category.id)) throw new Error(`${label}: неверный или повторный ID категории календаря.`);
+      if (typeof category.name !== "string" || !category.name.trim() || category.name.length > 80) throw new Error(`${label}: название категории должно содержать от 1 до 80 символов.`);
+      if (category.color !== undefined && (typeof category.color !== "string" || !/^#[0-9a-f]{6}$/i.test(category.color))) throw new Error(`${label}: неверный цвет категории календаря.`);
+      validateImportString(category.description, `${label}: описание категории календаря`, 1000);
+      if (category.icon !== undefined && !dataNormalizers.CALENDAR_CATEGORY_ICONS.includes(category.icon)) throw new Error(`${label}: неверный значок категории календаря.`);
+      seen.add(category.id);
+    }
   }
 
   function validateImportedNotifications(notifications, label) {
@@ -446,6 +481,7 @@
     if (incoming.legacyLinkLibrary != null) window.ZETER_LINK_LIBRARY_UTILS.validateLinkLibrary(incoming.legacyLinkLibrary);
     validateImportedTaskStore(incoming, "Основные задачи");
     validateImportedEvents(incoming.events, "Календарь");
+    validateImportedCalendarCategories(incoming.calendarCategories, "Календарь");
     validateImportedNotifications(incoming.notifications, "Уведомления");
     validateImportedAutomations(incoming.automations, "Автоматизации");
     validateImportedAutomationCategories(incoming.automationCategories, "Категории автоматизаций");
@@ -465,6 +501,7 @@
       if (desk?.data?.library != null) window.ZETER_LINK_LIBRARY_UTILS.validateLinkLibrary(desk.data.library);
       if (desk?.data?.calculations != null) window.ZETER_BUSINESS_CALCULATIONS_UTILS.validateBusinessCalculations(desk.data.calculations);
       if (desk?.data?.promptLibrary != null) window.ZETER_PROMPT_LIBRARY_UTILS.validatePromptLibrary(desk.data.promptLibrary);
+      if (desk?.data?.contacts != null) window.ZETER_CONTACTS_UTILS.validateContacts(desk.data.contacts);
       if (desk?.data?.timeTracking != null) window.ZETER_TIME_TRACKING_UTILS.validateTimeTracking(desk.data.timeTracking);
       validateImportString(desk?.id, `Рабочий стол #${index + 1}: ID`, 220);
       validateImportSafeId(desk?.id, `Рабочий стол #${index + 1}: ID`);
@@ -475,6 +512,7 @@
       }
       validateImportedTaskStore(desk?.data, `Рабочий стол «${desk?.name || index + 1}»`);
       validateImportedEvents(desk?.data?.events, `Рабочий стол «${desk?.name || index + 1}»: календарь`);
+      validateImportedCalendarCategories(desk?.data?.calendarCategories, `Рабочий стол «${desk?.name || index + 1}»: календарь`);
       validateImportedNotifications(desk?.data?.notifications, `Рабочий стол «${desk?.name || index + 1}»: уведомления`);
       validateImportedAutomations(desk?.data?.automations, `Рабочий стол «${desk?.name || index + 1}»: автоматизации`);
       validateImportedAutomationCategories(desk?.data?.automationCategories, `Рабочий стол «${desk?.name || index + 1}»: категории автоматизаций`);
@@ -515,6 +553,7 @@
     sanitizeImportedRichContent,
     validateImportedTaskStore,
     validateImportedEvents,
+    validateImportedCalendarCategories,
     validateImportedNotifications,
     validateImportedAutomations,
     validateImportedAutomationCategories,

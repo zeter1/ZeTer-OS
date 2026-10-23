@@ -659,7 +659,6 @@
       createTable: (root, point) => options.createTable?.(root, { openAfter: true, x: point.x, y: point.y }),
       createTaskList: (root, point) => options.createTaskList?.(root, { openAfter: true, x: point.x, y: point.y }),
       createNote: (root, point) => options.createItem?.("note", "Новая заметка", root, point.x, point.y, { content: "" }),
-      undo: options.undo,
       exportData: options.exportData,
       openImport: options.openImport,
       openSettings: () => openApp("settings"),

@@ -4,7 +4,7 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), path = re
 const sandbox = { console, URL, structuredClone, Blob, TextEncoder, TextDecoder, crypto: require("node:crypto").webcrypto, Uint8Array, atob, btoa }; sandbox.window = sandbox; vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core/time-tracking-utils.js"), "utf8"), sandbox);
 const model = sandbox.ZETER_TIME_TRACKING_UTILS;
-for (const name of ["utils.js", "config.js", "shortcut-utils.js", "link-library-utils.js", "prompt-library-utils.js", "business-calculations-utils.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
+for (const name of ["utils.js", "config.js", "shortcut-utils.js", "link-library-utils.js", "prompt-library-utils.js", "contacts-utils.js", "business-calculations-utils.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core", name), "utf8"), sandbox);
 }
 sandbox.ZETER_DATA_NORMALIZERS = { TASK_TITLE_MAX_CHARS: 500, TASK_TAG_MAX_CHARS: 160, TASK_CHECKLIST_TEXT_MAX_CHARS: 500 };
@@ -61,7 +61,10 @@ async function main() {
   const other = { timeTracking: model.normalizeTimeTracking() };
   const isolated = model.createTimeTrackingController({ ...options, getWorkspace: () => other });
   await isolated.start({ title: "Другой стол" }); assert.equal(first.read().active, null);
+  const legacy = { ...JSON.parse(JSON.stringify(entry)), id: "legacy-deleted", deletedAt: 0 };
+  workspace.timeTracking.entries.push(legacy);
   await first.removeEntry(entry.id); await first.setDailyGoal(60);
+  assert.equal(first.read().entries.some(item => item.id === entry.id), false);
   const incoming = { fs: {}, settings: {}, currentDesktop: "desktop", desktops: [{ id: "desktop", name: "Основной", data: { timeTracking: first.read() } }, { id: "second", name: "Второй", data: { timeTracking: isolated.read() } }] };
   const validator = sandbox.ZETER_STATE_IMPORT_VALIDATOR.validateImportedStateForImport;
   validator(incoming);
@@ -75,7 +78,7 @@ async function main() {
   const restored = JSON.parse(await zipEntries.find(item => item.path === "zeter-os-state.json").blob.text()).state;
   assert.deepEqual(restored.desktops, JSON.parse(JSON.stringify(incoming.desktops))); validator(restored);
   assert.equal(restored.desktops[0].data.timeTracking.dailyGoalMinutes, 60);
-  assert.ok(restored.desktops[0].data.timeTracking.entries.some(item => item.deletedAt != null));
+  assert.deepEqual(restored.desktops[0].data.timeTracking.entries.find(item => item.id === legacy.id), legacy);
   console.log("Time tracking smoke: lifecycle, failure/retry, staged save, reload/recovery, isolation, midnight/week and validation PASS");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

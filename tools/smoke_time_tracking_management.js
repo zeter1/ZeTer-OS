@@ -35,29 +35,33 @@ async function main() {
   const controller = context.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({ getWorkspace: () => workspace, persistTransaction,
     saveSnapshot: (write, candidate) => write(candidate), createId: () => "unused" });
   const tasksBefore = JSON.stringify([workspace.tasks, workspace.taskProjects]);
-  const snapshot = controller.read().entries.filter(context.ZETER_TIME_TRACKING_UTILS.isTimeEntryDeleted);
+  const legacy = plain(controller.read().entries.slice(0, 2));
   const trackingBefore = JSON.stringify(workspace.timeTracking); rejectSave = true;
-  await assert.rejects(controller.purgeEntries(snapshot), /сохран/i); assert.equal(JSON.stringify(workspace.timeTracking), trackingBefore); rejectSave = false;
-  for (const values of [[], [snapshot[0], snapshot[0]], [entry("missing", 0)], [entry("kept")]]) {
-    const previousWrites = writes; await assert.rejects(controller.purgeEntries(values)); assert.equal(writes, previousWrites);
+  await assert.rejects(controller.removeEntry("kept"), /сохран/i); assert.equal(JSON.stringify(workspace.timeTracking), trackingBefore); rejectSave = false;
+  for (const id of ["missing", "zero", "trash"]) {
+    const previousWrites = writes; await assert.rejects(controller.removeEntry(id), /удален|удалён|недоступ/i); assert.equal(writes, previousWrites);
   }
-  workspace.timeTracking.entries[1].notes = "Изменено другим окном";
-  const previousWrites = writes; await assert.rejects(controller.purgeEntries(snapshot), /измен|недоступ/i); assert.equal(writes, previousWrites);
-  assert.equal(workspace.timeTracking.entries.length, 3, "batch must reject atomically");
-  delete workspace.timeTracking.entries[1].notes;
-  await controller.restoreEntry("trash", 3000); await assert.rejects(controller.purgeEntries(snapshot));
-  workspace.timeTracking.entries[1].deletedAt = 3000;
-  // Snapshot is detached at call time; a later tombstone is outside the confirmed set.
-  const expected = plain(snapshot); let enter;
-  const gate = new Promise(resolve => { enter = resolve; });
-  const queued = context.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({ getWorkspace: () => workspace,
-    persistTransaction: async operation => { await gate; return persistTransaction(operation); }, saveSnapshot: (write, candidate) => write(candidate) });
-  const purge = queued.purgeEntries(expected); expected[0].title = "Changed caller object";
-  workspace.timeTracking.entries.push(entry("later", 4000)); enter(); await purge;
-  assert.deepEqual(plain(workspace.timeTracking.entries).map(item => item.id), ["kept", "later"]);
-  assert.deepEqual(saved.entries.map(item => item.id), ["kept", "later"]);
+  assert.equal(controller.restoreEntry, undefined); assert.equal(controller.purgeEntries, undefined);
+  // Two windows share the real transaction boundary; the candidate stays private until ACK.
+  let transaction = Promise.resolve();
+  const lockedTransaction = operation => {
+    const result = transaction.catch(() => {}).then(() => persistTransaction(operation)); transaction = result.catch(() => {}); return result;
+  };
+  const createWindow = () => context.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({ getWorkspace: () => workspace,
+    persistTransaction: lockedTransaction, saveSnapshot: (write, candidate) => write(candidate) });
+  const first = createWindow(), second = createWindow();
+  pending = new Promise(resolve => { release = resolve; });
+  const deletion = first.removeEntry("kept");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(JSON.stringify(workspace.timeTracking), trackingBefore, "deletion must not publish before ACK");
+  assert.deepEqual(saved.entries, legacy, "staged candidate removes exactly one active entry");
+  const duplicate = assert.rejects(second.removeEntry("kept"), /удален|удалён|недоступ/i);
+  const goal = second.setDailyGoal(45);
+  release(); await deletion; await duplicate; await goal; pending = null;
+  assert.deepEqual(plain(workspace.timeTracking.entries), legacy, "legacy tombstones remain byte-for-byte compatible");
+  assert.equal(workspace.timeTracking.dailyGoalMinutes, 45, "next window mutation uses accepted state");
+  assert.equal(context.ZETER_TIME_TRACKING_UTILS.selectTimeEntries(workspace.timeTracking).length, 0);
   assert.equal(JSON.stringify([workspace.tasks, workspace.taskProjects]), tasksBefore); assert.equal(JSON.stringify(unrelated), otherBefore);
-  await controller.purgeEntries([controller.read().entries[1]]); assert.equal(workspace.timeTracking.entries.length, 1);
-  console.log("time management smoke PASS: canonical creation, save barrier/locks, exact atomic purge, stale/restore guards, zero tombstone, late deletion and workspace isolation");
+  console.log("time management smoke PASS: canonical creation, save barrier/locks, permanent active deletion, refusal/retry, duplicate guard and unchanged legacy tombstones");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

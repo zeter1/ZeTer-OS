@@ -119,6 +119,8 @@ assert.equal(elements["#notification-center"].classList.contains("hidden"), fals
 let visualSaves = 0;
 controller.handleTopMenuAction("about");
 assert.equal(opened.at(-1), "about", "About button must open its own window");
+controller.handleTopMenuAction("help");
+assert.equal(opened.at(-1), "help", "User guide button must open the existing help application");
 const visualDocument = {
   body: fakeElement(),
   documentElement: { style: { setProperty() {} } }

@@ -14,8 +14,7 @@
 
   const {
     OS_VERSION,
-    OS_VERSION_NUMBER,
-    DEFAULT_TRASH_RETENTION_DAYS
+    OS_VERSION_NUMBER
   } = config;
   const { uid, todayISO } = coreUtils;
   const { defaultDesktopDescription } = visualUtils;
@@ -59,7 +58,7 @@
       actionHistory: [],
       currentDesktop: "desktop",
       desktops: [{ id: "desktop", name: "Основной", description: defaultDesktopDescription("desktop") }],
-      settings: { theme: "dark", wallpaper: "aurora", accent: "blue", blur: 0, brightness: 100, volume: 74, iconSize: 1, trashRetentionDays: DEFAULT_TRASH_RETENTION_DAYS },
+      settings: { theme: "dark", wallpaper: "aurora", accent: "blue", blur: 0, brightness: 100, volume: 74, iconSize: 1 },
       systemSettings: normalizeSystemSettings(),
       security: {
         lastFullBackupAt: 0,

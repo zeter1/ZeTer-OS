@@ -7,9 +7,10 @@
   const windowSessionUtils = window.ZETER_WINDOW_SESSION_UTILS;
   const linkLibraryUtils = window.ZETER_LINK_LIBRARY_UTILS;
   const promptLibraryUtils = window.ZETER_PROMPT_LIBRARY_UTILS;
+  const contactsUtils = window.ZETER_CONTACTS_UTILS;
   const calculationsUtils = window.ZETER_BUSINESS_CALCULATIONS_UTILS;
   const timeTrackingUtils = window.ZETER_TIME_TRACKING_UTILS;
-  if (!config || !visualUtils || !dataNormalizers || !windowSessionUtils || !linkLibraryUtils || !promptLibraryUtils || !calculationsUtils || !timeTrackingUtils) {
+  if (!config || !visualUtils || !dataNormalizers || !windowSessionUtils || !linkLibraryUtils || !promptLibraryUtils || !contactsUtils || !calculationsUtils || !timeTrackingUtils) {
     throw new Error("ZeTer OS workspace utils require config, visual, data normalizer and window session modules.");
   }
 
@@ -69,6 +70,19 @@
     return links;
   }
 
+  function normalizeWorkspaceCalendarState(value = {}) {
+    const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const validTime = value => typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+    const workStart = validTime(source.workStart) ? source.workStart : "09:00";
+    const workEnd = validTime(source.workEnd) ? source.workEnd : "18:00";
+    return {
+      view: ["month", "week", "day", "agenda"].includes(source.view) ? source.view : "month",
+      workStart: workStart < workEnd ? workStart : "09:00",
+      workEnd: workStart < workEnd ? workEnd : "18:00",
+      showTaskDeadlines: source.showTaskDeadlines !== false
+    };
+  }
+
   function workspaceDefaults(seed = {}) {
     const source = seed && typeof seed === "object" ? seed : {};
     return {
@@ -77,6 +91,8 @@
       taskProjects: Array.isArray(source.taskProjects) ? source.taskProjects : [],
       activeTaskProjectId: source.activeTaskProjectId || null,
       events: normalizeCalendarEvents(source.events),
+      calendarState: normalizeWorkspaceCalendarState(source.calendarState),
+      calendarCategories: dataNormalizers.normalizeCalendarCategories(source.calendarCategories),
       notifications: normalizeNotifications(source.notifications),
       automations: normalizeWorkspaceAutomations(source.automations),
       automationCategories: normalizeWorkspaceAutomationCategories(source.automationCategories),
@@ -84,6 +100,7 @@
       objectLinks: normalizeWorkspaceObjectLinks(source.objectLinks),
       library: linkLibraryUtils.normalizeLinkLibrary(source.library),
       promptLibrary: promptLibraryUtils.normalizePromptLibrary(source.promptLibrary),
+      contacts: contactsUtils.normalizeContacts(source.contacts),
       calculations: calculationsUtils.normalizeBusinessCalculations(source.calculations),
       timeTracking: timeTrackingUtils.normalizeTimeTracking(source.timeTracking),
       expandedExplorerFolders: Array.isArray(source.expandedExplorerFolders) ? source.expandedExplorerFolders : [],
@@ -109,6 +126,8 @@
     workspace.activeTaskProjectId = workspace.activeTaskProjectId || legacy.activeTaskProjectId || null;
     normalizeTaskStore(workspace);
     workspace.events = normalizeCalendarEvents(Array.isArray(workspace.events) ? workspace.events : (Array.isArray(legacy.events) ? legacy.events : []));
+    workspace.calendarState = normalizeWorkspaceCalendarState(workspace.calendarState);
+    workspace.calendarCategories = dataNormalizers.normalizeCalendarCategories(workspace.calendarCategories);
     workspace.notifications = normalizeNotifications(Array.isArray(workspace.notifications) ? workspace.notifications : (Array.isArray(legacy.notifications) ? legacy.notifications : []));
     workspace.automations = normalizeWorkspaceAutomations(Array.isArray(workspace.automations) ? workspace.automations : legacy.automations);
     workspace.automationCategories = normalizeWorkspaceAutomationCategories(workspace.automationCategories ?? legacy.automationCategories);
@@ -120,6 +139,7 @@
     );
     workspace.library = linkLibraryUtils.normalizeLinkLibrary(workspace.library ?? legacy.library);
     workspace.promptLibrary = promptLibraryUtils.normalizePromptLibrary(workspace.promptLibrary);
+    workspace.contacts = contactsUtils.normalizeContacts(workspace.contacts);
     workspace.calculations = calculationsUtils.normalizeBusinessCalculations(workspace.calculations);
     workspace.timeTracking = timeTrackingUtils.normalizeTimeTracking(workspace.timeTracking);
     workspace.expandedExplorerFolders = Array.isArray(workspace.expandedExplorerFolders) ? workspace.expandedExplorerFolders : [];
@@ -442,7 +462,8 @@
       { id: "links", label: "Ссылки, категории и избранное", count: length(data.library?.entries) + length(data.library?.categories), detail: `${length(data.library?.entries)} ссылок · ${length(data.library?.categories)} категорий. Избранное хранится вместе со ссылкой.` },
       { id: "calculations", label: "Подсчёты и введённые значения", count: Object.keys(data.calculations?.inputs || {}).length, detail: "Наборы введённых значений, включая убранные карточки, их порядок и валюта." },
       { id: "prompts", label: "Промпты, проекты и категории", count: length(data.promptLibrary?.entries) + length(data.promptLibrary?.projects) + length(data.promptLibrary?.categories), detail: `${length(data.promptLibrary?.entries)} промптов · ${length(data.promptLibrary?.projects)} проектов · ${length(data.promptLibrary?.categories)} категорий.` },
-      { id: "timeTracking", label: "Учёт времени", count: length(data.timeTracking?.entries) + (data.timeTracking?.active ? 1 : 0) + (data.timeTracking?.dailyGoalMinutes > 0 ? 1 : 0), detail: "История, корзина, дневная цель и незавершённый таймер. По умолчанию сохраняются в архиве." },
+      { id: "contacts", label: "Контакты, проекты и категории", count: length(data.contacts?.entries) + length(data.contacts?.projects) + length(data.contacts?.categories), detail: `${length(data.contacts?.entries)} контактов · ${length(data.contacts?.projects)} проектов. По умолчанию сохраняются в архиве.` },
+      { id: "timeTracking", label: "Учёт времени", count: length(data.timeTracking?.entries) + (data.timeTracking?.active ? 1 : 0) + (data.timeTracking?.dailyGoalMinutes > 0 ? 1 : 0), detail: "История, дневная цель и незавершённый таймер. По умолчанию сохраняются в архиве." },
       { id: "automation", label: "Автоматизация и связи объектов", count: length(data.automations) + length(data.automationCategories) + length(data.objectLinks) + ["queue", "history", "checkpoints", "rateLog", "knownFileIds"].reduce((sum, key) => sum + length(runtime[key]), 0), detail: `${length(data.automations)} правил · ${length(data.automationCategories)} категорий · ${length(data.objectLinks)} связей; также очередь, история и служебные записи выполнения.` },
       { id: "notifications", label: "Уведомления", count: length(data.notifications), detail: "Сохранённые уведомления этого рабочего стола." }
     ] };
@@ -457,11 +478,11 @@
   function buildDesktopDeletionPlan(state, id, selected = [], options = {}) {
     const before = deletionClone(state), candidate = deletionClone(state);
     const remove = new Set(selected);
-    if ([...remove].some(key => !["files", "tasks", "calendar", "links", "prompts", "calculations", "timeTracking", "automation", "notifications"].includes(key))) throw new Error("Некорректный выбор данных для удаления.");
+    if ([...remove].some(key => !["files", "tasks", "calendar", "links", "prompts", "contacts", "calculations", "timeTracking", "automation", "notifications"].includes(key))) throw new Error("Некорректный выбор данных для удаления.");
     const snapshot = desktopBackupSnapshot(candidate, id), data = snapshot.desktop.data;
     const ids = desktopOwnedFileIds(candidate, id);
     const fields = { tasks: ["tasks", "taskProjects", "activeTaskProjectId"], calendar: ["events"],
-      links: ["library"], prompts: ["promptLibrary"], calculations: ["calculations"], timeTracking: ["timeTracking"], automation: ["automations", "automationCategories", "automationRuntime", "objectLinks"], notifications: ["notifications"],
+      links: ["library"], prompts: ["promptLibrary"], contacts: ["contacts"], calculations: ["calculations"], timeTracking: ["timeTracking"], automation: ["automations", "automationCategories", "automationRuntime", "objectLinks"], notifications: ["notifications"],
       files: ["noteStickies", "openWindows", "expandedExplorerFolders", "explorerRootId"] };
     remove.forEach(group => fields[group].forEach(key => { delete data[key]; }));
     if (remove.has("files")) snapshot.fs = {};
@@ -635,6 +656,7 @@
   }
 
   window.ZETER_WORKSPACE_UTILS = {
+    normalizeWorkspaceCalendarState,
     workspaceDefaults,
     normalizeWorkspaceData,
     ensureDesktopRecords,

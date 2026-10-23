@@ -117,12 +117,13 @@ assert.doesNotMatch(shell, /data-ev-title/, "event form must not remain inside t
 const selectedDay = calendarUi.calendarMonthDayHTML(15, [], { date: "2026-07-15" });
 const anotherDay = calendarUi.calendarMonthDayHTML(16, [], { date: "2026-07-16" });
 const pastDay = calendarUi.calendarMonthDayHTML(14, [], { date: "2026-07-14" });
-assert.match(selectedDay, /data-add-event="2026-07-15"/, "selected date must show the add-event button");
-assert.match(selectedDay, />Добавить событие</, "add-event button must have a clear label");
-assert.match(anotherDay, /data-add-event="2026-07-16"/, "every month date must show its own add-event button");
-assert.match(pastDay, / disabled title="Нельзя добавлять события на прошедшие даты"/, "past dates must explain their disabled add action");
-assert.doesNotMatch(selectedDay, / disabled/, "today must allow creation");
-assert.doesNotMatch(anotherDay, / disabled/, "future dates must allow creation");
+assert.doesNotMatch(selectedDay, /data-add-event/, "month cells must not repeat the primary creation action");
+assert.doesNotMatch(anotherDay, /data-add-event/, "future cells stay uncluttered");
+assert.doesNotMatch(pastDay, /data-add-event/, "past cells remain selectable without a misleading creation button");
+assert.equal((shell.match(/data-add-event=/g) || []).length, 1, "calendar must have one primary create action");
+assert.match(calendarUi.calendarDayViewElement("2026-07-15").children[0].innerHTML, /24:00/, "ruler includes the entire day");
+assert.match(calendarUi.calendarEventEditorHTML(), /data-ev-end-date/, "editor exposes multi-day end date");
+assert.match(calendarUi.calendarEventEditorHTML(), /data-ev-scope/, "recurrence edits expose scope");
 
 const addTarget = {
   closest(selector) {
@@ -189,7 +190,8 @@ assert.deepEqual(
 );
 
 // Exercise the owning controllers, including side effects and both save routes.
-function controllerHarness(initialEvents = [], params = { date: "2026-07-15" }) {
+async function verifyControllers() {
+function controllerHarness(initialEvents = [], params = { date: "2026-07-15" }, overrides = {}) {
   let state = { selected: "2026-07-15", date: "2026-07-15", view: "month" };
   let storedEvents = initialEvents;
   const calls = { setEvents: 0, setCalendar: 0, save: 0, refresh: 0, notify: 0, close: 0, opened: [], toasts: [] };
@@ -198,7 +200,7 @@ function controllerHarness(initialEvents = [], params = { date: "2026-07-15" }) 
     controls[selector] = { value: field.value, min: "", focused: false, focus() { this.focused = true; } };
   });
   const listeners = {};
-  const root = { querySelector: selector => controls[selector] || null, addEventListener: (type, fn) => { listeners[type] = fn; } };
+  const root = { querySelector: selector => controls[selector] || null, querySelectorAll: selector => selector === "input,select,textarea,button" ? Object.values(controls) : [], addEventListener: (type, fn) => { listeners[type] = fn; } };
   const integration = {
     document: { createElement: () => root },
     getCalendar: () => state,
@@ -206,13 +208,20 @@ function controllerHarness(initialEvents = [], params = { date: "2026-07-15" }) 
     getEvents: () => storedEvents,
     setEvents: value => { storedEvents = value; calls.setEvents++; },
     saveState: () => { calls.save++; },
+    saveEventRecord: (draft, editingId) => {
+      const event = calendar.upsertCalendarEvent(storedEvents, { ...draft, id: editingId || "fixture-event" }, editingId);
+      calls.save++;
+      return Promise.resolve(event);
+    },
+    removeEvent: id => { storedEvents = calendar.removeCalendarEventById(storedEvents, id); calls.save++; return Promise.resolve(true); },
     refreshOpenCalendars: () => { calls.refresh++; },
     renderNotifications: () => { calls.notify++; },
     closeWindow: () => { calls.close++; },
     openEventEditor: value => calls.opened.push(value),
     confirmUser: () => true,
     toast: (...args) => calls.toasts.push(args),
-    todayISO: sandbox.ZETER_CORE_UTILS.todayISO
+    todayISO: sandbox.ZETER_CORE_UTILS.todayISO,
+    ...overrides
   };
   if (params) calendarUi.createCalendarEventEditorApp(params, "test-editor", integration);
   else calendarUi.createCalendarApp(integration);
@@ -227,7 +236,7 @@ for (const saveBy of ["button", "Ctrl+Enter"]) {
   harness.controls["[data-ev-title]"].value = "Не терять черновик";
   harness.controls["[data-ev-date]"].value = "2026-07-14";
   const save = () => saveBy === "button" ? harness.click("[data-save-event]") : harness.key("Enter");
-  save();
+  await save();
   assert.equal(harness.getEvents().length, 0, `${saveBy}: past date must not create an event`);
   for (const effect of ["setEvents", "setCalendar", "save", "refresh", "notify", "close"]) {
     assert.equal(harness.calls[effect], 0, `${saveBy}: rejected save must not trigger ${effect}`);
@@ -236,7 +245,7 @@ for (const saveBy of ["button", "Ctrl+Enter"]) {
   assert.equal(harness.controls["[data-ev-date]"].focused, true);
   assert.equal(harness.calls.toasts[0][0], "Дата уже прошла");
   harness.controls["[data-ev-date]"].value = saveBy === "button" ? "2026-07-15" : "2026-07-16";
-  save();
+  await save();
   assert.equal(harness.getEvents().length, 1, `${saveBy}: valid retry must create exactly one event`);
   assert.equal(harness.getEvents()[0].date, harness.controls["[data-ev-date]"].value);
   assert.equal(harness.calls.save, 1);
@@ -246,12 +255,12 @@ for (const saveBy of ["button", "Ctrl+Enter"]) {
 const staleEditor = controllerHarness();
 staleEditor.controls["[data-ev-title]"].value = "Начато вчера";
 localNow = new Date(2026, 6, 16, 0, 1).getTime();
-staleEditor.key("Enter");
+await staleEditor.key("Enter");
 assert.equal(staleEditor.getEvents().length, 0, "editor opened before midnight must use the current date when saving");
 assert.equal(staleEditor.calls.close, 0);
 assert.equal(staleEditor.controls["[data-ev-date]"].min, "2026-07-16");
 staleEditor.controls["[data-ev-date]"].value = "2026-07-16";
-staleEditor.key("Enter");
+await staleEditor.key("Enter");
 assert.equal(staleEditor.getEvents().length, 1, "midnight rejection must allow correction and retry");
 
 localNow = new Date(2026, 6, 15, 12).getTime();
@@ -271,7 +280,7 @@ const oldEvent = { id: "event_old", title: "Старое событие", date: 
 const editHarness = controllerHarness([{ ...oldEvent }], { eventId: oldEvent.id });
 assert.equal(editHarness.controls["[data-ev-date]"].min, "", "editing history must not acquire the creation restriction");
 editHarness.controls["[data-ev-title]"].value = "История исправлена";
-editHarness.click("[data-save-event]");
+await editHarness.click("[data-save-event]");
 assert.equal(editHarness.getEvents().length, 1);
 assert.equal(editHarness.getEvents()[0].id, oldEvent.id);
 assert.equal(editHarness.getEvents()[0].date, "2026-07-14");
@@ -281,8 +290,26 @@ assert.match(calendarUi.calendarSelectedEventsHTML([oldEvent]), /data-edit-event
 const oldCalendar = controllerHarness([{ ...oldEvent }], null);
 oldCalendar.click("[data-edit-event]", { editEvent: oldEvent.id });
 assert.equal(oldCalendar.calls.opened[0].eventId, oldEvent.id);
-oldCalendar.click("[data-delete-event]", { deleteEvent: oldEvent.id });
+await oldCalendar.click("[data-delete-event]", { deleteEvent: oldEvent.id });
 assert.equal(oldCalendar.getEvents().length, 0, "past event deletion must remain available");
 assert.equal(oldCalendar.calls.save, 1);
 
-console.log("calendar runtime smoke: ok");
+async function verifyPendingSave() {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const harness = controllerHarness([], { date: "2026-07-17" }, {
+    saveState: () => pending,
+    saveEventRecord: () => pending
+  });
+  harness.controls["[data-ev-title]"].value = "Черновик до подтверждения";
+  harness.click("[data-save-event]");
+  assert.equal(harness.calls.close, 0, "pending storage must not close the event editor");
+  assert.equal(harness.controls["[data-ev-title]"].value, "Черновик до подтверждения", "pending storage must preserve the draft");
+  assert.equal(harness.calls.toasts.length, 0, "pending storage must not report success");
+  release({ id: "pending", title: "Черновик до подтверждения", date: "2026-07-17" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(harness.calls.close, 1);
+}
+await verifyPendingSave();
+}
+verifyControllers().then(() => console.log("calendar runtime smoke: ok")).catch(error => { console.error(error); process.exitCode = 1; });

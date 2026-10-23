@@ -62,6 +62,9 @@ UPDATER_SMOKE = PROJECT_ROOT / "tools" / "smoke_app_updater.py"
 UPDATE_FEED_TOOL = PROJECT_ROOT / "tools" / "build_update_feed.py"
 UPDATE_FEED_SMOKE = PROJECT_ROOT / "tools" / "smoke_update_feed.py"
 SMOKE_SCRIPTS = (
+    PROJECT_ROOT / "tools/smoke_calendar_planner.js",
+    PROJECT_ROOT / "tools/smoke_calendar_workspace.js",
+    PROJECT_ROOT / "tools/smoke_calendar_integrations.js",
     PROJECT_ROOT / "tools" / "smoke_system_settings.js",
     PROJECT_ROOT / "tools" / "smoke_state_migration.js",
     PROJECT_ROOT / "tools" / "smoke_storage_runtime.js",
@@ -102,6 +105,8 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/link-library-utils.js",
     "js/core/link-library-ui-utils.js",
     "js/core/prompt-library-utils.js",
+    "js/core/contacts-utils.js",
+    "js/core/contacts-ui-utils.js",
     "js/core/prompt-library-ui-utils.js",
     "js/core/business-calculations-utils.js",
     "js/core/business-calculations-ui-utils.js",
@@ -114,7 +119,7 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/desktop-layout-utils.js",
     "js/core/explorer-ui-utils.js",
     "js/core/pinning-utils.js",
-    "js/core/trash-utils.js",
+    "js/core/deletion-utils.js",
     "js/core/item-drag-ui-utils.js",
     "js/core/window-metrics-utils.js",
     "js/core/window-session-utils.js",
@@ -136,18 +141,18 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/file-template-utils.js",
     "js/core/rich-text-utils.js",
     "js/core/markdown-utils.js",
+    "js/core/data-normalizers.js",
+    "js/core/calendar-utils.js",
     "js/core/automation-utils.js",
     "js/core/automation-ui-utils.js",
     "js/core/object-link-utils.js",
     "js/core/object-link-ui-utils.js",
     "js/core/editor-ui-utils.js",
-    "js/core/data-normalizers.js",
     "js/core/workspace-utils.js",
     "js/core/state-maintenance-utils.js",
     "js/core/task-ui-utils.js",
     "js/core/project-overview-ui-utils.js",
     "js/core/task-app-ui-utils.js",
-    "js/core/calendar-utils.js",
     "js/core/calendar-ui-utils.js",
     "js/core/notification-utils.js",
     "js/core/notification-ui-utils.js",
@@ -1318,6 +1323,7 @@ def check_python_syntax() -> list[CheckResult]:
         PROJECT_ROOT / "security_backup.py",
         PROJECT_ROOT / "tools/smoke_security_backup.py",
         PROJECT_ROOT / "tools/smoke_storage_info.py",
+        PROJECT_ROOT / "tools/smoke_calendar_exports.py",
         Path(__file__).resolve(),
         UPDATE_DOCS_TOOL,
         NAVIGATION_INDEX_TOOL,
@@ -1529,6 +1535,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_python_syntax())
     checks.extend(check_javascript_syntax(strict_node=strict_node))
     checks.extend(check_scenario_smokes(strict_node=strict_node))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_calendar_exports.py", key="python.calendar_exports_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_security_backup.py", key="python.security_backup_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_storage_info.py", key="python.storage_info_smoke"))

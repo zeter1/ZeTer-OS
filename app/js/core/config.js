@@ -12,15 +12,12 @@
       STORAGE_KEY,
       OS_VERSION,
       OS_VERSION_NUMBER,
-      DEFAULT_DESKTOP_APP_IDS: Object.freeze(["tasks", "calendar", "links", "settings", "about", "security", "monitor", "appcenter", "help"]),
+      DEFAULT_DESKTOP_APP_IDS: Object.freeze(["tasks", "calendar", "links", "contacts", "settings", "about", "security", "monitor", "appcenter", "help"]),
       DEVELOPER: Object.freeze({
         name: "Дмитрий Колесниченко",
         email: "zeter11@gmail.com"
       }),
-      TRASH_ROOT: "__zeter_trash__",
-      DEFAULT_TRASH_RETENTION_DAYS: 30,
-      TRASH_RETENTION_MIN_DAYS: 1,
-      TRASH_RETENTION_MAX_DAYS: 3650,
+      LEGACY_DELETED_ROOT: "__zeter_trash__",
       DAY_MS,
       ACTIVE_CACHE_NAME: `zeter-os-${OS_VERSION}`,
       OLD_LOCAL_STORAGE_KEYS: Object.freeze(["zeter_os_state_v1", "zeter_os_state_v2", STORAGE_KEY]),

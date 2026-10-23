@@ -244,7 +244,7 @@ async function adapterChecks() {
     }
   });
   const context = {
-    state, primaryStateSaveQueue: queue,
+    state, primaryStateSaveQueue: queue, persistSearchAwareTransaction: operation => queue.transaction(operation),
     createItemSettingsApp: (_params, _winId, options) => { captured = options; },
     cloneForBackup: value => JSON.parse(JSON.stringify(value)),
     document: {}, persistItemCustomizationAsset() {}, renderAllFileSurfaces() {},

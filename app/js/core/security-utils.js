@@ -7,7 +7,7 @@
   if (!config || !coreUtils || !protectionUtils) throw new Error("ZeTer OS security utils require config, core and protection utils.");
 
   const { pad, isSafeId } = coreUtils;
-  const TRASH_ROOT = config.TRASH_ROOT;
+  const LEGACY_DELETED_ROOT = config.LEGACY_DELETED_ROOT;
   const CALENDAR_CATEGORY_IDS = new Set(config.CALENDAR_CATEGORY_IDS || []);
   const CALENDAR_REPEAT_IDS = new Set(config.CALENDAR_REPEAT_IDS || []);
   const { normalizeProtectionPolicy, normalizeJournal } = protectionUtils;
@@ -346,9 +346,9 @@
       if (!String(item.name || "").trim()) addIntegrityProblem(problems, "warn", `Элемент ${item.id || key} не имеет имени.`, "fs-missing-name", key);
       const parent = item.parent;
       if (parent && !isSafeId(String(parent))) addIntegrityProblem(problems, "bad", `У элемента «${item.name || item.id || key}» небезопасный ID родителя.`, "fs-unsafe-parent", key);
-      const parentOk = parent === TRASH_ROOT || desktopRoots.has(parent) || Boolean(fs[parent]);
+      const parentOk = parent === LEGACY_DELETED_ROOT || desktopRoots.has(parent) || Boolean(fs[parent]);
       if (!parentOk) addIntegrityProblem(problems, "warn", `У элемента «${item.name || item.id || key}» битая ссылка на родительскую папку.`, "fs-bad-parent", key);
-      if (item.deletedAt && item.parent === TRASH_ROOT && !item.originalParent) addIntegrityProblem(problems, "warn", `У старой удалённой записи «${item.name || item.id || key}» нет исходного пути.`, "trash-missing-origin", key);
+      if (item.deletedAt && item.parent === LEGACY_DELETED_ROOT && !item.originalParent) addIntegrityProblem(problems, "warn", `У старой удалённой записи «${item.name || item.id || key}» нет исходного пути.`, "trash-missing-origin", key);
       if (item.type === "tasklist") validateSecurityTaskStore(item, `Список задач «${item.name || item.id || key}»`, problems);
     });
     return problems;
@@ -440,7 +440,7 @@
 
   function repairSafeSecurityState(targetState, options = {}) {
     const {
-      trashRoot = TRASH_ROOT,
+      trashRoot = LEGACY_DELETED_ROOT,
       isDesktopRoot = () => false,
       desktopRoot = "desktop",
       uid = prefix => `${prefix}-${Date.now()}`,

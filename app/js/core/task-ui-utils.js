@@ -42,6 +42,7 @@
     return {
       kind: "workspace",
       item: null,
+      workspace: ws,
       title: desktopName(getDesktopRoot()),
       tasks: () => ws.tasks,
       setTasks: next => { ws.tasks = Array.isArray(next) ? next : []; normalizeTaskStore(ws); },

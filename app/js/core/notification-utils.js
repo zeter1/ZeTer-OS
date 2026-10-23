@@ -254,22 +254,24 @@
 
   function dueCalendarOccurrence(event = {}, options = {}) {
     const now = Number(options.now || Date.now());
-    const occursOn = typeof options.occursOn === "function" ? options.occursOn : () => false;
+    const occursOn = typeof options.occursOn === "function" ? options.occursOn : window.ZETER_CALENDAR_UTILS?.occursOn || (() => false);
     const reminderMinutes = Number(event.reminder);
-    if (!event.start || !Number.isFinite(reminderMinutes) || reminderMinutes <= 0) return null;
+    const start = event.allDay ? "09:00" : event.start;
+    if (!start || !Number.isFinite(reminderMinutes) || reminderMinutes <= 0 || reminderMinutes > 10080) return null;
     const nowDate = new Date(now);
-    const candidates = [0, 1].map(offset => {
+    const candidates = Array.from({ length: Math.ceil(reminderMinutes / 1440) + 3 }, (_, index) => index - 1).map(offset => {
       const date = new Date(nowDate);
       date.setHours(0, 0, 0, 0);
       date.setDate(date.getDate() + offset);
       const iso = localDateISO(date);
       if (!occursOn(event, iso)) return null;
-      const occurrenceTime = calendarOccurrenceTime(iso, event.start);
+      const occurrenceTime = calendarOccurrenceTime(iso, start);
       const notifyAt = occurrenceTime - reminderMinutes * 60 * 1000;
-      const key = `${iso}|${event.start}|${reminderMinutes}`;
-      if (!occurrenceTime || event.reminderNotifiedOccurrence === key) return null;
+      const key = `${iso}|${start}|${reminderMinutes}`;
+      const delivered = String(event.reminderNotifiedOccurrence || "");
+      if (!occurrenceTime || delivered === key || (delivered.endsWith(`|${start}|${reminderMinutes}`) && delivered.slice(0, 10) > iso)) return null;
       if (now < notifyAt || now > occurrenceTime + 5 * 60 * 1000) return null;
-      return { iso, key, occurrenceTime, notifyAt, reminderMinutes };
+      return { iso, key, occurrenceTime, notifyAt, reminderMinutes, start };
     }).filter(Boolean).sort((left, right) => left.occurrenceTime - right.occurrenceTime);
     return candidates[0] || null;
   }
@@ -288,7 +290,7 @@
           occurrence,
           notification: {
             title: event.title || "Событие календаря",
-            text: `${occurrence.iso} в ${event.start}${location}`,
+            text: `${occurrence.iso} в ${occurrence.start}${location}`,
             options: {
               desktopId: store.desktopId,
               source: `calendar:${event.id}:${occurrence.iso}`,

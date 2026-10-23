@@ -9,7 +9,7 @@ const source = path.join(__dirname, "../app/js/core/business-calculations-utils.
 assert.ok(fs.existsSync(source), "Business calculations need a production model");
 vm.runInContext(fs.readFileSync(source, "utf8"), sandbox);
 const model = sandbox.ZETER_BUSINESS_CALCULATIONS_UTILS;
-for (const name of ["utils.js", "config.js", "business-calculations-ui-utils.js", "shortcut-utils.js", "link-library-utils.js", "prompt-library-utils.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
+for (const name of ["utils.js", "config.js", "business-calculations-ui-utils.js", "shortcut-utils.js", "link-library-utils.js", "prompt-library-utils.js", "contacts-utils.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core", name), "utf8"), sandbox);
 }
 sandbox.ZETER_DATA_NORMALIZERS = { TASK_TITLE_MAX_CHARS: 500, TASK_TAG_MAX_CHARS: 160, TASK_CHECKLIST_TEXT_MAX_CHARS: 500 };

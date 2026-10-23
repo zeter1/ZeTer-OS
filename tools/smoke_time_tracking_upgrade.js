@@ -23,15 +23,15 @@ async function main() {
   await assert.rejects(controller.addManual(manual), /пересека/i); await controller.addManual({ ...manual, allowOverlap: true });
   await assert.rejects(controller.addManual({ ...manual, startedAt: now, durationMs: 1000 }), failure => /будущ/i.test(failure.message) && /текущее время/i.test(failure.message) && /длительность/i.test(failure.message));
   fail = true; const before = JSON.stringify(controller.read()); await assert.rejects(controller.removeEntry(entry.id), /сохран/i); assert.equal(JSON.stringify(controller.read()), before);
-  fail = false; const original = plain(entry); await controller.removeEntry(entry.id);
-  const deleted = controller.read().entries.find(item => item.id === entry.id); assert.equal(model.isTimeEntryDeleted(deleted), true);
+  fail = false; await controller.removeEntry(entry.id);
+  assert.equal(controller.read().entries.some(item => item.id === entry.id), false, "accepted deletion removes the active entry");
   await assert.rejects(controller.edit(entry.id, { title: "Нельзя" }), /удален|удалён/i);
   const reloaded = model.normalizeTimeTracking(plain(controller.read())); model.validateTimeTracking(reloaded);
-  fail = true; await assert.rejects(controller.restoreEntry(entry.id, deleted.deletedAt), /сохран/i); assert.equal(model.isTimeEntryDeleted(controller.read().entries.find(item => item.id === entry.id)), true);
-  fail = false; await controller.restoreEntry(entry.id, deleted.deletedAt); assert.deepEqual(plain(controller.read().entries.find(item => item.id === entry.id)), original);
+  await assert.rejects(controller.repeat(entry.id), /удален|удалён/i);
+  entry = controller.read().entries[0];
   assert.equal(model.isTimeEntryDeleted({ deletedAt: 0 }), true, "timestamp zero is still a deletion marker");
   const corrupt = plain(controller.read()); corrupt.entries[0].deletedAt = "bad"; assert.throws(() => model.validateTimeTracking(corrupt), /удален|удалён/i);
-  await controller.repeat(entry.id); assert.equal(controller.read().active.title, original.title); assert.equal(controller.read().active.segments.length, 0); assert.equal(model.sessionDuration(controller.read().active, now), 0);
+  await controller.repeat(entry.id); assert.equal(controller.read().active.title, entry.title); assert.equal(controller.read().active.segments.length, 0); assert.equal(model.sessionDuration(controller.read().active, now), 0);
   await assert.rejects(controller.repeat(entry.id), /сесси/i);
   const current = controller.read().active; await controller.editActive(current.id, { title: "Текущая", notes: "Новая заметка", expected: current }); assert.equal(controller.read().active.runningSince, current.runningSince);
   now += 10000; const restarted = model.createTimeTrackingController({ ...options, runtimeId: "boot2" });
@@ -45,7 +45,7 @@ async function main() {
   const filter = { from: midnight, to: midnight + 86400000, query: "точный", projectId: "night" };
   const rows = model.selectTimeEntries(tracking, filter); assert.equal(rows.length, 1); assert.equal(rows[0].durationMs, 3600000); assert.equal(rows[0].fullDurationMs, 7200000);
   assert.equal(model.selectTimeEntries(tracking, { ...filter, projectId: "wrong" }).length, 0);
-  assert.equal(model.selectTimeEntries(tracking, { ...filter, deleted: true }).length, 1);
+  assert.equal(model.selectTimeEntries(tracking, { ...filter, deleted: true })[0].entry.id, "cross", "legacy request cannot reveal tombstones");
   const summary = model.summarizeTimeRows(rows, "projects"); assert.equal(summary.totalMs, 3600000); assert.equal(summary.groups[0].ms, 3600000);
   const report = model.timeReportRows(rows); assert.equal(report.length, 2); assert.equal(report[1][6], 3600); assert.equal(report[1][7], 7200);
   for (const value of ["=1+1", "+1", "-1", "@SUM(1)", "＝1+1", " \t=1+1", "\uFEFF+1", "\u0001@1"]) assert.ok(model.safeTimeReportText(value).startsWith("'"), value);
@@ -54,6 +54,6 @@ async function main() {
   assert.throws(() => model.timeFilterRange("custom", now, "2026-02-31", "2026-10-15"), /дат/i);
   assert.throws(() => model.timeFilterRange("custom", now, "2026-10-16", "2026-10-15"), /дат/i);
   const days = model.timeWeekBuckets([crossing], now); assert.equal(days.length, 7); assert.equal(days.reduce((sum, item) => sum + item.ms, 0), 7200000);
-  console.log("time upgrade smoke: metadata/pause preservation, stale editor, manual/overlap, recoverable deletion, repeat/recovery, goal, filtered analytics and safe report rows PASS");
+  console.log("time upgrade smoke: metadata/pause preservation, stale editor, manual/overlap, permanent deletion, repeat/recovery, goal, filtered analytics and safe report rows PASS");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

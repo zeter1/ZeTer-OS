@@ -131,7 +131,6 @@
       { icon: "☑️", label: "Создать список задач", action: { type: "create-task-list" } },
       { icon: "🗒️", label: "Новая заметка", action: { type: "create-note" } },
       { type: "separator" },
-      { icon: "↶", label: "Отменить последнее действие", action: { type: "undo" } },
       { icon: "💾", label: "Экспорт ZIP-бэкапа", action: { type: "export" } },
       { icon: "📥", label: "Импорт ZIP/JSON-бэкапа", action: { type: "import" } },
       { icon: "⚙️", label: "Настройки", action: { type: "settings" } }
@@ -169,7 +168,6 @@
     const createTable = typeof options.createTable === "function" ? options.createTable : () => {};
     const createTaskList = typeof options.createTaskList === "function" ? options.createTaskList : () => {};
     const createNote = typeof options.createNote === "function" ? options.createNote : () => {};
-    const undo = typeof options.undo === "function" ? options.undo : () => {};
     const exportData = typeof options.exportData === "function" ? options.exportData : () => {};
     const openImport = typeof options.openImport === "function" ? options.openImport : () => {};
     const openSettings = typeof options.openSettings === "function" ? options.openSettings : () => {};
@@ -188,7 +186,6 @@
         "create-table": () => createTable(desktopRoot, point),
         "create-task-list": () => createTaskList(desktopRoot, point),
         "create-note": () => createNote(desktopRoot, point),
-        undo,
         export: exportData,
         import: openImport,
         settings: openSettings

@@ -296,15 +296,25 @@ class ProblemLogs:
 
     def _usage(self, root, *, max_entries=MAX_SCAN_ENTRIES):
         total = count = 0
-        for directory, names, files in os.walk(root, followlinks=False):
-            for name in names + files:
-                count += 1
-                path = Path(directory) / name
-                if count > max_entries:
-                    raise DiagnosticLimitError("diagnostic entry budget")
-                if not plain_path(self.app_root, path):
-                    raise OSError("diagnostic budget cannot be measured safely")
-            total += sum((Path(directory) / name).stat().st_size for name in files)
+        pending = [Path(root)]
+        while pending:
+            directory = pending.pop()
+            # Check ancestors once per directory, then inspect each direct entry.
+            # Never cache usage across writes: another process may have appended.
+            if not plain_path(self.app_root, directory):
+                raise OSError("diagnostic budget cannot be measured safely")
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    count += 1
+                    if count > max_entries:
+                        raise DiagnosticLimitError("diagnostic entry budget")
+                    info = entry.stat(follow_symlinks=False)
+                    if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                        raise OSError("diagnostic budget cannot be measured safely")
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append(Path(entry.path))
+                    else:
+                        total += info.st_size
         return total
 
     def _read_control_json(self, path):

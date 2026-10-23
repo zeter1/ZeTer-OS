@@ -4,7 +4,7 @@
   const config = window.ZETER_OS_CONFIG;
   if (!config) throw new Error("ZeTer OS pinning utils require config.");
 
-  const { TRASH_ROOT } = config;
+  const { LEGACY_DELETED_ROOT } = config;
 
   const DEFAULT_TASKBAR_PINNED_APPS = Object.freeze(["tasks", "calendar"]);
   const LOCKED_TASKBAR_ITEMS = new Set(["start", "search"]);
@@ -31,7 +31,7 @@
 
   function canPinItemToStart(item) {
     if (!item || !START_PINNABLE_ITEM_TYPES.has(item.type)) return false;
-    if (item.deletedAt || item.parent === TRASH_ROOT) return false;
+    if (item.deletedAt || item.parent === LEGACY_DELETED_ROOT) return false;
     return item.systemRole !== "explorerRoot";
   }
 

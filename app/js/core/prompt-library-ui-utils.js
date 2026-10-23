@@ -24,7 +24,8 @@
   function createPromptLibraryApp(params = {}, options = {}) {
     const doc = options.documentRef || document, controller = options.controller, root = doc.createElement("div");
     root.className = "link-library-app prompt-library-app";
-    let projectId = params.projectId || "", filter = "all", query = "", draft = null, editingId = "", busy = false, message = "", error = false;
+    const searchEntry = params.entryId ? controller.library().entries.find(item => item.id === params.entryId) : null;
+    let projectId = searchEntry?.projectId || params.projectId || "", filter = "all", query = searchEntry?.name || params.searchQuery || "", draft = null, editingId = "", busy = false, message = "", error = false;
     function readDraft() {
       const form = root.querySelector("[data-prompt-form]");
       if (form) {
@@ -42,6 +43,10 @@
       const entries = filterPromptEntries(controller.library(), projectId, filter, query);
       root.querySelector("[data-prompt-list]").innerHTML = promptRowsHTML(entries);
       root.querySelector("[data-prompt-count]").textContent = `Промптов: ${entries.length}`;
+      if (searchEntry) {
+        const row = [...root.querySelectorAll("[data-prompt-row]")].find(item => item.dataset.promptRow === searchEntry.id);
+        if (row) { row.classList.add("search-open-target"); row.setAttribute("aria-current", "true"); }
+      }
     }
     function render() {
       const library = controller.library();

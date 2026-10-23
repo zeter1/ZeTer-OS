@@ -71,9 +71,9 @@
     return { from: ranges.weekStart, to: ranges.weekEnd };
   }
   function selectTimeEntries(tracking, filter = {}) {
-    const { from = 0, to = 8640000000000000, projectId = null, deleted = false } = filter;
+    const { from = 0, to = 8640000000000000, projectId = null } = filter;
     const query = String(filter.query || "").trim().toLocaleLowerCase();
-    return (tracking.entries || []).filter(item => isTimeEntryDeleted(item) === deleted && (projectId === null || item.projectId === projectId)
+    return (tracking.entries || []).filter(item => !isTimeEntryDeleted(item) && (projectId === null || item.projectId === projectId)
       && (!query || `${item.title}\n${item.projectName}\n${item.notes || ""}`.toLocaleLowerCase().includes(query)))
       .map(entry => ({ entry, durationMs: timeInRange(entry, from, to), fullDurationMs: sessionDuration(entry) }))
       .filter(row => row.durationMs > 0 || (row.entry.finishedAt >= from && row.entry.finishedAt < to))
@@ -157,9 +157,9 @@
       if (Object.hasOwn(draft, "title")) item.title = String(draft.title || "").trim();
       if (Object.hasOwn(draft, "notes")) item.notes = String(draft.notes || "");
     }
-    function findEntry(candidate, id, deleted = false) {
+    function findEntry(candidate, id) {
       const item = candidate.entries.find(entry => entry.id === id);
-      if (!item || isTimeEntryDeleted(item) !== deleted) throw new Error(deleted ? "Запись уже восстановлена или недоступна." : "Запись удалена или недоступна.");
+      if (!item || isTimeEntryDeleted(item)) throw new Error("Запись удалена или недоступна.");
       return item;
     }
     function validateManualTime(draft, at) {
@@ -211,28 +211,10 @@
           }
         }
       }),
-      removeEntry: id => mutate((candidate, workspace, at) => { findEntry(candidate, id).deletedAt = at; }),
-      restoreEntry: (id, expectedDeletedAt) => mutate(candidate => {
-        const item = findEntry(candidate, id, true);
-        if (expectedDeletedAt !== undefined && item.deletedAt !== expectedDeletedAt) throw new Error("Удалённая запись изменена в другом окне.");
-        delete item.deletedAt;
+      removeEntry: id => mutate(candidate => {
+        const item = findEntry(candidate, id);
+        candidate.entries.splice(candidate.entries.indexOf(item), 1);
       }),
-      purgeEntries: expectedEntries => {
-        // Freeze the confirmed scope before waiting for another window's transaction.
-        const expected = clone(expectedEntries);
-        return mutate(candidate => {
-          if (!Array.isArray(expected) || !expected.length || expected.length > 10000) throw new Error("Выберите записи из корзины.");
-          const ids = new Set();
-          for (const entry of expected) {
-            if (!entry || ids.has(entry.id)) throw new Error("Некорректный набор записей корзины.");
-            ids.add(entry.id);
-            const current = findEntry(candidate, entry.id, true);
-            if (JSON.stringify(current) !== JSON.stringify(entry)) throw new Error("Корзина изменена в другом окне. Закройте подтверждение и проверьте записи заново.");
-          }
-          candidate.entries = candidate.entries.filter(entry => !ids.has(entry.id));
-          return ids.size;
-        });
-      },
       setDailyGoal: minutes => mutate(candidate => { if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) throw new Error("Цель: целое число от 0 до 1440 минут; 0 отключает цель."); candidate.dailyGoalMinutes = minutes; })
     });
   }

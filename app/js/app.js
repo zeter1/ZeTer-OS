@@ -7,8 +7,7 @@
     STORAGE_KEY,
     OS_VERSION,
     OS_VERSION_NUMBER,
-    TRASH_ROOT,
-    DEFAULT_TRASH_RETENTION_DAYS,
+    LEGACY_DELETED_ROOT,
     ACTIVE_CACHE_NAME,
     OLD_LOCAL_STORAGE_KEYS,
     OLD_RESTORE_DB_NAMES,
@@ -140,12 +139,9 @@
     normalizeTaskbarPinnedApps: normalizeTaskbarPinnedAppsForApps
   } = pinningUtils;
 
-  const trashUtils = window.ZETER_TRASH_UTILS;
-  if (!trashUtils) throw new Error("ZeTer OS trash utils are not loaded.");
-  const {
-    normalizeTrashRetentionDays,
-    createTrashActionController
-  } = trashUtils;
+  const deletionUtils = window.ZETER_DELETION_UTILS;
+  if (!deletionUtils) throw new Error("ZeTer OS deletion utils are not loaded.");
+  const { createDeletionController } = deletionUtils;
 
   const nativeStorage = window.ZETER_NATIVE_STORAGE;
   if (!nativeStorage) throw new Error("ZeTer OS native storage bridge is not loaded.");
@@ -531,7 +527,7 @@
     isExplorerRoot: folderId => isExplorerRoot(folderId),
     getExplorerRoot: () => getExplorerRoot(),
     currentWorkspace,
-    trashRoot: TRASH_ROOT,
+    trashRoot: LEGACY_DELETED_ROOT,
     createId: uid,
     uniqueName,
     openApp,
@@ -569,7 +565,6 @@
     createTable: createTableInFolder,
     createTaskList: createTaskListInFolder,
     createItem,
-    undo: undoLastAction,
     exportData: exportOS,
     openImport: () => $("#import-file").click(),
     itemActions: {
@@ -682,8 +677,6 @@
     saveState,
     confirmUser: confirm,
     promptUser: prompt,
-    purgeDeletedItemsFromStorageState,
-    purgeExpiredTrashItems: purgeExpiredTrashItemsFromTarget,
     clearLegacyLocalStorageDataCore,
     oldLocalStorageKeys: OLD_LOCAL_STORAGE_KEYS,
     smallSettingsKey: SMALL_SETTINGS_KEY,
@@ -695,7 +688,6 @@
     deleteIndexedDatabaseByName,
     clearOldPwaCachesCore,
     activeCacheName: ACTIVE_CACHE_NAME,
-    refreshRecycleBinWindows,
     localStorageRef: localStorage,
     indexedDbAvailable: () => Boolean(window.indexedDB),
     clearNativeState: () => nativeStorageCall("clear_state"),
@@ -723,7 +715,7 @@
       Object.assign(state, migrate(cloneForBackup(restoredState)));
     },
     reload: () => location.reload(),
-    trashRoot: TRASH_ROOT,
+    trashRoot: LEGACY_DELETED_ROOT,
     isDesktopRoot,
     getDesktopRoot,
     uid,
@@ -770,6 +762,7 @@
       prompts: renderPromptLibraryApp,
       calculations: renderBusinessCalculationsApp,
       timeTracking: renderTimeTrackingApp,
+      contacts: renderContactsApp,
       automationEditor: renderAutomationEditorApp,
       shortcutEditor: renderShortcutEditorApp,
       itemSettings: renderItemSettingsApp,
@@ -867,7 +860,6 @@
     expandItemIdsInTarget: expandItemIdsInTargetForState,
     pushActionHistory: pushActionHistoryForTarget,
     pruneTargetReferencesForRemovedItems: pruneTargetReferencesForRemovedItemsForState,
-    purgeDeletedItemsFromStorageState: purgeDeletedItemsFromStorageTarget,
     rememberDeletedIdsForNativePurge: rememberDeletedIdsForNativePurgeInTarget,
     normalizeNotesData: normalizeNotesDataForTarget,
     createRemovedItemReferencesController
@@ -950,6 +942,7 @@
   }
 
   let state = defaultState();
+  let searchRevision = 0;
   let appUpdateApplying = false;
   let recoveryApplying = false;
   let updateUiController = null;
@@ -1223,7 +1216,7 @@
     getItem: itemId => state.fs[itemId],
     query: $,
     saveState,
-    trashRoot: TRASH_ROOT
+    trashRoot: LEGACY_DELETED_ROOT
   });
 
   const fsItemController = createFsItemController({
@@ -1239,7 +1232,7 @@
     toast,
     prompt: (message, defaultValue) => prompt(message, defaultValue),
     desktopName,
-    trashRoot: TRASH_ROOT,
+    trashRoot: LEGACY_DELETED_ROOT,
     normalizeTaskStore,
     refreshOpenEditors,
     refreshOpenTaskListTitles,
@@ -1258,7 +1251,7 @@
     defaultTaskProjectName: DEFAULT_TASK_PROJECT_NAME
   });
 
-  const trashActionController = createTrashActionController({
+  const deletionController = createDeletionController({
     getState: () => state,
     cloneState: cloneForBackup,
     replaceState: restoredState => {
@@ -1270,16 +1263,17 @@
     expandItemIdsInTarget,
     cleanupRemovedItemReferences,
     pruneTargetReferencesForRemovedItems,
-    pushActionHistory: action => pushActionHistoryForTarget(state, action),
     normalizeStartPinnedState,
     descendantIds: descendants,
     uniqueName,
-    saveState,
+    persistTransaction: operation => persistSearchAwareTransaction(write => operation(snapshot => {
+      syncLegacyWorkspaceAliases(snapshot);
+      return write(snapshot, { requirePrimary: true });
+    })),
     renderAllFileSurfaces,
-    refreshRecycleBinWindows,
     toast,
     confirm: message => confirm(message),
-    rememberDeletedIdsForNativePurge,
+    rememberDeletedIdsInTarget: rememberDeletedIdsForNativePurgeInTarget,
     clearSelection: () => {
       ui.selectedDesktop = null;
       ui.multiSelected?.clear();
@@ -1348,7 +1342,7 @@
     requestName: (message, defaultName) => prompt(message, defaultName),
     requestDeletion: (model, execute) => shellUiUtils.showDesktopDeletionDialog(model, execute, { download: () => downloadDesktopBackup(model) }),
     queueMutation: operation => queueAutomationMutation(operation),
-    persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+    persistTransaction: persistSearchAwareTransaction,
     pruneReferences: (target, ids) => pruneTargetReferencesForRemovedItems(target, ids),
     onRemovedItems: ids => removedItemReferencesController.closeWindowsForRemovedItems(ids),
     addDesktopShortcut,
@@ -1407,7 +1401,7 @@
 
   const storageStateRuntimeController = createStorageStateRuntimeController({
     getState: () => state,
-    setState: value => { state = value; },
+    setState: value => { state = value; searchRevision += 1; },
     runtime: storageRuntime,
     nativeStorage: shouldUseNativeStorage,
     nativeStorageLabel,
@@ -1496,6 +1490,7 @@
   }
 
   function saveState(options = {}) {
+    searchRevision += 1;
     const barrier = primaryStateSaveQueue.barrier();
     if (barrier) {
       const deferred = barrier.then(() => saveState(options));
@@ -1508,9 +1503,25 @@
         throw new Error("Хранилище ещё не готово к записи.");
       }
       return result;
-    });
+    }).finally(() => { searchRevision += 1; });
     savePromise.catch(() => {});
     return savePromise;
+  }
+
+  function persistSearchAwareTransaction(operation) {
+    return primaryStateSaveQueue.transaction(operation).finally(() => { searchRevision += 1; });
+  }
+
+  function persistSearchPreferences(ownerState, ownerSettings) {
+    return persistSearchAwareTransaction(async write => {
+      if (state !== ownerState || state.searchSettings !== ownerSettings) throw new Error("Состояние поиска изменилось. Повторите выбор.");
+      syncLegacyWorkspaceAliases(state);
+      const snapshot = cloneForBackup(state);
+      const saved = await write(snapshot);
+      if (saved?.saved !== true) throw new Error("Хранилище не подтвердило настройки поиска.");
+      writeSmallSettingsToLocalStorage();
+      return { ...saved, searchSettings: snapshot.searchSettings };
+    });
   }
 
   function storedStateSizeBytes() {
@@ -1518,11 +1529,7 @@
   }
 
   function migrate(s) {
-    return migrateStateWithRuntime(s, {
-      apps,
-      normalizeTrashState,
-      purgeExpiredTrashItems: purgeExpiredTrashItemsFromTarget
-    });
+    return migrateStateWithRuntime(s, { apps });
   }
 
   function ensureSystemAppShortcut(target = state, appId, name, x = 320, y = 132) {
@@ -1548,36 +1555,12 @@
     });
   }
 
-  function purgeDeletedItemsFromStorageState(target = state, options = {}) {
-    return purgeDeletedItemsFromStorageTarget(target, {
-      ...options,
-      normalizeStartPinnedState,
-      normalizeTaskbarPinnedApps
-    });
-  }
-
   function rememberDeletedIdsForNativePurge(deletedIds = new Set()) {
     return rememberDeletedIdsForNativePurgeInTarget(state, deletedIds);
   }
 
   function permanentlyRemoveItemsFromBrowserState(ids = [], options = {}) {
-    return trashActionController.permanentlyRemoveItems(ids, options);
-  }
-
-  function trashRetentionDays(target = state) {
-    return trashActionController.retentionDays(target);
-  }
-
-  function normalizeTrashState(target = state) {
-    return trashActionController.normalizeState(target);
-  }
-
-  function purgeExpiredTrashItemsFromTarget(target = state, options = {}) {
-    return trashActionController.purgeExpired(target, options);
-  }
-
-  function applyTrashRetentionDays(value) {
-    return trashActionController.applyRetentionDays(value);
+    return deletionController.permanentlyRemoveItems(ids, options);
   }
 
   let externalDirectoryHandle = null;
@@ -1689,7 +1672,7 @@
   }
 
   function updateStartPreferences(patch) {
-    return primaryStateSaveQueue.transaction(async write => {
+    return persistSearchAwareTransaction(async write => {
       syncLegacyWorkspaceAliases(state);
       const current = systemSettings().startMenu;
       const changes = typeof patch === "function" ? patch(current) : patch;
@@ -1704,7 +1687,7 @@
   }
 
   function startItemDesktop(item) {
-    if (!item || item.deletedAt || item.parent === TRASH_ROOT) return null;
+    if (!item || item.deletedAt || item.parent === LEGACY_DELETED_ROOT) return null;
     return state.desktops.find(desktop => itemInWorkspace(item, desktop.id)
       || (desktop.data?.explorerRootId && itemInWorkspace(item, desktop.data.explorerRootId))) || null;
   }
@@ -1751,7 +1734,7 @@
       const name = prompt("Название рабочего стола:", desktopName(id));
       if (name === null || !name.trim()) return;
       try {
-        await primaryStateSaveQueue.transaction(async write => {
+        await persistSearchAwareTransaction(async write => {
           const live = state.desktops.find(entry => entry.id === id);
           if (!live) throw new Error("Рабочий стол уже удалён.");
           syncLegacyWorkspaceAliases(state);
@@ -2133,27 +2116,13 @@
   function renameItem(itemId) { return fsItemController.renameItem(itemId); }
   function duplicateItem(itemId) { return fsItemController.duplicateItem(itemId); }
 
-  function pushActionHistory(action) { return trashActionController.pushActionHistory(action); }
-  function moveItemsToTrash(ids = []) { return trashActionController.moveItemsToTrash(ids); }
-
-  function deleteItem(itemId, options = {}) { return trashActionController.deleteItem(itemId, options); }
-
-  function undoLastAction() { return trashActionController.undoLastAction(); }
-  function trashedItems() { return trashActionController.trashedItems(); }
-  function restoreTrashItem(itemId) { return trashActionController.restoreTrashItem(itemId); }
-
-  function permanentlyDeleteTrashItem(itemId) { return trashActionController.permanentlyDeleteTrashItem(itemId); }
-  function emptyTrash() { return trashActionController.emptyTrash(); }
+  function deleteItem(itemId, options = {}) { return deletionController.deleteItem(itemId, options); }
 
   function itemPath(item = {}) { return fsItemController.itemPath(item); }
 
   function showItemProperties(itemId) { return fsItemController.showProperties(itemId); }
 
-  function refreshRecycleBinWindows() {
-    // Приложение «Корзина» удалено; удаление файлов теперь выполняется сразу.
-  }
-
-  function deleteItems(ids = []) { return trashActionController.deleteItems(ids); }
+  function deleteItems(ids = []) { return deletionController.deleteItems(ids); }
 
   function cycleWindows(reverse = false) { return windowRuntimeController.cycleWindows(reverse); }
 
@@ -2220,7 +2189,7 @@
       folderBackgroundDataURL,
       itemKind: startItemKind,
       desktopView: deskSettings().explorerView,
-      saveView: (folderId, patch) => primaryStateSaveQueue.transaction(async write => {
+      saveView: (folderId, patch) => persistSearchAwareTransaction(async write => {
         syncLegacyWorkspaceAliases(state);
         const snapshot = cloneForBackup(state);
         const folder = snapshot.fs[folderId];
@@ -2485,7 +2454,7 @@
     return window.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({
       getWorkspace: () => state.desktops.find(desk => desk.id === workspaceId)?.data || null,
       createId: uid,
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      persistTransaction: persistSearchAwareTransaction,
       saveSnapshot: (write, tracking) => {
         syncLegacyWorkspaceAliases(state);
         const snapshot = JSON.parse(JSON.stringify(state));
@@ -2512,7 +2481,7 @@
         securityRuntimeController.scheduleProtectionCheck();
         ui.windows.forEach(record => { if (record.appId === "timetracking" && record.desktopId === workspaceId) record.el.querySelector(".time-tracking-app")?.refreshTimeTracking?.(); });
       },
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      persistTransaction: persistSearchAwareTransaction,
       saveSnapshot: (write, candidate) => {
         if (!getStore()) throw new Error("Список задач недоступен. Откройте приложение заново.");
         syncLegacyWorkspaceAliases(state);
@@ -2547,7 +2516,7 @@
     };
     const controller = window.ZETER_TASK_APP_UI_UTILS.createTaskProjectAttachmentController({
       getStore, resolveAttachment,
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      persistTransaction: persistSearchAwareTransaction,
       saveSnapshot: (write, projects) => {
         if (!getStore()) throw new Error("Список задач недоступен.");
         syncLegacyWorkspaceAliases(state);
@@ -2597,23 +2566,230 @@
   function renderTaskEditorApp(params = {}, winId) { return taskAppRuntimeController.renderTaskEditorApp(params, winId); }
   function refreshOpenCalendars(excludeWinId = "") {
     ui.windows.forEach((record, winId) => {
-      if (winId !== excludeWinId && record.appId === "calendar") refreshWindow(winId);
+      if (winId !== excludeWinId && record.appId === "calendar") {
+        const calendar = record.el?.querySelector(".calendar-app");
+        if (typeof calendar?.refreshCalendar === "function") calendar.refreshCalendar();
+        else refreshWindow(winId);
+      }
     });
   }
-  function renderCalendarApp() {
+  function calendarPersistenceOptions(workspaceId) {
+    const getWorkspace = () => state.desktops.find(desk => desk.id === workspaceId)?.data || null;
+    return {
+      getWorkspace, createId: uid, queueMutation: queueAutomationMutation,
+      persistTransaction: persistSearchAwareTransaction,
+      saveSnapshot: async (write, events, mutation = {}) => {
+        const workspace = getWorkspace();
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop || !workspace) throw new Error("Рабочий стол недоступен.");
+        desktop.data.events = events;
+        if (mutation.created) {
+          // Queue event-created automations in the same staged snapshot as the event.
+          createAutomationRuntimeController({ getState: () => snapshot, getWorkspace: () => desktop.data }).enqueueEvent({
+            type: "event_created", event: mutation.event, eventKey: `created:${mutation.event.createdAt}`
+          });
+        }
+        syncLegacyWorkspaceAliases(snapshot);
+        const saved = await write(snapshot);
+        if (saved?.saved === true && mutation.created) {
+          workspace.automationRuntime = desktop.data.automationRuntime;
+          automationEventBaseline.set(`${workspaceId}:${mutation.event.id}`, {
+            createdAt: mutation.event.createdAt, updatedAt: mutation.event.updatedAt
+          });
+          scheduleAutomationCheck();
+        }
+        return saved;
+      }
+    };
+  }
+  function calendarMutationSaved() {
+    syncLegacyWorkspaceAliases(state);
+    writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+    securityRuntimeController.scheduleProtectionCheck(); refreshProjectOverviews();
+  }
+  function calendarWorkspaceTools(workspaceId, ownerWindowId = "") {
+    const getWorkspace = () => state.desktops.find(desk => desk.id === workspaceId)?.data;
+    const importedMaterials = new WeakMap();
+    const preferences = () => window.ZETER_WORKSPACE_UTILS.normalizeWorkspaceCalendarState(getWorkspace()?.calendarState);
+    const resolveAttachment = ref => {
+      const item = ref?.kind === "fs" ? state.fs?.[ref.id] : null;
+      if (!item || item.deletedAt || !itemInWorkspace(item, workspaceId) || !OBJECT_LINKABLE_FS_TYPES.has(item.type)) return null;
+      return { label: item.name || "Файл", title: item.name || "Файл", typeLabel: OBJECT_LINK_FS_TYPE_LABELS[item.type] || "Файл" };
+    };
+    const saveWorkspacePatch = operation => queueAutomationMutation(() => persistSearchAwareTransaction(async write => {
+      const workspace = getWorkspace();
+      if (!workspace) throw new Error("Рабочий стол недоступен. Откройте календарь заново.");
+      const patch = operation(workspace);
+      syncLegacyWorkspaceAliases(state);
+      const snapshot = JSON.parse(JSON.stringify(state));
+      const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+      if (!desktop) throw new Error("Рабочий стол недоступен.");
+      Object.assign(desktop.data, patch);
+      syncLegacyWorkspaceAliases(snapshot);
+      const saved = await write(snapshot);
+      if (saved?.saved !== true) throw new Error("Хранилище не подтвердило запись. Ввод сохранён; повторите попытку.");
+      Object.assign(workspace, patch);
+      calendarMutationSaved();
+      return patch;
+    }));
+    return {
+      getAttachmentCandidates: () => workspaceItems(workspaceId).filter(item => resolveAttachment({ kind: "fs", id: item.id })).map(item => ({ endpoint: { kind: "fs", id: item.id }, kind: "fs", id: item.id, ...resolveAttachment({ kind: "fs", id: item.id }) })),
+      resolveAttachment,
+      openAttachment: ref => {
+        if (getDesktopRoot() !== workspaceId || !resolveAttachment(ref)) throw new Error("Файл удалён или недоступен на этом рабочем столе.");
+        openItem(ref.id);
+      },
+      canUploadEventFiles: () => shouldUseNativeStorage(),
+      importEventFiles: async files => {
+        if (!shouldUseNativeStorage()) throw new Error("Загрузка с компьютера доступна в Windows/Python. Выберите файл из рабочего стола.");
+        const selected = Array.from(files || []);
+        if (!selected.length || selected.length > 200) throw new Error("Выберите от 1 до 200 файлов.");
+        const attachments = [];
+        for (const file of selected) {
+          try {
+            if (!getWorkspace() || getDesktopRoot() !== workspaceId) throw new Error("Вернитесь на рабочий стол события перед загрузкой файла.");
+            const cached = importedMaterials.get(file);
+            if (cached?.ref && state.fs[cached.ref.id]) { attachments.push(cached.ref); continue; }
+            const managedFile = cached?.managedFile || await window.ZETER_MANAGED_FILE_UTILS.copyFileToManagedStorage(file, { nativeStorageCall });
+            importedMaterials.set(file, { managedFile });
+            const ref = await queueAutomationMutation(() => persistSearchAwareTransaction(async write => {
+              if (!getWorkspace()) throw new Error("Рабочий стол недоступен. Копия файла сохранена в папке данных.");
+              syncLegacyWorkspaceAliases(state);
+              const snapshot = JSON.parse(JSON.stringify(state));
+              const result = window.ZETER_FS_ITEM_UTILS.createFsItemRecord(snapshot.fs, "managedFile", file.name, workspaceId, { uid, extra: { extension: managedFile.extension, managedFile }, x: 40, y: 40 });
+              if (state.fs[result.keyId]) throw new Error("Не удалось создать уникальный ID файла.");
+              snapshot.fs[result.keyId] = result.item;
+              const saved = await write(snapshot);
+              if (saved?.saved !== true) throw new Error("Хранилище не подтвердило добавление файла. Копия остаётся в папке данных; событие пока не сохранено.");
+              state.fs[result.keyId] = result.item;
+              return { kind: "fs", id: result.keyId };
+            }));
+            attachments.push(ref);
+            importedMaterials.set(file, { managedFile, ref });
+            renderAllFileSurfaces(); calendarMutationSaved();
+          } catch (error) {
+            error.attachments = attachments;
+            throw error;
+          }
+        }
+        return attachments;
+      },
+      getTasks: () => getWorkspace()?.tasks || [],
+      getTaskProjects: () => getWorkspace()?.taskProjects || [],
+      getCategories: () => window.ZETER_DATA_NORMALIZERS.normalizeCalendarCategories(getWorkspace()?.calendarCategories),
+      getCalendarPreferences: preferences,
+      saveCalendarPreferences: async patch => {
+        const allowed = ["view", "workStart", "workEnd", "showTaskDeadlines"];
+        const intent = Object.fromEntries(Object.entries(patch || {}).filter(([key]) => allowed.includes(key)));
+        if (intent.workStart !== undefined || intent.workEnd !== undefined) {
+          const candidate = { ...preferences(), ...intent };
+          if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(candidate.workStart) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(candidate.workEnd) || candidate.workStart >= candidate.workEnd) throw new Error("Рабочие часы: окончание должно быть позже начала.");
+        }
+        const result = await saveWorkspacePatch(workspace => ({ calendarState: window.ZETER_WORKSPACE_UTILS.normalizeWorkspaceCalendarState({ ...workspace.calendarState, ...intent }) }));
+        return { ...result.calendarState, saved: true };
+      },
+      saveCategory: async (draft, editingId = "", original = null) => {
+        const submitted = JSON.parse(JSON.stringify(draft || {}));
+        const baseline = original ? JSON.stringify(original) : "";
+        let category;
+        await saveWorkspacePatch(workspace => {
+          const categories = window.ZETER_DATA_NORMALIZERS.normalizeCalendarCategories(workspace.calendarCategories);
+          const previous = categories.find(item => item.id === editingId);
+          if (editingId && (!previous || baseline && JSON.stringify(previous) !== baseline)) throw new Error("Категория изменена в другом окне. Откройте её заново; введённые данные остались в форме.");
+          const name = String(submitted.name || "").trim();
+          if (!name || name.length > 80) throw new Error("Название категории: от 1 до 80 символов.");
+          if (!/^#[0-9a-f]{6}$/i.test(submitted.color || "")) throw new Error("Выберите цвет категории.");
+          if (categories.some(item => item.id !== editingId && item.name.toLocaleLowerCase("ru") === name.toLocaleLowerCase("ru"))) throw new Error("Категория с таким названием уже есть.");
+          if (!editingId && categories.length >= 100) throw new Error("Можно создать до 100 собственных категорий.");
+          if (submitted.description !== undefined && (typeof submitted.description !== "string" || submitted.description.length > 1000)) throw new Error("Описание категории: не больше 1000 символов.");
+          if (submitted.icon !== undefined && !window.ZETER_DATA_NORMALIZERS.CALENDAR_CATEGORY_ICONS.includes(submitted.icon)) throw new Error("Выберите значок категории из списка.");
+          category = { ...previous, id: previous?.id || uid("calcat"), name, color: submitted.color.toLowerCase(), ...(submitted.description === undefined ? {} : { description: submitted.description.trim() }), ...(submitted.icon === undefined ? {} : { icon: submitted.icon }) };
+          return { calendarCategories: editingId ? categories.map(item => item.id === editingId ? category : item) : [...categories, category] };
+        });
+        refreshOpenCalendars(ownerWindowId);
+        return JSON.parse(JSON.stringify(category));
+      },
+      deleteCategory: async (id, replacementId = "", original = null) => {
+        const baseline = original ? JSON.stringify(original) : "";
+        await saveWorkspacePatch(workspace => {
+          const categories = window.ZETER_DATA_NORMALIZERS.normalizeCalendarCategories(workspace.calendarCategories);
+          const previous = categories.find(item => item.id === id);
+          if (!previous || !baseline || JSON.stringify(previous) !== baseline) throw new Error("Категория изменена или удалена в другом окне. Откройте её заново.");
+          const events = workspace.events || [];
+          const used = events.some(event => event.category === id);
+          const replacementExists = ["work", "personal", "health", "important"].includes(replacementId) || categories.some(item => item.id === replacementId);
+          if (replacementId === id || replacementId && !replacementExists) throw new Error("Выберите существующую категорию для переноса событий.");
+          if (used && !replacementId) throw new Error("Выберите, в какую категорию перенести события. События не будут удалены.");
+          const patch = { calendarCategories: categories.filter(item => item.id !== id) };
+          if (used) {
+            const updatedAt = new Date().toISOString();
+            patch.events = events.map(event => event.category === id ? { ...event, category: replacementId, updatedAt } : event);
+          }
+          return patch;
+        });
+        refreshOpenCalendars(ownerWindowId);
+      },
+      openTask: taskId => {
+        if (getDesktopRoot() !== workspaceId || !getWorkspace()?.tasks?.some(task => task.id === taskId)) throw new Error("Вернитесь на рабочий стол события. Исходная задача должна быть доступна.");
+        openApp("taskedit", { taskId });
+      },
+      startEventTimer: async event => {
+        const workspace = getWorkspace();
+        if (getDesktopRoot() !== workspaceId || !workspace) throw new Error("Вернитесь на рабочий стол события, чтобы начать работу.");
+        const source = workspace.events?.find(item => item.id === (event.eventId || event.id));
+        if (!source) throw new Error("Событие больше недоступно. Обновите календарь.");
+        if (source.taskId && !workspace.tasks?.some(task => task.id === source.taskId)) throw new Error("Исходная задача недоступна. Сначала измените привязку события.");
+        await createWorkspaceTimeController(workspaceId).start({ title: source.title, notes: source.description || "", taskId: source.taskId || "", projectId: source.projectId || "" });
+        writeSmallSettingsToLocalStorage(); scheduleExternalBackup(); refreshProjectOverviews(workspaceId);
+        openApp("timetracking");
+      }
+    };
+  }
+  function renderCalendarApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const persistence = calendarPersistenceOptions(workspaceId);
+    const controller = window.ZETER_CALENDAR_UTILS.createCalendarEventController(persistence);
     return createCalendarApp({
+      ...calendarWorkspaceTools(workspaceId, winId),
+      initialView: params.view,
       getWeekStart: () => systemSettings().calendar.weekStart,
       document,
-      desktopTitle: desktopName(getDesktopRoot()),
+      desktopTitle: desktopName(workspaceId),
       getCalendar: () => ui.calendar,
       setCalendar: calendar => { ui.calendar = calendar; },
-      getEvents: deskEvents,
-      setEvents: setDeskEvents,
-      saveState: saveStateWithCalendarAutomation,
+      getEvents: () => persistence.getWorkspace()?.events || [],
+      saveEventRecord: (...args) => controller.saveEvent(...args),
+      removeEvent: (...args) => controller.removeEvent(...args),
+      onEventSaved: calendarMutationSaved,
+      refreshOpenCalendars: () => refreshOpenCalendars(winId),
       renderNotifications,
       toast,
       confirmUser: confirm,
       openEventEditor: params => openApp("calendaredit", params),
+      openProjectSettings: (projectId, onSaved) => {
+        const projectPersistence = createTaskProjectPersistence({}, {}, winId);
+        const project = projectPersistence.getStore()?.taskProjects?.find(item => item.id === projectId);
+        if (!project) throw new Error("Проект недоступен. Выберите существующий проект.");
+        const controller = window.ZETER_TASK_APP_UI_UTILS.createTaskProjectSettingsController(projectPersistence);
+        window.ZETER_TASK_APP_UI_UTILS.showTaskProjectSettingsDialog(document, project, controller, () => {
+          projectPersistence.afterCreate();
+          refreshOpenTaskBoards();
+          refreshOpenCalendars(winId);
+          onSaved();
+        }, { autoSave: true });
+      },
+      openProjectCreator: onCreated => {
+        const projectPersistence = createTaskProjectPersistence({}, {}, winId);
+        const creation = window.ZETER_TASK_APP_UI_UTILS.createTaskCreationController({ ...projectPersistence, getWorkspace: projectPersistence.getStore });
+        window.ZETER_TASK_APP_UI_UTILS.showTaskProjectDialog(document, creation.createProject, project => {
+          projectPersistence.afterCreate();
+          refreshOpenTaskBoards();
+          refreshOpenCalendars(winId);
+          onCreated(project);
+        });
+      },
       downloadFile,
       todayISO,
       formatDate
@@ -2621,34 +2797,24 @@
   }
   function renderCalendarEventEditorApp(params = {}, winId = "") {
     const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
-    const planController = params.timeTrackingPlan ? window.ZETER_CALENDAR_UTILS.createCalendarPlanController({
-      getWorkspace: () => state.desktops.find(desk => desk.id === workspaceId)?.data || null,
-      createId: uid,
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
-      saveSnapshot: (write, events) => {
-        syncLegacyWorkspaceAliases(state);
-        const snapshot = JSON.parse(JSON.stringify(state));
-        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
-        if (!desktop) throw new Error("Рабочий стол недоступен.");
-        desktop.data.events = events;
-        syncLegacyWorkspaceAliases(snapshot);
-        return write(snapshot);
-      }
-    }) : null;
+    const persistence = calendarPersistenceOptions(workspaceId);
+    const controller = window.ZETER_CALENDAR_UTILS.createCalendarEventController(persistence);
+    const planController = params.timeTrackingPlan ? window.ZETER_CALENDAR_UTILS.createCalendarPlanController(persistence) : null;
     return createCalendarEventEditorApp(params, winId, {
+      ...calendarWorkspaceTools(workspaceId, winId),
       document,
       getCalendar: () => ui.calendar,
-      setCalendar: calendar => { ui.calendar = calendar; },
-      getEvents: deskEvents,
-      setEvents: setDeskEvents,
-      saveState: saveStateWithCalendarAutomation,
+      setCalendar: calendar => { if (getDesktopRoot() === workspaceId) ui.calendar = calendar; },
+      getEvents: () => persistence.getWorkspace()?.events || [],
+      saveEventRecord: (...args) => controller.saveEvent(...args),
+      onEventSaved: calendarMutationSaved,
       renderNotifications,
       refreshOpenCalendars,
       closeWindow,
       toast,
       todayISO,
       objectLinksPanelFor,
-      saveNewPlan: planController ? draft => planController.createPlan(draft) : null,
+      saveNewPlan: planController ? draft => queueAutomationMutation(() => planController.createPlan(draft)) : null,
       onPlanSaved: planController ? () => {
         syncLegacyWorkspaceAliases(state);
         writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
@@ -2680,12 +2846,43 @@
     });
   }
 
+  function renderContactsApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const controller = window.ZETER_CONTACTS_UTILS.createContactsController({
+      getWorkspace: () => state.desktops.find(desk => desk.id === workspaceId)?.data || null,
+      createId: uid,
+      queueMutation: queueAutomationMutation,
+      persistTransaction: persistSearchAwareTransaction,
+      saveSnapshot: (write, contacts) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.contacts = contacts;
+        return write(snapshot);
+      }
+    });
+    return window.ZETER_CONTACTS_UI_UTILS.createContactsApp(params, {
+      documentRef: document, controller,
+      copyText: text => navigator.clipboard.writeText(text),
+      confirm: text => confirm(text),
+      onChange: () => {
+        writeSmallSettingsToLocalStorage();
+        scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+        [...ui.windows.entries()].forEach(([id, record]) => {
+          if (id !== winId && record.appId === "contacts" && record.desktopId === workspaceId) record.el.querySelector(".contacts-app")?.refreshContacts?.();
+        });
+      }
+    });
+  }
+
   function renderPromptLibraryApp(params = {}, winId = "") {
     const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
     const controller = window.ZETER_PROMPT_LIBRARY_UTILS.createPromptLibraryController({
       getWorkspace: () => state.desktops.some(desk => desk.id === workspaceId) ? workspaceDataForDesktopId(workspaceId) : null,
       createId: uid, saveState, queueMutation: queueAutomationMutation,
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      persistTransaction: persistSearchAwareTransaction,
       saveSnapshot: (write, library) => {
         syncLegacyWorkspaceAliases(state);
         const snapshot = JSON.parse(JSON.stringify(state));
@@ -2715,7 +2912,7 @@
     const getWorkspace = () => state.desktops.find(desk => desk.id === workspaceId)?.data || null;
     const taskCreator = window.ZETER_TASK_APP_UI_UTILS.createTaskCreationController({
       getWorkspace,
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      persistTransaction: persistSearchAwareTransaction,
       saveSnapshot: (write, candidate) => {
         syncLegacyWorkspaceAliases(state);
         const snapshot = JSON.parse(JSON.stringify(state));
@@ -2728,7 +2925,7 @@
     });
     const controller = window.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({
       getWorkspace, createId: uid,
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      persistTransaction: persistSearchAwareTransaction,
       saveSnapshot: (write, tracking) => {
         syncLegacyWorkspaceAliases(state);
         const snapshot = JSON.parse(JSON.stringify(state));
@@ -2761,7 +2958,7 @@
     const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
     const controller = window.ZETER_BUSINESS_CALCULATIONS_UTILS.createBusinessCalculationsController({
       getWorkspace: () => state.desktops.some(desk => desk.id === workspaceId) ? workspaceDataForDesktopId(workspaceId) : null,
-      persistTransaction: operation => primaryStateSaveQueue.transaction(operation),
+      persistTransaction: persistSearchAwareTransaction,
       saveSnapshot: (write, calculations) => {
         syncLegacyWorkspaceAliases(state);
         const snapshot = JSON.parse(JSON.stringify(state));
@@ -2800,7 +2997,7 @@
       documentRef: document,
       getItem: itemId => state.fs?.[itemId],
       persistAsset: persistItemCustomizationAsset,
-      saveItem: candidate => primaryStateSaveQueue.transaction(async write => {
+      saveItem: candidate => persistSearchAwareTransaction(async write => {
         const current = state.fs?.[candidate.id];
         if (!current || current.type !== candidate.type) throw new Error("Элемент был удалён. Закрой окно и повтори действие.");
         const changes = { appearance: candidate.appearance, updatedAt: candidate.updatedAt };
@@ -2887,7 +3084,7 @@
         keys: window.ZETER_SETTINGS_UI_UTILS.SETTINGS_PREFERENCE_KEYS,
         getPreferences: () => window.ZETER_SETTINGS_UI_UTILS.settingsPreferences(modelsFor(state)),
         requireAck: true,
-        save: patch => primaryStateSaveQueue.transaction(async write => {
+        save: patch => persistSearchAwareTransaction(async write => {
           syncLegacyWorkspaceAliases(state);
           const snapshot = cloneForBackup(state);
           const staged = window.ZETER_SETTINGS_UI_UTILS.applySettingsPreferencePatch(modelsFor(snapshot), patch);
@@ -2970,8 +3167,12 @@
     getFs: () => state.fs,
     getCurrentDesktopId: getDesktopRoot,
     getWorkspace: currentWorkspace,
+    getDesktopStores: () => state.desktops.map(desktop => ({ desktopId: desktop.id, title: desktop.name, data: workspaceDataForDesktopId(desktop.id) })),
+    getRevision: () => searchRevision,
+    runResultAction: runSearchResultAction,
+    saveSearchSettings: persistSearchPreferences,
     apps,
-    trashRoot: TRASH_ROOT,
+    trashRoot: LEGACY_DELETED_ROOT,
     resultLimit: SEARCH_RESULT_LIMIT,
     isDesktopRoot,
     isExplorerRoot,
@@ -3029,9 +3230,12 @@
     renderGlobalSearch: query => searchController.renderGlobal(query),
     toast,
     taskNavigator: taskTargetNavigator,
+    validateResult: element => searchTargetRecord({ kind: element.dataset.searchKind, id: element.dataset.id,
+      desktopId: element.dataset.desktopId, itemId: element.dataset.itemId, projectType: element.dataset.projectType }),
     getCalendarEvent: eventId => deskEvents().find(event => event.id === eventId),
     setCalendarEventDate: date => { ui.calendar = { ...ui.calendar, date, selected: date, view: "agenda" }; },
-    toggleNotifications: () => togglePanel("notifications")
+    toggleNotifications: () => togglePanel("notifications"),
+    openExtendedResult: openExtendedSearchResult
   });
 
   const globalSearchOverlay = createGlobalSearchOverlayController({
@@ -3039,11 +3243,114 @@
     ElementCtor: Element,
     closeFloating,
     renderGlobal: query => searchController.renderGlobal(query),
-    openFirst: () => searchResultNavigator.openFirst($("#global-search-results")),
+    openFirst: () => searchController.openSelected($("#global-search-results")),
     schedule: callback => setTimeout(callback, 0)
   });
 
-  function openSearchResult(element) { return searchResultNavigator.openResult(element); }
+  function openSearchResult(element) { return searchController.openResultElement(element); }
+
+  function searchTargetRecord(result) {
+    const desktopId = result.desktopId || getDesktopRoot();
+    const desktop = state.desktops.find(item => item.id === desktopId);
+    if (!desktop) throw new Error("Рабочий стол больше недоступен.");
+    const workspace = workspaceDataForDesktopId(desktopId);
+    const liveItem = id => {
+      const item = state.fs[id];
+      if (!item || item.deletedAt || item.hiddenInExplorer || item.hiddenFromDesktop) return null;
+      const seen = new Set(); let cursor = item;
+      while (cursor && !seen.has(cursor.id)) {
+        if (cursor.deletedAt || cursor.parent === LEGACY_DELETED_ROOT) return null;
+        seen.add(cursor.id);
+        if (isDesktopRoot(cursor.parent)) return cursor.parent === desktopId ? item : null;
+        cursor = state.fs[cursor.parent];
+      }
+      return null;
+    };
+    let store = workspace;
+    if (result.itemId) { store = liveItem(result.itemId); if (store?.type !== "tasklist") store = null; }
+    let record;
+    if (result.kind === "item") record = liveItem(result.id);
+    else if (result.kind === "task") record = store?.tasks?.find(item => item.id === result.id);
+    else if (result.kind === "calendar") record = workspace.events?.find(item => item.id === result.id);
+    else if (result.kind === "project") record = (result.projectType === "prompts" ? workspace.promptLibrary?.projects : store?.taskProjects)?.find(item => item.id === result.id);
+    else if (result.kind === "link") record = workspace.library?.entries?.find(item => item.id === result.id);
+    else if (result.kind === "prompt") record = workspace.promptLibrary?.entries?.find(item => item.id === result.id);
+    else if (result.kind === "time") record = workspace.timeTracking?.entries?.find(item => item.id === result.id && item.deletedAt == null);
+    else if (["app", "command", "notification"].includes(result.kind)) record = result;
+    if (!record) throw new Error("Материал удалён или изменён. Обновите поиск.");
+    return { desktopId, workspace, store, record };
+  }
+
+  async function openExtendedSearchResult(element) {
+    const result = { kind: element.dataset.searchKind, id: element.dataset.id, desktopId: element.dataset.desktopId,
+      itemId: element.dataset.itemId, projectId: element.dataset.projectId, projectType: element.dataset.projectType };
+    const target = searchTargetRecord(result);
+    if (target.desktopId !== getDesktopRoot() && !switchVirtualDesktop(target.desktopId)) throw new Error("Не удалось открыть рабочий стол.");
+    if (result.kind === "link") return openShortcutTarget(target.record.target, target.record.name);
+    if (result.kind === "prompt") return openApp("prompts", { projectId: target.record.projectId || "", entryId: target.record.id });
+    if (result.kind === "time") return openApp("timetracking", { entryId: target.record.id });
+    if (result.kind === "project") {
+      if (result.projectType === "prompts") return openApp("prompts", { projectId: target.record.id });
+      const previousProject = target.store.activeTaskProjectId;
+      target.store.activeTaskProjectId = target.record.id;
+      try { await saveState({ skipExternalBackup: true, silentStorageError: true }); }
+      catch (error) { if (target.store.activeTaskProjectId === target.record.id) target.store.activeTaskProjectId = previousProject; searchRevision += 1; throw error; }
+      const current = searchTargetRecord(result);
+      if (getDesktopRoot() !== target.desktopId || current.store !== target.store || current.record !== target.record) {
+        throw new Error("Рабочий стол или проект изменён. Открытие отменено; выберите проект ещё раз.");
+      }
+      return openApp(result.itemId ? "tasklist" : "tasks", result.itemId ? { itemId: result.itemId, projectView: "overview" } : { projectView: "overview" });
+    }
+    return false;
+  }
+
+  async function runSearchResultAction(result, action) {
+    const target = searchTargetRecord(result);
+    if (action === "copy") {
+      let text = "";
+      if (result.kind === "link") text = target.record.target;
+      else if (result.kind === "prompt") text = target.record.text;
+      else if (result.kind === "time") text = [target.record.title, target.record.notes].filter(Boolean).join("\n");
+      else if (result.kind === "item" && ["text", "note", "markdown"].includes(target.record.type)) text = target.record.richContent ? htmlPlainText(target.record.richContent) : target.record.content || "";
+      else if (result.kind === "item" && target.record.type === "table") text = window.ZETER_TABLE_UTILS.tablePlainText(target.record);
+      if (!text || !await copyTextToClipboard(text)) throw new Error("Не удалось скопировать текст. Откройте материал и скопируйте вручную.");
+      return true;
+    }
+    if (action === "complete" && result.kind === "task") {
+      const getStore = () => { try { return searchTargetRecord(result).store; } catch { return null; } };
+      const controller = window.ZETER_TASK_APP_UI_UTILS.createTaskCompletionController({
+        getWorkspace: getStore, persistTransaction: persistSearchAwareTransaction,
+        saveSnapshot: (write, candidate) => {
+          const current = searchTargetRecord(result);
+          syncLegacyWorkspaceAliases(state);
+          const snapshot = cloneForBackup(state);
+          const store = result.itemId ? snapshot.fs[result.itemId] : snapshot.desktops.find(item => item.id === current.desktopId)?.data;
+          if (!store) throw new Error("Список задач недоступен.");
+          store.tasks = candidate.tasks;
+          syncLegacyWorkspaceAliases(snapshot);
+          return write(snapshot);
+        }
+      });
+      const saved = await queueAutomationMutation(() => controller.complete(result.id));
+      refreshOpenTaskBoards(); renderAllFileSurfaces();
+      if (target.desktopId === getDesktopRoot()) {
+        void saveStateWithTaskAutomation({ skipExternalBackup: true }).catch(error => toast("Статус задачи сохранён", `Не удалось сохранить связанные автоматизации: ${error.message}`));
+      }
+      return saved;
+    }
+    if (action === "reveal" && result.kind === "item") {
+      if (target.desktopId !== getDesktopRoot() && !switchVirtualDesktop(target.desktopId)) throw new Error("Не удалось открыть рабочий стол.");
+      closeFloating();
+      return openApp("folder", { folderId: target.record.parent, focusItemId: target.record.id });
+    }
+    if (action === "open") {
+      const element = document.createElement("button");
+      Object.assign(element.dataset, { searchKind: result.kind, id: String(result.id), desktopId: target.desktopId,
+        itemId: result.itemId || "", projectId: result.projectId || "", projectType: result.projectType || "", query: result.query || "" });
+      return searchResultNavigator.openResult(element);
+    }
+    throw new Error("Действие недоступно для этого материала.");
+  }
 
   function workspaceDataForDesktopId(desktopId = getDesktopRoot()) {
     return workspaceDataForDesktopIdFromState(state, desktopId, {
@@ -3190,7 +3497,7 @@
       ));
       if (collision && meta.collisionPolicy === "skip") return { status: "skipped", kind: "fs", id: fileId };
       if (collision && meta.collisionPolicy === "replace") {
-        if (meta.replaceAcknowledged !== true || moveItemsToTrash([collision.id]) < 1) return false;
+        if (meta.replaceAcknowledged !== true || permanentlyRemoveItemsFromBrowserState([collision.id], { dropActionHistory: false }) < 1) return false;
       }
       if (collision && meta.collisionPolicy === "rename") {
         item.name = automationUniqueName(item.name, targetFolderId, item.id);
@@ -3423,6 +3730,7 @@
       try {
         const result = await operation();
         await Promise.resolve(saveState());
+        cleanupRemovedItemReferences(Object.keys(snapshot.fs || {}).filter(id => !state.fs[id]));
         refreshAutomationSurfaces();
         return result;
       } catch (error) {
@@ -3589,6 +3897,7 @@
           toast("Автоматизация не сохранена", "Изменения запуска отменены. Проверь хранилище ZeTer OS.");
           return 0;
         }
+        cleanupRemovedItemReferences(Object.keys(stateBeforeExecution.fs || {}).filter(id => !state.fs[id]));
         refreshAutomationSurfaces();
         if (executionError) {
           console.error("[ZeTer OS automation]", executionError);
@@ -3633,7 +3942,7 @@
       const date = notification.calendarDate || todayISO();
       ui.calendar = { ...ui.calendar, view: "day", date, selected: date, editing: null };
       closeFloating();
-      openApp("calendar");
+      openApp("calendar", { view: "day" });
       return true;
     },
     openLinkedObject: (endpoint, notification = {}) => {
@@ -3753,7 +4062,6 @@
     showDesktopMenu,
     bindDesktopSelectionBox: () => desktopSurfaceController.bindSelectionBox(),
     cycleWindows,
-    undoLastAction,
     openItem,
     deleteItems,
     renderNotifications,
@@ -3802,8 +4110,6 @@
       startTaskReminderWatcher,
       restoreWindowsForCurrentDesktop
     },
-    purgeExpiredTrash: () => (appUpdateApplying || recoveryApplying) ? false : purgeExpiredTrashItemsFromTarget(state, { dropActionHistory: true }),
-    refreshRecycleBinWindows,
     updateClock,
     prepareCalendarForTray: () => {
       const today = todayISO();
@@ -3816,7 +4122,7 @@
 
   function saveFirstRunSetup(draft = null) {
     const desktopId = getDesktopRoot();
-    return primaryStateSaveQueue.transaction(async write => {
+    return persistSearchAwareTransaction(async write => {
       syncLegacyWorkspaceAliases(state);
       const snapshot = cloneForBackup(state);
       const beforeAppIds = new Set(Object.keys(snapshot.fs));
@@ -3979,7 +4285,7 @@
     catch(error){securityVaultFolder=previous;throw error;}
   }};
   securityRecoveryController=window.ZETER_SECURITY_RECOVERY_UTILS.createRecoveryController({
-    getState:()=>state,transaction:operation=>primaryStateSaveQueue.transaction(operation),
+    getState:()=>state,transaction:operation=>persistSearchAwareTransaction(operation),
     validate:validateImportedStateForImport,migrate,nativeMode:shouldUseNativeStorage,nativeCall:nativeStorageCall,
     browserVault:browserSecurityVault,buildBackup:buildFullSecurityBackup,
     createSafetyPoint:snapshot=>securityRuntimeController.createRecoverySafetyPoint(snapshot),

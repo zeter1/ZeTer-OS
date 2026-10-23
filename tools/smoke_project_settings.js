@@ -26,7 +26,7 @@ async function main() {
   let refuse = true, release, hold, snapshot;
   const options = { getStore: () => store, persistTransaction: operation => operation(async () => {}), saveSnapshot: async (write, candidate) => { snapshot = plain(candidate); if (refuse) throw new Error("refused"); if (hold) await hold; return { saved: true }; } };
   const controller = box.ZETER_TASK_APP_UI_UTILS.createTaskProjectSettingsController(options);
-  const patch = { name: "Учёба <web>", description: "План\nработы", color: "green", defaultView: "list", sortBy: "priority", hideCompleted: true, defaultPriority: "high" };
+  const patch = { name: "Учёба <web>", goal: "Готовый результат", status: "paused", startDate: "2027-01-05", deadline: "2027-02-06", description: "План\nработы", color: "green", defaultView: "list", sortBy: "priority", hideCompleted: true, defaultPriority: "high" };
   await assert.rejects(controller.save("p", patch, store.taskProjects[0]), /refused/);
   assert.deepEqual(plain(store), before, "refusal preserves every live field");
   refuse = false; hold = new Promise(resolve => { release = resolve; });
@@ -36,6 +36,12 @@ async function main() {
   release(); await pending; hold = null;
   assert.equal(store.taskProjects[0].name, patch.name);
   assert.equal(store.taskProjects[0].custom, 7);
+  for(const key of ["goal","status","startDate","deadline"]) assert.equal(store.taskProjects[0][key],patch[key]);
+  const restored=data.normalizeTaskStore(JSON.parse(JSON.stringify(store)));
+  for(const key of ["goal","status","startDate","deadline"]) assert.equal(restored.taskProjects[0][key],patch[key]);
+  const metadataBytes=JSON.stringify(store);
+  for(const fields of [{goal:"x".repeat(1001)},{status:"unknown"},{startDate:"2027-02-30"},{deadline:"2026-01-01"}]) await assert.rejects(controller.save("p",{...patch,...fields}));
+  assert.equal(JSON.stringify(store),metadataBytes,"invalid planning fields preserve project and tasks");
   assert.deepEqual(plain(store.taskProjects[0].attachments), before.taskProjects[0].attachments);
   assert.deepEqual(plain(store.taskProjects[0].categories), before.taskProjects[0].categories);
   assert.deepEqual(plain(store.taskProjects[1]), before.taskProjects[1]);

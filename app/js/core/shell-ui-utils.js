@@ -415,7 +415,6 @@
     const showDesktopMenu = typeof options.showDesktopMenu === "function" ? options.showDesktopMenu : () => {};
     const bindDesktopSelectionBox = typeof options.bindDesktopSelectionBox === "function" ? options.bindDesktopSelectionBox : () => {};
     const cycleWindows = typeof options.cycleWindows === "function" ? options.cycleWindows : () => {};
-    const undoLastAction = typeof options.undoLastAction === "function" ? options.undoLastAction : () => {};
     const openItem = typeof options.openItem === "function" ? options.openItem : () => {};
     const deleteItems = typeof options.deleteItems === "function" ? options.deleteItems : () => {};
     const renderNotifications = typeof options.renderNotifications === "function" ? options.renderNotifications : () => {};
@@ -428,8 +427,6 @@
     const firstRunScreenHTML = typeof options.firstRunScreenHTML === "function" ? options.firstRunScreenHTML : () => "";
     const osVersion = String(options.osVersion || "");
     const initSteps = options.initSteps && typeof options.initSteps === "object" ? options.initSteps : {};
-    const purgeExpiredTrash = typeof options.purgeExpiredTrash === "function" ? options.purgeExpiredTrash : () => false;
-    const refreshRecycleBinWindows = typeof options.refreshRecycleBinWindows === "function" ? options.refreshRecycleBinWindows : () => {};
     const updateClockAction = typeof options.updateClock === "function" ? options.updateClock : () => {};
     const prepareCalendarForTray = typeof options.prepareCalendarForTray === "function" ? options.prepareCalendarForTray : () => {};
     const systemPulse = typeof options.systemPulse === "function" ? options.systemPulse : () => {};
@@ -537,7 +534,6 @@
         safeInitStep("applyStartupPreferences", initSteps.applyStartupPreferences || (() => {}));
         safeInitStep("removeWorkspaceDocumentsFolders", initSteps.removeWorkspaceDocumentsFolders || (() => {}));
         safeInitStep("normalizeNotesData", initSteps.normalizeNotesData || (() => {}));
-        safeInitStep("purgeExpiredTrash", () => { if (purgeExpiredTrash()) saveState(); });
         safeInitStep("sanitizeWorkspaceWindowSessions", initSteps.sanitizeWorkspaceWindowSessions || (() => {}));
         safeInitStep("sanitizeExplorerSpaces", initSteps.sanitizeExplorerSpaces || (() => {}));
         safeInitStep("removeExplorerAppShortcuts", initSteps.removeExplorerAppShortcuts || (() => {}));
@@ -557,13 +553,6 @@
         safeInitStep("firstRunScreen", showFirstRunScreen);
         setIntervalAction(() => safeInitStep("updateClock", updateClockAction), 1000);
         setIntervalAction(() => safeInitStep("systemPulse", systemPulse), 4000);
-        setIntervalAction(() => safeInitStep("purgeExpiredTrash", () => {
-          if (purgeExpiredTrash()) {
-            saveState();
-            renderFileSurfaces();
-            refreshRecycleBinWindows();
-          }
-        }), 60 * 60 * 1000);
       } finally {
         setTimeoutAction(finishBoot, 1050);
         setTimeoutAction(finishBoot, 2500);
@@ -630,6 +619,7 @@
       if (action === "import") return $("#import-file")?.click();
       if (action === "settings") return openApp("settings");
       if (action === "about") return openApp("about");
+      if (action === "help") return openApp("help");
       if (action === "security") return openApp("security");
       if (action === "monitor") return openApp("monitor");
       if (action === "calendar") return openApp("calendar");
@@ -708,7 +698,6 @@
           runConfiguredHotkey(configuredAction);
           return;
         }
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); undoLastAction(); return; }
         if (event.key === "Enter" && getRuntimeUi().selectedDesktop) openItem(getRuntimeUi().selectedDesktop);
         if (event.key === "Delete") {
           if (targetElement?.closest(".window")) return;
@@ -722,6 +711,9 @@
         if (!button.closest("#taskbar")) button.addEventListener("click", () => openByDataApp(button.dataset.app));
       });
       $$("[data-top-action]").forEach(button => button.addEventListener("click", () => handleTopMenuAction(button.dataset.topAction)));
+      $("#top-menu")?.addEventListener("focusin", event => {
+        event.target.closest("[data-top-action]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      });
       $("#lock-shortcut")?.addEventListener("click", lock);
       $("#restart-shortcut")?.addEventListener("click", restartShell);
       $("#export-shortcut")?.addEventListener("click", exportData);

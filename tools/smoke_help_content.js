@@ -71,7 +71,7 @@ assert.ok(topics.length >= 30, "help must remain a substantial user guide");
 assert.ok(topics.every(topic => topic.title && topic.summary && topic.steps?.length), "every help topic must have a title, summary and steps");
 
 const html = help.helpContentHTML({ osVersion: "3.77" });
-assert.match(html, /Освой ZeTer OS шаг за шагом/, "help must start with a clear onboarding promise");
+assert.match(html, /Больше готовых дел/, "help must start with a clear task-oriented promise");
 assert.match(html, /стрелку ↓/, "help must explain how to leave a trailing quote with the keyboard");
 assert.match(html, /копирует только текст цитаты/, "help must explain the quote copy button");
 assert.match(html, /data-help-search/, "help must provide full-text search");
@@ -86,7 +86,7 @@ for (const sectionId of sectionIds) {
 assert.match(html, /start_zeter_os\.cmd/, "help must explain the supported desktop launch");
 assert.match(html, /data\/zeter-os-state\.json/, "help must identify the primary recovery state");
 assert.match(html, /Отдельного приложения «Корзина» нет/, "help must warn that deletion is immediate after confirmation");
-assert.match(html, /служебная совместимость старых state, а не отдельная Корзина/, "help must distinguish legacy deletion records from a current Trash app");
+assert.match(html, /Корзины, восстановления удалённых элементов и автоочистки старых записей в ZeTer OS нет/, "help must distinguish legacy deletion records from a current Trash app");
 assert.match(html, /\.zeterbak/, "help must explain encrypted backups");
 assert.match(html, /data\/logs\/zeter-os\.log/, "help must point to the diagnostic log");
 assert.match(html, /Повторить чтение/, "help must explain safe retry after a native state read failure");
@@ -143,6 +143,12 @@ assert.ok(appIds.length >= 6, "help must link to useful built-in apps");
 appIds.forEach(appId => assert.ok(catalog[appId], `help app action must reference a real app: ${appId}`));
 
 assert.equal(help.normalizeHelpQuery("  БЭКАП  "), "бэкап");
+assert.equal(help.normalizeHelpQuery("  УЧЁТ   ВРЕМЕНИ  "), "учет времени");
+assert.equal(help.helpTextMatches("Учёт времени и история занятий", "история учет"), true, "search must match words in any order and treat е/ё equally");
+assert.equal(help.helpTextMatches("Проверенный ZIP-бэкап", "zip несуществующий"), false, "every query word must match");
+assert.match(html, /data-help-menu-toggle/, "narrow windows must have an accessible section menu");
+assert.match(html, /data-help-topic-target=/, "sections must offer direct links to instructions");
+assert.match(html, /data-help-expand=/, "readers must be able to expand and collapse section instructions");
 assert.equal(help.helpTextMatches("Проверенный ZIP-бэкап", "zip"), true);
 assert.equal(help.helpTextMatches("Календарь", "таблица"), false);
 assert.deepEqual(

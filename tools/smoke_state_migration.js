@@ -48,9 +48,9 @@ function loadCore(name) {
   "system-settings-utils.js",
   "shortcut-utils.js",
   "link-library-utils.js",
-  "prompt-library-utils.js", "business-calculations-utils.js", "time-tracking-utils.js",
+  "prompt-library-utils.js", "contacts-utils.js", "business-calculations-utils.js", "time-tracking-utils.js",
   "pinning-utils.js",
-  "trash-utils.js",
+  "deletion-utils.js",
   "asset-utils.js",
   "security-protection-utils.js",
   "visual-utils.js",
@@ -96,29 +96,7 @@ const appDefinitions = {
   search: {}
 };
 
-function migrationRuntimeOptions() {
-  const pinning = sandbox.ZETER_PINNING_UTILS;
-  const trash = sandbox.ZETER_TRASH_UTILS;
-  const maintenance = sandbox.ZETER_STATE_MAINTENANCE_UTILS;
-  const normalizeStartPinnedState = target => pinning.normalizeStartPinnedState(target);
-  const normalizeTaskbarPinnedApps = list => pinning.normalizeTaskbarPinnedApps(list, appDefinitions);
-  const pruneReferences = (target, ids, options = {}) => maintenance.pruneTargetReferencesForRemovedItems(target, ids, {
-    ...options,
-    normalizeTaskbarPinnedApps
-  });
-
-  return {
-    apps: appDefinitions,
-    appCenterName: appDefinitions.appcenter.name,
-    normalizeTrashState: target => trash.normalizeTrashState(target, { normalizeStartPinnedState }),
-    purgeExpiredTrashItems: (target, options = {}) => trash.purgeExpiredTrashItemsFromTarget(target, {
-      ...options,
-      expandItemIdsInTarget: maintenance.expandItemIdsInTarget,
-      pruneTargetReferencesForRemovedItems: pruneReferences,
-      normalizeStartPinnedState
-    })
-  };
-}
+function migrationRuntimeOptions() { return { apps: appDefinitions }; }
 
 function currentAppMigrator() {
   const source = fs.readFileSync(APP_PATH, "utf8");
@@ -132,7 +110,6 @@ function currentAppMigrator() {
   const bindings = {
     defaultState: () => sandbox.ZETER_INITIAL_STATE_UTILS.defaultState(),
     normalizeVisualSettings: sandbox.ZETER_VISUAL_UTILS.normalizeVisualSettings,
-    normalizeTrashRetentionDays: sandbox.ZETER_TRASH_UTILS.normalizeTrashRetentionDays,
     normalizeTaskbarPinnedApps: list => sandbox.ZETER_PINNING_UTILS.normalizeTaskbarPinnedApps(list, appDefinitions),
     normalizeSearchSettings: sandbox.ZETER_SEARCH_UTILS.normalizeSearchSettings,
     normalizeStartPinnedState: sandbox.ZETER_PINNING_UTILS.normalizeStartPinnedState,
@@ -146,8 +123,6 @@ function currentAppMigrator() {
     normalizeCalendarStore: sandbox.ZETER_DATA_NORMALIZERS.normalizeCalendarStore,
     normalizeNotificationStore: sandbox.ZETER_DATA_NORMALIZERS.normalizeNotificationStore,
     normalizeTaskListsData: sandbox.ZETER_DATA_NORMALIZERS.normalizeTaskListsData,
-    normalizeTrashState: runtime.normalizeTrashState,
-    purgeExpiredTrashItemsFromTarget: runtime.purgeExpiredTrashItems,
     normalizeSecurityMeta: sandbox.ZETER_SECURITY_UTILS.normalizeSecurityMeta,
     OS_VERSION_NUMBER: sandbox.ZETER_OS_CONFIG.OS_VERSION_NUMBER,
     OS_VERSION: sandbox.ZETER_OS_CONFIG.OS_VERSION
@@ -156,13 +131,13 @@ function currentAppMigrator() {
   sandbox.__migrationBindings = bindings;
   vm.runInContext(`(() => {
     const {
-      defaultState, normalizeVisualSettings, normalizeTrashRetentionDays,
+      defaultState, normalizeVisualSettings,
       normalizeTaskbarPinnedApps, normalizeSearchSettings, normalizeStartPinnedState,
       defaultDesktopDescription, normalizeDesktopRecord,
       removeExplorerAppShortcutsFromState, removeWorkspaceDocumentsFoldersFromState,
       normalizeNotesData, normalizeTablesData, normalizeTaskStore, normalizeCalendarStore,
-      normalizeNotificationStore, normalizeTaskListsData, normalizeTrashState,
-      purgeExpiredTrashItemsFromTarget, normalizeSecurityMeta, OS_VERSION_NUMBER, OS_VERSION
+      normalizeNotificationStore, normalizeTaskListsData,
+      normalizeSecurityMeta, OS_VERSION_NUMBER, OS_VERSION
     } = window.__migrationBindings;
     ${functionSource}
     window.__currentAppMigrate = migrate;
@@ -189,7 +164,7 @@ function plain(value) {
 }
 
 const migrate = migratorUnderTest();
-const { OS_VERSION, OS_VERSION_NUMBER, TRASH_ROOT, DAY_MS } = sandbox.ZETER_OS_CONFIG;
+const { OS_VERSION, OS_VERSION_NUMBER, LEGACY_DELETED_ROOT, DAY_MS } = sandbox.ZETER_OS_CONFIG;
 
 function smokeInstalledUpdateNotifications() {
   const [major, minor, patch] = OS_VERSION.split(".").map(Number);
@@ -389,7 +364,7 @@ const expiredAt = Date.now() - 45 * DAY_MS;
 const expiredTrash = migrate({
   settings: { trashRetentionDays: 30 },
   fs: {
-    expired_root: { id: "expired_root", type: "folder", name: "Старое", parent: TRASH_ROOT, deletedAt: expiredAt },
+    expired_root: { id: "expired_root", type: "folder", name: "Старое", parent: LEGACY_DELETED_ROOT, deletedAt: expiredAt },
     expired_child: { id: "expired_child", type: "text", name: "Вложенное", parent: "expired_root", deletedAt: expiredAt }
   },
   tasks: [],
@@ -397,9 +372,9 @@ const expiredTrash = migrate({
   notifications: [],
   actionHistory: [{ type: "delete", items: [{ id: "expired_root" }] }]
 });
-assert.equal(expiredTrash.fs.expired_root, undefined);
-assert.equal(expiredTrash.fs.expired_child, undefined);
-assert.deepEqual(plain(expiredTrash.actionHistory), []);
+assert.equal(expiredTrash.fs.expired_root.deletedAt, expiredAt);
+assert.equal(expiredTrash.fs.expired_child.deletedAt, expiredAt);
+assert.equal(expiredTrash.actionHistory.length, 1, "legacy history is preserved without executing it");
 
 async function smokePersistedDeletion() {
   const deleteState = {
@@ -407,7 +382,7 @@ async function smokePersistedDeletion() {
     actionHistory: []
   };
   let deletePrompt = "";
-  const deleteController = sandbox.ZETER_TRASH_UTILS.createTrashActionController({
+  const deleteController = sandbox.ZETER_DELETION_UTILS.createDeletionController({
     getState: () => deleteState,
     saveState: async () => ({ saved: true, fallback: false }),
     cloneState: value => structuredClone(value),
@@ -431,7 +406,7 @@ async function smokePersistedDeletion() {
     actionHistory: []
   };
   const notifications = [];
-  const failedController = sandbox.ZETER_TRASH_UTILS.createTrashActionController({
+  const failedController = sandbox.ZETER_DELETION_UTILS.createDeletionController({
     getState: () => failedState,
     saveState: async () => { throw new Error("disk full"); },
     cloneState: value => structuredClone(value),
@@ -547,6 +522,7 @@ async function smokeSelectiveDesktopDeletion() {
   });
   sandbox.state = state;
   sandbox.primaryStateSaveQueue = queue;
+  sandbox.searchRevision = 0;
   sandbox.syncLegacyWorkspaceAliases = workspace.syncLegacyWorkspaceAliases;
   sandbox.storageStateRuntimeController = sandbox.ZETER_STORAGE_UTILS.createStorageStateRuntimeController({ getState: () => state,
     runtime: { writesAllowed: true }, queuePrimarySave: options => queue.queue(options) });

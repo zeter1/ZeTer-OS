@@ -288,7 +288,37 @@ def smoke_publication_failure_context() -> None:
         assert stale.read_bytes() == b"stale"
 
 
+def smoke_legacy_deleted_preservation() -> None:
+    """Removed trash code must not erase legacy state or its payload at save/startup."""
+    with tempfile.TemporaryDirectory(prefix="zeter-legacy-deleted-") as temp:
+        configure_temp_data(Path(temp))
+        api = zeter.NativeStorageApi(platform_opener=RecordingPlatformOpener())
+        managed = zeter.MANAGED_FILE_ROOT_DIR / "legacy" / "old.bin"
+        managed.parent.mkdir(parents=True, exist_ok=True)
+        managed.write_bytes(b"legacy-managed-payload")
+        asset = zeter.ITEM_ASSET_ROOT_DIR / "legacy" / "icon.png"
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        asset.write_bytes(b"legacy-asset-payload")
+        legacy = {
+            "old-folder": {"id": "old-folder", "type": "folder", "parent": zeter.LEGACY_DELETED_ROOT_ID, "deletedAt": 1, "originalParent": "desktop"},
+            "old-file": {"id": "old-file", "type": "file", "parent": "old-folder", "deletedAt": 1,
+                         "managedFile": {"managedPath": zeter.managed_file_relative_path(managed)},
+                         "appearance": {"icon": {"assetPath": zeter.item_asset_relative_path(asset)}}},
+        }
+        state = {"fs": copy.deepcopy(legacy), "settings": {}, "trashItems": [{"sentinel": "legacy-container"}]}
+        result = api.save_state({"state": state})
+        assert result.get("ok") is True, result
+        loaded = api.load_state()["record"]["state"]
+        assert loaded["fs"] == legacy and loaded["trashItems"] == state["trashItems"]
+        assert managed.read_bytes() == b"legacy-managed-payload" and asset.read_bytes() == b"legacy-asset-payload"
+        zeter.NativeStorageApi(platform_opener=RecordingPlatformOpener())
+        restarted = zeter.read_json_file(zeter.STATE_FILE)["state"]
+        assert restarted["fs"] == legacy and restarted["trashItems"] == state["trashItems"]
+        assert managed.exists() and asset.exists()
+
+
 def main() -> None:
+    smoke_legacy_deleted_preservation()
     smoke_storage_snapshot_races()
     smoke_readable_publication()
     smoke_publication_failure_context()
