@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import ctypes
+import os
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
 from build_release import (
     ARCHIVE_ROOT,
+    _ensure_source_file,
     ReleaseBuildError,
     build_release,
     is_forbidden_release_path,
@@ -59,6 +62,39 @@ def archive_names(path: Path) -> set[str]:
         return set(archive.namelist())
 
 
+
+def smoke_canonical_source_boundary(project_root: Path, temp_root: Path) -> None:
+    source = project_root / "app" / "index.html"
+    expected = source.read_bytes()
+    roots = [project_root]
+    real_alias = False
+    if os.name == "nt":
+        short_name = ctypes.windll.kernel32.GetShortPathNameW
+        short_name.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+        short_name.restype = ctypes.c_uint
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = short_name(str(project_root), buffer, len(buffer))
+        if not length or length >= len(buffer):
+            raise ctypes.WinError()
+        alias = Path(buffer.value)
+        real_alias = os.path.normcase(str(alias)) != os.path.normcase(str(project_root))
+        if real_alias:
+            assert alias.resolve(strict=True) == project_root.resolve(strict=True)
+        roots.append(alias)
+    outside = temp_root / (project_root.name + "-outside") / "outside.txt"
+    outside.parent.mkdir()
+    outside.write_bytes(b"outside project")
+    for root in roots:
+        assert _ensure_source_file(source, root) == expected
+        try:
+            _ensure_source_file(outside, root)
+        except ReleaseBuildError:
+            pass
+        else:
+            raise AssertionError("real outside file must stay rejected")
+    print("canonical source boundary: PASS; outside rejected; real short alias=" + str(real_alias))
+
+
 def main() -> None:
     assert is_forbidden_release_path(PurePosixPath("data/private.txt"))
     assert is_forbidden_release_path(PurePosixPath("app/__pycache__/leak.pyc"))
@@ -69,6 +105,7 @@ def main() -> None:
         temp_root = Path(temp_dir)
         project_root = temp_root / "Проект ZeTer OS"
         make_project(project_root)
+        smoke_canonical_source_boundary(project_root, temp_root)
 
         first = build_release(project_root, temp_root / "Первая сборка")
         second = build_release(project_root, temp_root / "Вторая сборка")
