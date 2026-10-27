@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'self'" />
   <meta name="referrer" content="no-referrer" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>ZeTer OS</title>
   <link rel="icon" href="assets/icons/zeter-icon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128 256x256" />
   <link rel="icon" href="assets/icons/zeter-logo.svg" type="image/svg+xml" sizes="any" />
@@ -26,7 +26,15 @@
   <main id="os" class="os" aria-label="ZeTer OS desktop">
     <div class="wallpaper-lights"><i></i><b></b><em></em></div>
 
+    <header class="mobile-header" aria-label="Мобильная панель ZeTer OS">
+      <span class="mobile-brand"><img src="assets/icons/zeter-logo.svg" alt="" /><button type="button" id="mobile-desktop-switch" class="mobile-brand-text" aria-label="Переключить рабочий стол" aria-haspopup="dialog" aria-controls="context-menu"><b>ZeTer OS</b><span id="mobile-desktop-name"></span></button></span>
+      <button type="button" id="mobile-desktop-create" aria-label="Создать материал" title="Создать материал"><span aria-hidden="true">＋</span></button>
+      <button type="button" data-top-action="search" aria-label="Открыть поиск" title="Поиск"><img src="assets/icons/mobile-search.svg" alt="" /></button>
+      <button type="button" id="mobile-menu-button" aria-label="Меню системы" aria-controls="top-menu" aria-expanded="false"><img src="assets/icons/mobile-menu.svg" alt="" /></button>
+    </header>
+
     <nav id="top-menu" class="top-menu glass" aria-label="Верхнее меню ZeTer OS">
+      <button class="mobile-create-button" data-top-action="desktop-menu">＋ Создать материал</button>
       <button data-top-action="security">Центр безопасности данных</button>
       <button data-top-action="monitor">Монитор системы</button>
       <button data-top-action="settings">Настройки</button>
@@ -119,17 +127,26 @@
 
     <nav id="taskbar" class="taskbar glass" aria-label="Панель задач">
       <button id="start-button" class="task-button zeter-button" title="ZeTer"><img src="assets/icons/zeter-logo.svg" alt=""></button>
+      <button id="mobile-home-button" class="task-button mobile-home-button" type="button" title="Рабочий стол" aria-label="Показать рабочий стол">⌂</button>
       <label class="taskbar-search" title="Быстрый поиск по ОС">
         <span>⌕</span>
         <input id="taskbar-search-field" type="search" placeholder="Поиск по ОС" autocomplete="off" aria-label="Быстрый поиск по ОС" />
       </label>
+      <div class="taskbar-switcher">
       <button class="task-button" data-app="tasks" title="Задачи">✅</button>
       <button class="task-button" data-app="calendar" title="Календарь">📅</button>
       <div id="taskbar-apps" class="taskbar-apps"></div>
+      </div>
       <div class="taskbar-spacer"></div>
-      <button id="notifications-button" class="tray-small" title="Уведомления">🔔<span id="notif-count" class="notif-count hidden">0</span></button>
+      <button id="taskbar-overflow-button" class="task-button taskbar-overflow-button" type="button" title="Все приложения панели" aria-label="Все приложения панели" aria-haspopup="dialog" aria-controls="taskbar-overflow-panel" aria-expanded="false" hidden><img src="assets/icons/mobile-apps.svg" alt="" /></button>
+      <button id="notifications-button" class="tray-small" title="Уведомления" aria-label="Уведомления"><span class="notification-desktop-icon" aria-hidden="true">🔔</span><img class="notification-mobile-icon" src="assets/icons/mobile-notifications.svg" alt="" /><span id="notif-count" class="notif-count hidden">0</span></button>
       <button id="tray" class="tray" title="Календарь"><b id="clock">00:00</b><small id="date-line">—</small></button>
     </nav>
+
+    <section id="taskbar-overflow-panel" class="taskbar-overflow-panel glass" role="dialog" aria-labelledby="taskbar-overflow-title" hidden>
+      <header><h2 id="taskbar-overflow-title">Приложения панели</h2><button type="button" data-close-taskbar-overflow aria-label="Закрыть список приложений">×</button></header>
+      <div class="taskbar-overflow-list" data-taskbar-overflow-list></div>
+    </section>
 
     <div id="context-menu" class="context-menu glass hidden"></div>
     <div id="drag-ghost" class="drag-ghost hidden"></div>
@@ -231,7 +248,10 @@
   <script type="application/zeter-script" src="js/core/security-utils.js"></script>
   <script type="application/zeter-script" src="js/core/security-restore-utils.js"></script>
   <script type="application/zeter-script" src="js/core/security-vault-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/cloud-payload-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/google-drive-sync-utils.js"></script>
   <script type="application/zeter-script" src="js/core/security-recovery-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/google-drive-backup-utils.js"></script>
   <script type="application/zeter-script" src="js/core/security-ui-utils.js"></script>
   <script type="application/zeter-script" src="js/core/readable-export-utils.js"></script>
   <script type="application/zeter-script" src="js/core/table-utils.js"></script>

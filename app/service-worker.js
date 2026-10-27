@@ -1,5 +1,5 @@
 const ZETER_CACHE_REVISION = "web-snapshots-1";
-const ZETER_CACHE = "zeter-os-4.0.87-web-snapshots-1";
+const ZETER_CACHE = "zeter-os-4.0.100-web-snapshots-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -18,6 +18,11 @@ const ZETER_ASSETS = [
   "./css/80-overrides.css",
   "./css/85-explorer-plus.css",
   "./css/90-security.css",
+  "./css/95-mobile.css",
+  "./assets/icons/mobile-search.svg",
+  "./assets/icons/mobile-menu.svg",
+  "./assets/icons/mobile-apps.svg",
+  "./assets/icons/mobile-notifications.svg",
   "./js/core/boot-guard.js",
   "./js/core/version.js",
   "./js/core/config.js",
@@ -91,6 +96,10 @@ const ZETER_ASSETS = [
   "./js/core/security-restore-utils.js",
   "./js/core/security-vault-utils.js",
   "./js/core/security-recovery-utils.js",
+  "./js/core/cloud-payload-utils.js",
+  "./js/core/google-drive-sync-utils.js",
+  "./js/core/google-drive-backup-utils.js",
+  "./google-drive-config.json",
   "./js/core/security-ui-utils.js",
   "./js/core/readable-export-utils.js",
   "./js/core/table-utils.js",

@@ -43,8 +43,11 @@
 
 .explorer-tab {
   max-width: 190px;
-  padding: 7px 8px 7px 11px;
+  padding: 0 8px 0 0;
 }
+
+.explorer-tab-label { min-width: 0; display: flex; align-items: center; min-height: 34px; padding: 7px 0 7px 11px; background: transparent; border-radius: 12px; text-align: left; }
+.explorer-tab-label:only-child { padding-right: 8px; }
 
 .explorer-tab span {
   min-width: 0;
@@ -52,7 +55,8 @@
   text-overflow: ellipsis;
 }
 
-.explorer-tab i {
+.explorer-tab-close {
+  flex: 0 0 20px;
   width: 20px;
   height: 20px;
   border-radius: 999px;
@@ -60,9 +64,11 @@
   place-items: center;
   font-style: normal;
   color: var(--muted);
+  padding: 0;
+  background: transparent;
 }
 
-.explorer-tab i:hover {
+.explorer-tab-close:hover {
   background: rgba(255,255,255,.14);
   color: var(--text);
 }
@@ -82,6 +88,9 @@
 .explorer-path-toolbar {
   gap: 8px;
 }
+.explorer-mobile-control { display: none; }
+.explorer-toolbar-options { display: contents; }
+.explorer-path-toolbar input[data-search] { margin-left: auto; min-width: 180px; }
 
 .explorer-path-panel {
   min-width: 160px;
@@ -568,6 +577,10 @@
 .explorer-plus .file-grid.explorer-free-grid .explorer-file-icon:hover { background: rgba(255,255,255,.09); border-color: var(--stroke); }
 .explorer-plus .file-grid.explorer-free-grid .explorer-file-icon.selected { background: rgba(122,168,255,.18); border-color: var(--accent); outline: 0; }
 .explorer-plus .explorer-file-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.explorer-plus .explorer-file-icon:has(.explorer-item-open:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.explorer-item-open { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; background: transparent; padding: 0; }
+.explorer-item-open ~ :is(.file-emoji, .explorer-item-name, .explorer-item-meta, .explorer-item-type, .explorer-item-size, .explorer-item-date) { pointer-events: none; }
+.explorer-item-menu { display: none; }
 .explorer-plus .file-grid .explorer-file-icon .file-emoji {
   grid-column: 1;
   grid-row: 1 / 3;

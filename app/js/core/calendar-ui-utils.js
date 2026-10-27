@@ -522,7 +522,7 @@
     const pointerMinute = (gesture, y) => Math.max(0, Math.min(1440, gesture.minute + pointerMinuteDelta(gesture, y)));
     root.addEventListener("pointerdown", event => {
       if (event.target?.closest?.('.calendar-category-settings-trigger[aria-disabled="true"]')) { event.preventDefault(); return; }
-      if (event.button !== 0 || moving) return;
+      if (event.pointerType === "touch" || event.button !== 0 || moving) return;
       const track = event.target?.closest?.("[data-time-day]"); if (!track) return;
       const card = event.target?.closest?.(".calendar-timed-event"), occurrence = card ? findOccurrence(card.dataset.editEvent, card.dataset.occurrenceDate) : null;
       if (card && !occurrence) return;

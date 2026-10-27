@@ -32,6 +32,7 @@
 | Проверить реальный порядок core-зависимостей | [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md) |
 | Изменить state, migration, import или storage | [DATA_MODEL.md](DATA_MODEL.md) |
 | Изменить Python API или pywebview bridge | [NATIVE_BRIDGE.md](NATIVE_BRIDGE.md) |
+| Подключение Google Drive, инкрементальная синхронизация и конфликты устройств | [GOOGLE_DRIVE.md](GOOGLE_DRIVE.md) |
 | Обновить пользовательскую справку после изменения возможностей | [HELP_MAINTENANCE.md](HELP_MAINTENANCE.md) |
 | Выбрать автоматические и ручные проверки | [TESTING.md](TESTING.md) |
 | Подготовить GitHub Release и разобраться в обновлении Windows-сборки | [UPDATES.md](UPDATES.md) |

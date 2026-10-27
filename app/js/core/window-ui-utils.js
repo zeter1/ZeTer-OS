@@ -33,14 +33,34 @@
   function syncWindowHeaderTools(element, renderedRoot = null) {
     const slot = windowHeaderToolsEl(element);
     if (!slot) return false;
+    slot.disposeScrollHints?.();
     const source = renderedRoot?.matches?.("[data-window-header-tools-source]")
       ? renderedRoot
       : renderedRoot?.querySelector?.("[data-window-header-tools-source]");
     slot.replaceChildren();
     if (source) slot.appendChild(source);
     slot.hidden = !source;
+    slot.scrollLeft = 0;
     slot.setAttribute("aria-hidden", source ? "false" : "true");
     element.classList.toggle("has-window-header-tools", Boolean(source));
+    if (source) {
+      const updateHints = () => {
+        const remaining = slot.scrollWidth - slot.clientWidth - slot.scrollLeft;
+        slot.classList.toggle("has-more-before", slot.scrollLeft > 1);
+        slot.classList.toggle("has-more-after", remaining > 1);
+      };
+      const observer = typeof window.ResizeObserver === "function" ? new window.ResizeObserver(updateHints) : null;
+      slot.addEventListener("scroll", updateHints, { passive: true });
+      observer?.observe(slot);
+      observer?.observe(source);
+      slot.disposeScrollHints = () => {
+        observer?.disconnect();
+        slot.removeEventListener("scroll", updateHints);
+        slot.classList.remove("has-more-before", "has-more-after");
+        delete slot.disposeScrollHints;
+      };
+      updateHints();
+    }
     return Boolean(source);
   }
 
@@ -111,6 +131,7 @@
     const bar = $(".window-titlebar", element);
     bar.addEventListener("dblclick", event => { if (!event.target.closest("button")) toggleMax(winId); });
     bar.addEventListener("pointerdown", event => {
+      if (coreUtils.isMobileLayout?.()) return;
       if (event.button !== 0 || event.target.closest("button,input,select,textarea")) return;
       if (getRecord(winId)?.maximized) return;
       drag = { sx: event.clientX, sy: event.clientY, left: parseFloat(element.style.left), top: parseFloat(element.style.top) };
@@ -137,6 +158,7 @@
     let resize = null;
     const handle = $(".resize-handle", element);
     handle.addEventListener("pointerdown", event => {
+      if (coreUtils.isMobileLayout?.()) return;
       event.preventDefault();
       resize = { sx: event.clientX, sy: event.clientY, w: element.offsetWidth, h: element.offsetHeight };
       handle.setPointerCapture(event.pointerId);
@@ -234,6 +256,7 @@
     }
 
     function clearRuntimeWindows() {
+      getWindows().forEach(record => windowHeaderToolsEl(record.el)?.disposeScrollHints?.());
       getWindows().forEach(record => windowBodyEl(record.el)?.querySelector?.("[data-settings-root]")?.disposeSettingsView?.());
       const layer = windowLayer();
       if (layer) layer.innerHTML = "";
@@ -267,6 +290,7 @@
       const record = getWindows().get(winId);
       rememberWindowRect(winId);
       if (record?.el) {
+        windowHeaderToolsEl(record.el)?.disposeScrollHints?.();
         windowBodyEl(record.el)?.querySelector?.("[data-settings-root]")?.disposeSettingsView?.();
         record.el.classList.add("closing");
         setTimeout(() => record.el?.remove(), 120);
@@ -529,6 +553,8 @@
     }
 
     function keepWindowsInBounds() {
+      // CSS fits phone windows without overwriting their desktop geometry.
+      if (coreUtils.isMobileLayout?.()) return;
       getWindows().forEach(record => {
         if (record.maximized) return;
         const element = record.el;
@@ -539,6 +565,12 @@
 
     return Object.freeze({
       bindWindow,
+      showDesktop: () => {
+        getWindows().forEach(record => record.el.classList.add("minimized"));
+        setActiveWindow(null);
+        syncTaskbar();
+        persistWindows();
+      },
       addTaskbarApp,
       focusWindow,
       closeWindow,

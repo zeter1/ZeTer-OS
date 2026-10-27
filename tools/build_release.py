@@ -21,6 +21,8 @@ RELEASE_ROOT_FILES = (
     "problem_logs.py",
     "document_converter.py",
     "security_backup.py",
+    "google_drive_backup.py",
+    "google_drive_sync.py",
     "app_updater.py",
     "update_runner.py",
     "requirements.txt",
@@ -140,9 +142,7 @@ def _ensure_source_file(path: Path, project_root: Path) -> bytes:
     if not path.is_file():
         raise ReleaseBuildError(f"Ожидался обычный файл: {path}")
     try:
-        # Windows may expose the same directory as RUNNER~1 and runneradmin.
-        # Canonicalize both paths before checking containment.
-        path.resolve(strict=True).relative_to(project_root.resolve(strict=True))
+        path.resolve(strict=True).relative_to(project_root)
     except ValueError as exc:
         raise ReleaseBuildError(f"Файл выходит за пределы проекта: {path}") from exc
 

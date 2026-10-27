@@ -80,6 +80,7 @@ ALLOWED_EXTERNAL_ZETER_GLOBALS = frozenset({"ZETER_PYTHON_STORAGE"})
 REQUIRED_DOCS = (
     DOCS_DIR / "BRANDING.md",
     DOCS_DIR / "UCOZ.md",
+    DOCS_DIR / "GOOGLE_DRIVE.md",
     DOCS_DIR / "README.md",
     DOCS_DIR / "ARCHITECTURE.md",
     CODEMAP_MD,
@@ -163,7 +164,10 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/security-utils.js",
     "js/core/security-restore-utils.js",
     "js/core/security-vault-utils.js",
+    "js/core/cloud-payload-utils.js",
+    "js/core/google-drive-sync-utils.js",
     "js/core/security-recovery-utils.js",
+    "js/core/google-drive-backup-utils.js",
     "js/core/security-ui-utils.js",
     "js/core/readable-export-utils.js",
     "js/core/table-utils.js",
@@ -1029,12 +1033,19 @@ def check_native_bridge_contract() -> list[CheckResult]:
     if not NATIVE_BRIDGE_MD.exists() or not PYTHON_ENTRY.exists():
         return [fail("native.bridge_contract", "NATIVE_BRIDGE.md or run_zeter_os.py is missing")]
     python_methods = native_storage_api_methods()
-    documented = set(re.findall(r"(?m)^\| `([a-z][a-z0-9_]+)\(", read_text(NATIVE_BRIDGE_MD)))
+    method_cells = re.findall(r"(?m)^\| ([^|]+) \|", read_text(NATIVE_BRIDGE_MD))
+    documented = {method for cell in method_cells for method in re.findall(r"`([a-z][a-z0-9_]+)\(", cell)}
     # The read-only installer probe has its own narrow API, not NativeStorageApi.
     probe_script = APP_DIR / "js" / "update-probe.js"
     js_source = "\n".join(read_text(path) for path in sorted((APP_DIR / "js").rglob("*.js")) if path != probe_script)
     js_calls = set(re.findall(r"(?:nativeStorageCall|callNative|nativeCall)\(\s*['\"]([a-z][a-z0-9_]+)['\"]", js_source))
     js_calls.update(re.findall(r"pywebview\?\.api\?\.([a-z][a-z0-9_]+)", js_source))
+    # This adapter receives nativeStorageCall and dispatches through local wrappers.
+    # Scope wrapper matching to its source and Drive API prefix; unrelated call()/invoke()
+    # functions elsewhere must not conceal an unused native method.
+    drive_adapter = APP_DIR / "js" / "core" / "google-drive-backup-utils.js"
+    if drive_adapter.exists():
+        js_calls.update(re.findall(r"\b(?:invoke|call)\(\s*['\"](google_drive_[a-z0-9_]+)['\"]", read_text(drive_adapter)))
     failures: list[str] = []
     if probe_script.exists():
         probe_source = read_text(probe_script)
@@ -1048,10 +1059,15 @@ def check_native_bridge_contract() -> list[CheckResult]:
             "Python/docs mismatch: "
             f"missing docs={sorted(python_methods - documented)}, stale docs={sorted(documented - python_methods)}"
         )
-    if js_calls != python_methods:
+    # Preserved only for data-recovery compatibility with older installations.
+    # ZIP mode deliberately never invokes the legacy D1 sync/preserve methods.
+    legacy_readonly_compat = {"google_drive_sync_diagnostic", "google_drive_sync_preserve"}
+    unused = python_methods - js_calls - legacy_readonly_compat
+    unknown = js_calls - python_methods
+    if unused or unknown:
         failures.append(
             "Python/JS mismatch: "
-            f"unused API={sorted(python_methods - js_calls)}, unknown calls={sorted(js_calls - python_methods)}"
+            f"unused API={sorted(unused)}, unknown calls={sorted(unknown)}"
         )
     if not native_storage_response_envelope_is_valid():
         failures.append("{ ok, error } response envelope was not found")
@@ -1321,6 +1337,9 @@ def check_python_syntax() -> list[CheckResult]:
         UPDATE_FEED_SMOKE,
         PROBLEM_LOGS_MODULE,
         PROJECT_ROOT / "security_backup.py",
+        PROJECT_ROOT / "google_drive_backup.py",
+        PROJECT_ROOT / "google_drive_sync.py",
+        PROJECT_ROOT / "tools/smoke_google_drive_backup.py",
         PROJECT_ROOT / "tools/smoke_security_backup.py",
         PROJECT_ROOT / "tools/smoke_storage_info.py",
         PROJECT_ROOT / "tools/smoke_calendar_exports.py",
@@ -1538,6 +1557,7 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_calendar_exports.py", key="python.calendar_exports_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_security_backup.py", key="python.security_backup_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_google_drive_backup.py", key="python.google_drive_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_storage_info.py", key="python.storage_info_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=DESKTOP_BACKUP_SMOKE, key="python.desktop_backup_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_document_native.py", key="python.document_smoke"))

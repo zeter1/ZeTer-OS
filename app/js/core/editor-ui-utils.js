@@ -31,6 +31,7 @@
         <button type="button" data-action="download-html" title="Скачать файл в формате HTML" aria-label="Скачать файл в формате HTML">HTML</button>
         <button type="button" data-action="download-docx" title="Скачать файл в формате DOCX" aria-label="Скачать файл в формате DOCX">DOCX</button>
         <button type="button" data-action="folder" title="Показать файл в папке" aria-label="Показать файл в папке">Папка</button>
+        <button type="button" class="editor-more-button" data-action="more" aria-label="Дополнительные действия с заметкой" aria-haspopup="dialog" aria-controls="context-menu">Ещё ⋯</button>
       </div>
       <div class="toolbar rich-toolbar formatting-toolbar" data-formatting-toolbar hidden aria-hidden="true" role="toolbar" aria-label="Форматирование выделенного текста">
         <button title="Жирный" data-format="bold"><b>Ж</b></button>
@@ -457,6 +458,7 @@
     downloadHtml = () => {},
     downloadDocx = () => Promise.resolve(false),
     openFolder = () => {},
+    showContext = () => {},
     openExternalLink = () => {},
     copyText = () => Promise.resolve(false),
     requestLink = () => null,
@@ -969,6 +971,13 @@
       const action = event.target.closest("[data-action]")?.dataset.action;
       if (!action) return;
       event.stopPropagation();
+      if (action === "more") {
+        const entries = [...fileActions.querySelectorAll('[data-action]')]
+          .filter(button => ["duplicate", "download-txt", "download-html", "download-docx"].includes(button.dataset.action) && !button.hidden && !button.disabled)
+          .map(button => ["", button.getAttribute("title") || button.textContent, () => runFileAction(button.dataset.action)]);
+        showContext(event.clientX, event.clientY, entries, { title: title.value || itemName, returnFocus: event.target.closest("button") });
+        return;
+      }
       runFileAction(action);
     });
     area.addEventListener("paste", event => {
@@ -1443,6 +1452,7 @@
   }
 
   function createDocumentEditorRuntimeController(options = {}) {
+    const showContext = typeof options.showContext === "function" ? options.showContext : () => {};
     const getState = typeof options.getState === "function" ? options.getState : () => ({ fs: {} });
     const getDesktopRoot = typeof options.getDesktopRoot === "function" ? options.getDesktopRoot : () => "desktop";
     const createItem = typeof options.createItem === "function" ? options.createItem : () => "";
@@ -1510,6 +1520,7 @@
       }
       const editorVersion = { revision: session.revision };
       const root = createRichEditor({
+        showContext,
         itemName: item.documentDraft?.name || item.name,
         initialHtml: item.documentDraft?.richContent ?? session.richHtml,
         cleanHtml: cleanRichHtml, plainToHtml: plainToRichHtml,
@@ -1581,6 +1592,7 @@
       const item = state.fs[itemId];
       if (item?.type === "managedFile" && (["doc", "docx"].includes(item.managedFile?.extension) || /\.docx?$/i.test(item.managedFile?.name || item.name))) return renderManagedDocumentEditor(item, params, winId);
       const root = createRichEditor({
+        showContext,
         itemName: item.name,
         managedFiles: item.managedFiles,
         initialHtml: item.richContent || plainToRichHtml(item.content || ""),

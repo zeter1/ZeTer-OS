@@ -30,6 +30,8 @@
 
 Не добавляй пустой `try/catch`, скрывающий ошибку bridge.
 
+Если Google Drive сообщает `google_drive_connect() takes 1 positional argument but 2 were given`, проверь `google-drive-backup-utils.js#createNativeTransport`: методы status/connect/disconnect/list/head вызываются без payload. Передача JavaScript `undefined` вторым аргументом превращается в дополнительный Python-аргумент и останавливает вызов ещё до OAuth. Ошибка чтения служебных настроек также не должна показываться как отсутствие Google config; актуальная панель выводит причину отдельно. После обновления полностью закрой окно и повторно запусти `run_zeter_os.py`.
+
 ## Состояние не восстановилось
 
 - В native-режиме источник восстановления — `data/zeter-os-state.json`.

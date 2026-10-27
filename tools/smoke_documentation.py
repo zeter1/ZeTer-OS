@@ -92,7 +92,7 @@ class DocumentationSmoke(unittest.TestCase):
 
     def test_python_cli_returns_owner_contract(self):
         completed = subprocess.run(
-            [sys.executable, "-B", str(navigation.PROJECT_ROOT / "tools/find_owner.py"), "get_system_metrics", "--json"],
+            [sys.executable, "-X", "utf8", "-B", str(navigation.PROJECT_ROOT / "tools/find_owner.py"), "get_system_metrics", "--json"],
             capture_output=True, text=True, encoding="utf-8", timeout=20, check=False,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
@@ -102,6 +102,54 @@ class DocumentationSmoke(unittest.TestCase):
         self.assertIn("NativeStorageApi.get_system_metrics", owner["data"]["symbols"])
         self.assertIn("docs/NATIVE_BRIDGE.md", owner["data"]["docs"])
         self.assertIn("tools/smoke_managed_file_native.py", owner["data"]["smokes"])
+
+    def check_native_fixture(self, adapter_source: str, unrelated_source: str = ""):
+        with tempfile.TemporaryDirectory(prefix="zeter-bridge-docs-") as temp:
+            root = Path(temp)
+            app = root / "app"
+            core = app / "js/core"
+            core.mkdir(parents=True)
+            (core / "google-drive-backup-utils.js").write_text(adapter_source, encoding="utf-8")
+            (core / "unrelated.js").write_text(unrelated_source, encoding="utf-8")
+            entry = root / "native.py"
+            entry.write_text(
+                "class NativeStorageApi:\n"
+                "    def google_drive_status(self): pass\n"
+                "    def google_drive_sync_preferences(self): pass\n"
+                "    def _ok(self): return {'ok': True}\n"
+                "    def _error(self): return {'ok': False, 'error': 'fixture'}\n",
+                encoding="utf-8",
+            )
+            document = root / "NATIVE_BRIDGE.md"
+            document.write_text(
+                "| `google_drive_status()` / `google_drive_sync_preferences(payload?)` | fixture |\n",
+                encoding="utf-8",
+            )
+            with patch.object(checker, "APP_DIR", app), patch.object(checker, "PYTHON_ENTRY", entry), patch.object(checker, "NATIVE_BRIDGE_MD", document):
+                return checker.check_native_bridge_contract()[0]
+
+    def test_native_bridge_grouped_docs_and_real_drive_adapters(self):
+        result = self.check_native_fixture("invoke('google_drive_status'); call('google_drive_sync_preferences');")
+        self.assertEqual(result.status, "OK", result.message)
+
+    def test_native_bridge_unknown_drive_adapter_call_is_rejected(self):
+        result = self.check_native_fixture(
+            "invoke('google_drive_status'); call('google_drive_sync_preferences'); invoke('google_drive_unknown');"
+        )
+        self.assertEqual(result.status, "FAIL", result.message)
+        self.assertIn("unknown calls=['google_drive_unknown']", result.message)
+
+    def test_native_bridge_unused_drive_api_stays_rejected(self):
+        result = self.check_native_fixture("invoke('google_drive_status');")
+        self.assertEqual(result.status, "FAIL", result.message)
+        self.assertIn("unused API=['google_drive_sync_preferences']", result.message)
+
+    def test_unrelated_wrapper_does_not_count_as_native_api_call(self):
+        result = self.check_native_fixture(
+            "invoke('google_drive_status');", "call('google_drive_sync_preferences');"
+        )
+        self.assertEqual(result.status, "FAIL", result.message)
+        self.assertIn("unused API=['google_drive_sync_preferences']", result.message)
 
 
 if __name__ == "__main__":

@@ -810,6 +810,14 @@
       if (normalized.kind === "shortcut") return openShortcutTarget(normalized.shortcutTarget, normalized.name);
       if (EXECUTABLE_EXTENSIONS.has(normalized.extension) && !confirmUser(`Запустить потенциально исполняемый файл «${normalized.name}» из ZeTer OS\\data?`)) return false;
       try {
+        if(!nativeMode()){
+          const store=options.getBrowserPayloadStore?.();
+          if(!store)throw new Error('Синхронизированные файлы ещё недоступны.');
+          const blob=await store.get(normalized.managedPath);if(!blob)throw new Error('Файл ещё не загружен из Google Drive.');
+          const url=await store.objectURL(normalized.managedPath),link=documentRef.createElement('a');link.href=url;link.download=normalized.name;link.rel='noopener';link.click();
+          if(['doc','docx'].includes(normalized.extension))toast('Документ скачан','Открой его в Word или совместимом приложении. Редактирование Word в браузере пока недоступно.');
+          return true;
+        }
         if (["doc", "docx"].includes(normalized.extension) && openDocument) return await openDocument(normalized);
         await nativeStorageCall("open_managed_file", { managedPath: normalized.managedPath });
         return true;

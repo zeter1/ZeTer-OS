@@ -90,44 +90,17 @@
 </div>
 
       <div class="security-view" data-security-panel="backups" hidden>
-        <section class="security-section security-recovery-panel">
-          <div class="security-section-head"><h3>Проверить файл и вернуть нужное</h3><p class="muted">Выбери ZIP или .zeterbak. Проверка читает именно этот архив, без замены рабочих данных. Затем можно восстановить отдельный файл, папку, проект или стол.</p></div>
-          <div class="security-inline-actions"><button type="button" data-recovery-action="choose-file">Выбрать файл бэкапа…</button><button type="button" data-recovery-action="inspect-file" hidden>Проверить выбранный файл</button></div>
-          <input type="file" accept=".zip,.zeterbak" data-recovery-file hidden>
-          <div class="security-folder-card" data-recovery-file-result></div>
-          <div class="security-recovery-selective" data-recovery-selective hidden>
-            <label>Что восстановить<select data-recovery-choice></select></label>
-            <label>Как восстановить<select data-recovery-mode><option value="copy">Отдельной копией · сохранить текущие объекты</option><option value="replace">Заменить совпадающие объекты · показать изменения</option></select></label>
-            <label>Куда восстановить<select data-recovery-target></select></label>
-            <div class="security-inline-actions"><button type="button" data-recovery-action="compare">Сравнить с текущими данными</button><button type="button" data-recovery-action="apply" hidden>Применить восстановление…</button></div>
-            <div data-recovery-preview></div>
+        <section class="security-section security-simple-backups">
+          <div class="security-section-head">
+            <h3>Резервные копии данных</h3>
+            <p class="muted">Создай полный ZIP со всеми данными ZeTer OS или выбери сохранённый архив для проверки и восстановления. Данные не заменяются без подтверждения.</p>
           </div>
-          <div class="security-operation" data-recovery-status role="status" aria-live="polite" hidden></div>
-        </section>
-        <section class="security-section">
-          <div class="security-section-head"><h3>История полных резервных копий</h3><p class="muted">Отдельные проверенные ZIP-версии. Автоматическое копирование работает, пока ZeTer OS открыта. Закреплённые и последняя исправная копия сохраняются даже при превышении лимита.</p></div>
-          <div class="security-folder-card" data-vault-status>Читаем настройки истории…</div>
-          <div class="security-vault-settings">
-            <label><input type="checkbox" data-vault-enabled> Автоматические полные копии</label>
-            <label>Интервал, часов<input type="number" min="1" max="720" value="24" data-vault-interval></label>
-            <label>Хранить копий<input type="number" min="2" max="100" value="14" data-vault-count></label>
-            <label>Лимит места, МБ<input type="number" min="64" max="20480" value="2048" data-vault-quota></label>
+          <div class="security-inline-actions">
+            <button type="button" data-security-backup>Скачать резервную копию данных</button>
+            <button type="button" data-security-import>Загрузить резервную копию данных</button>
           </div>
-          <p class="muted">При включённом автокопировании старые незакреплённые версии этой истории удаляются по количеству и размеру после проверки новой копии. Чужие файлы не удаляются. Выбери другой диск или накопитель: папка рядом с программой не защищает от потери диска. Один архив — до 120 МБ.</p>
-          <div class="security-inline-actions"><button type="button" data-recovery-action="choose-folder">Выбрать папку…</button><button type="button" data-recovery-action="configure">Сохранить правила</button><button type="button" data-recovery-action="create-now">Создать копию сейчас</button></div>
-          <button type="button" data-recovery-action="refresh-history">Обновить историю</button>
-          <div class="security-restore-list" data-vault-list></div>
         </section>
-<section class="security-section"><div class="security-section-head"><h3>Копия для переноса. Точка для отката.</h3><p class="muted">ZIP и .zeterbak храни отдельно от программы. Локальная точка помогает вернуться к прежнему состоянию в этом хранилище.</p></div><div class="security-action-grid">          ${securityActionButtonHTML("data-security-backup", "📦", "Создать проверенный ZIP-бэкап", "Собирает полную переносимую копию, добавляет манифест и проверяет контрольные суммы до сохранения.")}
-          ${securityActionButtonHTML("data-security-encrypted-backup", "🔐", "Создать зашифрованный бэкап", "Защищает проверенный ZIP парольной фразой AES-256-GCM. Без пароля восстановление невозможно.")}
-          ${securityActionButtonHTML("data-security-import", "📥", "Импортировать ZIP, JSON или .zeterbak", "Показывает состав копии, проверяет формат и создаёт аварийную точку перед заменой данных.")}
-          ${securityActionButtonHTML("data-security-restore-point", "🕘", "Создать точку восстановления", "Сохраняет именованный снимок текущего состояния для быстрого локального отката.")}</div></section>
-<div class="security-summary-grid security-copy-facts" data-security-copy-stats></div>
-        <section class="security-section">
-        <div class="security-section-head"><h3>Точки восстановления</h3><p class="muted">Выбери конкретный снимок, просмотри его состав, экспортируй или восстанови. Перед откатом текущие данные страхуются автоматически.</p></div>
-        <div class="security-restore-list" data-security-restore-list><p class="muted">Загружаю точки восстановления…</p></div>
-      </section>
-</div>
+      </div>
 
       <div class="security-view" data-security-panel="storage" hidden><div class="security-summary-grid" data-security-storage-stats></div>
         <section class="security-section security-folder-panel">
@@ -151,14 +124,6 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
 
       <div class="security-view" data-security-panel="maintenance" hidden>
         <section class="security-section">
-        <div class="security-section-head"><h3>Автоматическая защита</h3><p class="muted">Профиль определяет частоту автоматических точек, глубину истории и допустимый возраст проверенного бэкапа.</p></div>
-        <div class="security-policy-row">
-          <label><span>Профиль защиты</span><select data-security-policy><option value="standard">Стандартный · точка раз в 24 часа</option><option value="enhanced">Усиленный · точка раз в 6 часов</option><option value="manual">Ручной · без автоматических точек</option></select></label>
-                    ${securityActionButtonHTML("data-security-policy-save", "🛡️", "Применить профиль", "Сохраняет безопасные лимиты и сразу проверяет, не пора ли создать автоматическую точку.")}
-        </div>
-        <p class="muted" data-security-policy-status>Загружаю политику защиты…</p>
-      </section>
-      <section class="security-section">
         <div class="security-section-head"><h3>Безопасная очистка</h3><p class="muted">Сначала рассчитывается объём и количество объектов. Следы удаления из старых версий, история и точки восстановления никогда не выбраны заранее.</p></div>
         <div class="security-cleanup-grid">
           <label><input type="checkbox" data-security-clean="legacy" checked> Старые ключи и базы ZeTer OS</label>
@@ -167,7 +132,6 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
           <label><input type="checkbox" data-security-clean="logs" ${nativeMode ? "" : "disabled"}> Старые части журналов${nativeMode ? "" : " · только при запуске через Python"}</label>
           <label><input type="checkbox" data-security-clean="backups" ${nativeMode ? "" : "disabled"}> Автокопии старше 90 дней${nativeMode ? "" : " · только при запуске через Python"}</label>
           <label><input type="checkbox" data-security-clean="history"> История отмены действий</label>
-          <label><input type="checkbox" data-security-clean="restore"> Все точки восстановления</label>
         </div>
         <div class="security-cleanup-summary" data-security-cleanup-summary>Выполняю предварительный расчёт…</div>
                   ${securityActionButtonHTML("data-security-clean-old", "🧹", "Рассчитать и очистить выбранное", "Показывает точный план, запрашивает подтверждение и сообщает фактически освобождённое место.", "warn")}
@@ -238,7 +202,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
     if (snapshot.status?.tone === "bad") return { action: "check", title: "Проверить критичную проблему", detail: snapshot.status.text || "Нужно уточнить причину риска перед другими действиями." };
     if (snapshot.meta?.lastIntegrityOutcome === "not_checked") return { action: "check", title: "Выполнить первую проверку", detail: "Подтвердит целостность файловой системы, задач, календаря и хранилища." };
     if (!snapshot.meta?.lastBackupVerifiedAt) return { action: "backup", title: "Создать первый проверенный бэкап", detail: "Это даст переносимую копию, которую можно восстановить на другом компьютере." };
-    if (!snapshot.restoreCount) return { action: "restore-point", title: "Создать точку восстановления", detail: "Локальная точка позволит быстро откатить неудачное изменение." };
+    // No user-visible manual restore-point creation; prefer portable ZIP.
     if (snapshot.protection?.backup?.tone === "warn") return { action: "backup", title: "Обновить устаревший бэкап", detail: snapshot.protection.backup.text };
     return { action: "backup", title: "Обновить проверенный бэкап", detail: "Текущая защита работает; свежая переносимая копия уменьшит возможную потерю данных." };
   }
@@ -281,7 +245,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
     if (target?.closest?.("[data-security-import]")) return { type: "import" };
     if (target?.closest?.("[data-security-recovery-test]")) return { type: "recovery-test" };
     if (target?.closest?.("[data-security-refresh]")) return { type: "refresh" };
-    if (target?.closest?.("[data-security-restore-point]")) return { type: "restore-point" };
+    // Restore points are created internally before destructive recovery only.
     if (target?.closest?.("[data-security-restore-latest]")) return { type: "restore-latest" };
     if (target?.closest?.("[data-security-folder-save]")) return { type: "folder-save" };
     if (target?.closest?.("[data-security-readable-folder]")) return { type: "readable-folder" };
@@ -453,7 +417,8 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       deleteRestorePoint = async () => {},
       setProtectionProfile = async () => {},
       exportDiagnosticReport = async () => {},
-      recoveryController = null
+      recoveryController = null,
+      driveController = null
     } = integration;
     if (!document?.createElement) throw new Error("Security center requires a document.");
     const root = document.createElement("div");
@@ -478,6 +443,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       root.setAttribute("aria-busy", String(busy || statusLoading));
       for (const button of root.querySelectorAll("button:not([data-security-view])")) button.disabled = busy || (button.dataset.recoveryAction === "configure" && !root.dataset.vaultInitialized);
       for (const input of root.querySelectorAll(".security-vault-settings input")) input.disabled = busy || !root.dataset.vaultInitialized;
+      // No Google Drive panel to refresh while changing buttons.
     };
 
     // Deadlines apply only to read-only presentation work. An unresolved native
@@ -528,7 +494,9 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       });
     }
     function loadExtras(view, force = false) {
-      if (!["backups", "maintenance"].includes(view) || (!force && loadedExtras.has(view))) return Promise.resolve();
+      // Backups now has only local import/export; no history/cloud reads.
+      if (view === "backups") return Promise.resolve();
+      if (!["maintenance"].includes(view) || (!force && loadedExtras.has(view))) return Promise.resolve();
       if (extraJobs.has(view)) return extraJobs.get(view);
       if (pendingReads.has(view)) { queueExtras(view); return Promise.resolve(); }
       queuedExtras.delete(view);
@@ -602,7 +570,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
         if (action.type === "import") { await openImport(); return; }
         if (action.type === "recovery-test") { await runRecoveryTest(); await refresh(); return; }
         if (action.type === "refresh") { await refresh({deferIfPending:false}); toast("Статусы обновлены", "Центр безопасности перечитал состояние ZeTer OS."); return; }
-        if (action.type === "restore-point") { await createRestorePoint(root); await refresh(); return; }
+        // Manual restore-point creation is intentionally not exposed.
         if (action.type === "restore-latest") { await restoreLatestPoint(); return; }
         if (action.type === "restore-id") { await restorePointById(action.id); return; }
         if (action.type === "export-restore-id") { await exportRestorePoint(action.id); await refresh(); return; }
@@ -653,7 +621,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
         if (!operation.classList.contains("bad")) report("");
       }
     });
-    recoveryController?.mount(root);
+    // Legacy Drive and ZIP-history panels are not mounted in the simplified UI.
     setBusy(false);
     refresh().catch(error => report(`Статусы недоступны: ${error?.message || "неизвестная ошибка"}. Повтори чтение кнопкой «Обновить».`, true));
     return root;
@@ -932,10 +900,10 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
 
     async function writeRestorePoint(point) {
       if (shouldUseNativeStorage()) {
-        await saveNativeRestorePoint(point);
+        const receipt = await saveNativeRestorePoint(point);
         const points = await readRestorePoints();
         for (const old of points.slice(effectiveRestoreLimit())) await deleteNativeRestorePoint(old.id);
-        return;
+        return receipt;
       }
       const db = await openRestoreDb();
       try {
@@ -950,9 +918,13 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
 
     async function createRecoverySafetyPoint(snapshot) {
       const point = { id: uid("restore"), app: "ZeTer OS", osVersion, createdAt: now(), name: "Перед выборочным восстановлением", reason: "pre-restore", verified: true, summary: stateSummary(snapshot), sizeBytes: byteSize(JSON.stringify(snapshot)), state: cloneForBackup(snapshot) };
-      await writeRestorePoint(point);
+      const receipt = await writeRestorePoint(point);
       const readback = (await readRestorePoints()).find(entry => entry.id === point.id);
-      if (!readback || JSON.stringify(readback.state) !== JSON.stringify(point.state)) throw new Error("Страховочная точка не прошла контрольное чтение.");
+      // Native storage canonicalizes machine-specific paths and legacy aliases.
+      // Its on-disk readback receipt verifies those canonical bytes instead of
+      // incorrectly comparing them with the unnormalized in-memory snapshot.
+      const nativeVerified = shouldUseNativeStorage() && receipt?.stateVerified === true;
+      if (!readback?.state || (!nativeVerified && JSON.stringify(readback.state) !== JSON.stringify(point.state))) throw new Error("Страховочная точка не прошла контрольное чтение.");
       return point;
     }
 
@@ -1195,14 +1167,9 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
     }
 
     async function maybeCreateAutomaticRestorePoint() {
-      if(options.isMutationBlocked?.()) return false;
-      const meta = securityMeta();
-      const policy = normalizeProtectionPolicy(meta.protectionPolicy);
-      if (!policy.autoRestoreHours) return false;
-      const interval = policy.autoRestoreHours * 60 * 60 * 1000;
-      if (now() - Number(meta.lastAutoRestorePointAt || 0) < interval) return false;
-      const point = await createRestorePoint(null, { name: "Автоматическая защита", reason: "automatic", silent: true });
-      return Boolean(point);
+      // Restore-point generation by timer is retired. Emergency safety points
+      // for actual restore/reset/fix operations remain enabled and checked.
+      return false;
     }
 
     async function setProtectionProfile(profileId) {
@@ -1433,7 +1400,8 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
         deleteRestorePoint: deleteRestorePointById,
         setProtectionProfile,
         exportDiagnosticReport,
-        recoveryController: options.getRecoveryController?.() || null
+        recoveryController: options.getRecoveryController?.() || null,
+        driveController: options.getDriveController?.() || null
       });
       scheduleProtectionCheck();
       return app;

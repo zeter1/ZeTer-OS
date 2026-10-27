@@ -2,6 +2,18 @@
   "version": 1,
   "python_owners": [
     {
+      "id": "python-google-drive", "title": "Авторизация личного Google Drive", "path": "google_drive_backup.py",
+      "anchors": ["GoogleDriveBackup"], "keywords": ["google", "drive", "oauth", "cloud", "облако", "бэкап"],
+      "js": ["app/js/core/google-drive-backup-utils.js", "app/js/app.js"],
+      "docs": ["docs/GOOGLE_DRIVE.md", "docs/NATIVE_BRIDGE.md", "docs/TESTING.md"], "smokes": ["tools/smoke_google_drive_backup.py"]
+    },
+    {
+      "id": "python-google-drive-sync", "title": "Обычные файлы Drive и указатель синхронизации", "path": "google_drive_sync.py",
+      "anchors": ["GoogleDriveSync"], "keywords": ["google", "drive", "sync", "cloud", "синхронизация"],
+      "js": ["app/js/core/google-drive-sync-utils.js", "app/js/core/google-drive-backup-utils.js", "app/js/app.js"],
+      "docs": ["docs/GOOGLE_DRIVE.md", "docs/NATIVE_BRIDGE.md", "docs/TESTING.md"], "smokes": ["tools/smoke_google_drive_backup.py"]
+    },
+    {
       "id": "python-web-prepare", "title": "Прямая загрузка app и целостность веб-кэша", "path": "tools/prepare_web.py",
       "anchors": ["render_manifest", "check_manifest"], "keywords": ["ucoz", "web", "cache", "кэш", "кеш", "Ctrl+F5", "web-release"],
       "js": ["app/js/web-bootstrap.js", "app/service-worker.js", "app/js/core/shell-ui-utils.js"],
@@ -64,6 +76,24 @@
     }
   ],
   "scenarios": [
+    {
+      "id": "google-drive-backup", "title": "Архивная интеграция Google Drive (пользовательский экран отключён)",
+      "keywords": ["google", "drive", "cloud", "oauth", "облако", "бэкап"],
+      "js": ["app/js/core/google-drive-backup-utils.js", "app/js/core/google-drive-sync-utils.js", "app/js/core/cloud-payload-utils.js", "app/js/core/security-ui-utils.js", "app/js/core/security-recovery-utils.js"],
+      "app_anchors": ["googleDriveBackupController", "googleDriveSyncController", "buildFullSecurityBackup"], "css": ["app/css/90-security.css"],
+      "state": ["dedicated IndexedDB google drive preferences", "private per-user DPAPI credentials"],
+      "smokes": ["tools/smoke_google_drive_runtime.js", "tools/smoke_google_drive_sync.js", "tools/smoke_google_drive_backup.py", "tools/smoke_google_drive_ui.js"],
+      "manual": "Legacy интеграция Google Drive сохранена для сопровождения старых данных. В действующем интерфейсе только локальные ZIP-экспорт и ZIP-импорт."
+    },
+    {
+      "id": "mobile-shell", "title": "Мобильный интерфейс и сенсорное управление",
+      "keywords": ["mobile", "телефон", "мобильный", "touch", "safe-area", "свайп"],
+      "js": ["app/js/core/utils.js", "app/js/core/shell-ui-utils.js", "app/js/core/window-ui-utils.js", "app/js/core/window-metrics-utils.js", "app/js/core/desktop-ui-utils.js", "app/js/core/item-drag-ui-utils.js", "app/js/core/explorer-ui-utils.js", "app/js/core/calendar-ui-utils.js", "app/js/core/context-menu-ui-utils.js", "app/js/core/editor-ui-utils.js"],
+      "app_anchors": ["openApp", "keepWindowsInBounds", "renderDesktop"],
+      "css": ["app/css/95-mobile.css"], "state": ["workspace.openWindows", "state.fs[*].x/y"],
+      "smokes": ["tools/smoke_mobile_ui.js", "tools/smoke_mobile_explorer_ui.js", "tools/smoke_mobile_polish_ui.js", "tools/smoke_taskbar_overflow_ui.js", "tools/smoke_window_sizes.js", "tools/smoke_taskbar_grouping.js"],
+      "manual": "Телефон 320–430px и поворот: лупа, меню вниз, прямое создание на текущем столе, маленькая ⋯ на левом верхнем углу ярлыка без открытия материала, подпись по центру под значком, название/смена стола и длинная шапка, tap/удержание/свайп, Домой → возврат, клавиатура/последнее поле/сохранение, календарь без случайного переноса. Компьютер сохраняет настольные панели."
+    },
     {
       "id": "project-overview",
       "title": "Обзор проекта и переработанные Задачи",
@@ -539,7 +569,7 @@
       "scenario": "explorer-files",
       "keywords": ["explorer", "preview", "tabs", "navigation tree", "ordered grid", "scroll", "drop zone", "предпросмотр", "дерево навигации", "сетка", "прокрутка", "область перетаскивания"],
       "files": ["app/js/core/explorer-ui-utils.js", "app/js/core/explorer-utils.js", "app/css/50-explorer.css", "app/css/85-explorer-plus.css"],
-      "hooks": ["explorer-preview", "data-preview-action", "data-search", "data-navigation-root", "data-folder-target", "data-folder-drop"]
+      "hooks": ["explorer-preview", "data-preview-action", "data-search", "data-mobile-panel", "explorer-item-menu", "explorer-tab-close", "data-navigation-root", "data-folder-target", "data-folder-drop"]
     },
     {
       "id": "task-board-editor",

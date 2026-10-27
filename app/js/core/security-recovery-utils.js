@@ -4,6 +4,7 @@
   const config = window.ZETER_OS_CONFIG;
   const clone = value => JSON.parse(JSON.stringify(value));
   function payloadPaths(value, result = new Set()) {
+    if(window.ZETER_CLOUD_PAYLOAD_UTILS){for(const path of window.ZETER_CLOUD_PAYLOAD_UTILS.references(value))result.add(path);return result;}
     if (!value || typeof value !== 'object') return result;
     for (const [key, entry] of Object.entries(value)) {
       if (['managedPath','assetPath'].includes(key) && typeof entry === 'string' && entry) result.add(entry.replace(/\\/g,'/'));
@@ -72,7 +73,7 @@
   }
   function createRecoveryController(options) {
     const {getState,transaction,validate,migrate,publish,createSafetyPoint,nativeCall,nativeMode,buildBackup,browserVault,notify=()=>{},confirm=()=>false,syncEditors=()=>{},now=()=>Date.now(),schedule=setTimeout,cancelSchedule=clearTimeout}=options;
-    let running=false,timer=null,stopped=false,lastAutoAttempt=0,lastAutoErrorAt=0,actionBusy=false;
+    let running=false,timer=null,stopped=false,lastAutoAttempt=0,lastAutoErrorAt=0,actionBusy=false,fullApplying=false,fullApplySettled=Promise.resolve();
     const sessions=new WeakMap();
     const session=root=>{if(!sessions.has(root))sessions.set(root,{source:null,preview:null,historyRevision:0});return sessions.get(root);};
     const invalidateRefresh=root=>{session(root).historyRevision++;};
@@ -95,6 +96,8 @@
       const targets=root.querySelector('[data-recovery-target]');targets.innerHTML=(getState().desktops||[]).map(d=>`<option value="${escape(d.id)}">${escape(d.name)}</option>`).join('');targets.value=getState().currentDesktop||'desktop';
       root.querySelector('[data-recovery-selective]').hidden=false;
       root.querySelector('[data-recovery-mode]').value='copy';
+      const full=root.querySelector('[data-recovery-action="restore-full"]');
+      if(full)full.hidden=false;
     }
     async function refresh(root) {
       const revision=++session(root).historyRevision;
@@ -173,6 +176,23 @@
           source=null;session(root).source=null;clearPreview(root);root.querySelector('[data-recovery-selective]').hidden=true;root.querySelector('[data-recovery-file-result]').replaceChildren();
           try{source=await inspect(file);showInspection(root,source);message(root,'Проверка выбранного файла завершена. Рабочее состояние не изменено.');}finally{input.value='';}return;
         }
+        if(name==='restore-full') {
+          if(!source?.verified||!source.entries)throw new Error('Сначала проверь проверенный ZIP-архив.');
+          if(!confirm('Полностью заменить данные ZeTer OS содержимым этого ZIP? Перед заменой создаётся локальная страховочная точка. Открытые редакторы нужно закрыть.'))return;
+          if(options.hasOpenEditors?.())throw new Error('Закрой редакторы и другие рабочие окна перед полным восстановлением.');
+          const files=[...payloadPaths(source.sourceState)].map(path=>{
+            const bytes=source.entries.get('data/'+path)||source.entries.get(path);
+            if(!bytes)throw new Error('В ZIP отсутствует обязательное вложение: '+path);
+            return {path,blob:new Blob([bytes])};
+          });
+          actionBusy=false;
+          await applyFullSnapshot({stateRecord:{app:'ZeTer OS',versionNumber:config.OS_VERSION_NUMBER,state:clone(source.sourceState)},files});
+          session(root).source=null;clearPreview(root);
+          root.querySelector('[data-recovery-selective]').hidden=true;
+          message(root,'Полное восстановление из ZIP проверено и завершено. Рабочее состояние заменено.');
+          notify('Данные восстановлены из ZIP','Локальная страховочная точка создана перед заменой.');
+          return;
+        }
         if(name==='compare') {
           const preview=makePlan(root);await validate(clone(preview.plan.state));session(root).preview=preview;
           const labels={add:'Добавить',update:'Заменить',remove:'Удалить'};
@@ -221,7 +241,55 @@
       root.querySelector('[data-recovery-file]')?.addEventListener('change',()=>root.querySelector('[data-recovery-action="inspect-file"]').click());
       for(const input of root.querySelectorAll('[data-recovery-choice],[data-recovery-mode],[data-recovery-target]'))input.addEventListener('change',()=>clearPreview(root));
     }
-    return Object.freeze({action,refresh,invalidateRefresh,mount,inspect,createBackup,start(){if(timer==null&&!stopped)timer=schedule(tick,10000);},stop(){stopped=true;cancelSchedule(timer);},tick});
+    async function inspectFile(root,file,isCurrent=()=>true) {
+      if(actionBusy||running)throw new Error('Другая операция восстановления ещё выполняется.');
+      actionBusy=true;
+      session(root).source=null;clearPreview(root);
+      root.querySelector('[data-recovery-selective]').hidden=true;
+      root.querySelector('[data-recovery-file-result]').replaceChildren();
+      try{const result=await inspect(file);if(!isCurrent())throw Object.assign(new Error('Подключение изменилось. Проверка отменена.'),{cancelled:true});showInspection(root,result);message(root,'Облачная копия проверена. Выбери объект и сравни данные перед восстановлением.');root.querySelector('[data-recovery-file-result]')?.scrollIntoView({block:'nearest'});return result;}
+      finally{actionBusy=false;}
+    }
+    async function applyFullSnapshot(snapshot,isCurrent=()=>true) {
+      if(actionBusy||running)throw new Error('Другая операция безопасности ещё выполняется.');
+      if(options.hasOpenEditors?.())throw new Error('Закрой редакторы перед применением облачной версии.');
+      actionBusy=true;fullApplying=true;let lease=null,committed=false,committedPaths=[],retainUnknownLease=false,finishFullApply;
+      fullApplySettled=new Promise(resolve=>{finishFullApply=resolve;});
+      const before=clone(getState()),fingerprint=JSON.stringify(before);
+      const assertCurrent=()=>{if(!isCurrent())throw Object.assign(new Error('Подключение изменилось. Применение отменено.'),{cancelled:true});if(fingerprint!==JSON.stringify(getState())||options.hasOpenEditors?.())throw new Error('Локальные данные изменились. Повтори синхронизацию после закрытия редакторов.');if(snapshot.expectedLocalRecord){const api=window.ZETER_GOOGLE_DRIVE_SYNC_UTILS,record={app:'ZeTer OS',versionNumber:snapshot.expectedLocalRecord.versionNumber,state:getState()};if(api.canonical(api.normalizedRecord(record))!==api.canonical(snapshot.expectedLocalRecord))throw new Error('Локальные данные изменились после сравнения с облаком. Повтори синхронизацию.');}};
+      options.setLocked?.(true);
+      try {
+        await options.prepareApply?.();assertCurrent();
+        const archive=await window.ZETER_CLOUD_PAYLOAD_UTILS.buildVerifiedArchive(snapshot.stateRecord,snapshot.files);assertCurrent();
+        const inspection=await inspect(new File([archive],'sync-local-check.zip',{type:'application/zip'}));assertCurrent();
+        await transaction(async write=>{
+          assertCurrent();if(!await createSafetyPoint(before))throw new Error('Страховочная точка не подтверждена.');assertCurrent();
+          let incoming=clone(inspection.sourceState);
+          try {
+            if(nativeMode()&&payloadPaths(incoming).size){lease=await nativeCall('stage_security_restore',{base64:await base64(archive)});incoming=lease.state;}
+            else if(!nativeMode()){const staged=await options.browserPayloadStore.stage(incoming,snapshot.files);incoming=staged.state;}
+            incoming=migrate?migrate(incoming):incoming;incoming=await validate(incoming)||incoming;assertCurrent();
+            // Local protection history is device telemetry, not a cloud authority.
+            if(before.security){const policy=incoming.security?.protectionPolicy;incoming.security={...before.security,...incoming.security};if(policy)incoming.security.protectionPolicy=policy;}
+            if(options.prepareIncoming){incoming=await options.prepareIncoming(incoming);assertCurrent();}
+            try {
+              const result=await write(incoming,{requirePrimary:true});if(!result?.saved||result.fallback)throw new Error('Основное хранилище не подтвердило облачную версию.');
+              assertCurrent();const readback=await options.readPrimary();assertCurrent();if(JSON.stringify(readback?.state)!==JSON.stringify(incoming))throw new Error('Контрольное чтение облачной версии не совпало.');
+            } catch(error) {
+              // The live state has not been replaced. Preserve even a concurrent local edit in the compensating write.
+              const previousLive=clone(getState()),previousFingerprint=JSON.stringify(previousLive);
+              try{const restored=await write(previousLive,{requirePrimary:true});if(!restored?.saved||restored.fallback)throw new Error('ACK');const readback=await options.readPrimary();if(JSON.stringify(readback?.state)!==previousFingerprint||JSON.stringify(getState())!==previousFingerprint)throw new Error('readback');}
+              catch{retainUnknownLease=true;throw Object.assign(new Error('Облачная версия не применена. Возврат локальной записи не подтверждён. Не закрывай программу: требуется проверка хранилища.'),{recoveryUnverified:true});}
+              throw error;
+            }
+            publish(incoming);committed=true;
+            const stagedPaths=new Set(lease?.stagedPaths||[]);committedPaths=[...payloadPaths(incoming)].filter(path=>stagedPaths.has(path));
+          }finally{if(lease?.stageId)await nativeCall('release_security_restore',{stageId:lease.stageId,committedPaths:retainUnknownLease?(lease.stagedPaths||[]):committed?committedPaths:[]}).catch(error=>notify('Файлы синхронизации удерживаются для безопасности',error.message));}
+        });
+        return {saved:true,state:clone(getState())};
+      }finally{options.setLocked?.(false);actionBusy=false;fullApplying=false;finishFullApply();}
+    }
+    return Object.freeze({action,refresh,invalidateRefresh,mount,inspect,inspectFile,applyFullSnapshot,isFullApplyActive:()=>fullApplying,waitForFullApply:()=>fullApplySettled,createBackup,start(){if(timer==null&&!stopped)timer=schedule(tick,10000);},stop(){stopped=true;cancelSchedule(timer);},tick});
   }
   window.ZETER_SECURITY_RECOVERY_UTILS=Object.freeze({payloadPaths,hydrateArchiveImages,inspectBackupFile,createRecoveryController});
 })();

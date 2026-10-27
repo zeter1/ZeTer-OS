@@ -212,9 +212,10 @@
 
   function explorerTabsHTML(tabs = []) {
     return tabs.map(tab => `
-      <button class="explorer-tab ${tab.active ? "active" : ""} ${tab.blank ? "empty" : ""}" data-open-tab="${safeAttr(tab.id)}" title="${escapeHtml(tab.title)}">
-        <span>${escapeHtml(tab.label)}</span>${tab.canClose ? `<i data-close-tab="${safeAttr(tab.id)}" title="Закрыть вкладку">×</i>` : ""}
-      </button>`).join("");
+      <div class="explorer-tab ${tab.active ? "active" : ""} ${tab.blank ? "empty" : ""}" role="presentation">
+        <button type="button" class="explorer-tab-label" role="tab" aria-selected="${Boolean(tab.active)}" data-open-tab="${safeAttr(tab.id)}" title="${escapeHtml(tab.title)}"><span>${escapeHtml(tab.label)}</span></button>
+        ${tab.canClose ? `<button type="button" class="explorer-tab-close" data-close-tab="${safeAttr(tab.id)}" aria-label="Закрыть вкладку: ${escapeHtml(tab.label)}" title="Закрыть вкладку">×</button>` : ""}
+      </div>`).join("");
   }
 
   function explorerPathToolbarHTML({
@@ -224,18 +225,24 @@
     showPinButton = false,
     pinButtonLabel = "",
     view = {},
-    viewMenuId = "explorer-view"
+    viewMenuId = "explorer-view",
+    folderTitle = "Папка"
   } = {}) {
     const placeholder = activeBlankTab ? "Вставь адрес папки и нажми Enter" : "Адрес папки";
     return `
-        <div class="toolbar explorer-toolbar explorer-path-toolbar">
-          <button data-nav="up"${canGoUp ? "" : " disabled"}>⬆ Вверх</button>
-          <input class="explorer-path-input" data-path-input value="${escapeHtml(pathValue)}" placeholder="${escapeHtml(placeholder)}" title="Адрес папки. Вставь путь и нажми Enter.">
+        <div class="toolbar explorer-toolbar explorer-path-toolbar${activeBlankTab ? " mobile-path-open" : ""}">
+          <button data-nav="up" aria-label="На уровень выше" title="На уровень выше"${canGoUp ? "" : " disabled"}>⬆<span class="explorer-up-label"> Вверх</span></button>
+          <button type="button" class="explorer-mobile-control explorer-folder-title" data-mobile-panel="path" aria-expanded="${Boolean(activeBlankTab)}" aria-controls="${safeAttr(viewMenuId)}-path" title="Показать полный путь">${escapeHtml(folderTitle)}</button>
+          ${activeBlankTab ? "" : `<button type="button" class="explorer-mobile-control" data-mobile-panel="search" aria-label="Поиск в папке" aria-expanded="false" aria-controls="${safeAttr(viewMenuId)}-search"><img src="assets/icons/mobile-search.svg" alt=""></button>
+          <button type="button" class="explorer-mobile-control" data-mobile-panel="tools" aria-label="Команды папки" aria-expanded="false" aria-controls="${safeAttr(viewMenuId)}-tools">⋯</button>`}
+          <input class="explorer-path-input" id="${safeAttr(viewMenuId)}-path" data-path-input value="${escapeHtml(pathValue)}" placeholder="${escapeHtml(placeholder)}" aria-label="Адрес папки" title="Адрес папки. Вставь путь и нажми Enter.">
+          <div class="explorer-toolbar-options" id="${safeAttr(viewMenuId)}-tools">
           ${showPinButton ? `<button data-action="pin-current">${escapeHtml(pinButtonLabel)}</button>` : ""}
           ${activeBlankTab ? "" : `${explorerSortMenuHTML(view, `${viewMenuId}-sort`)}
           ${explorerViewMenuHTML(view, viewMenuId)}
-          <button data-bulk="select-all" title="Выделить все элементы в текущей папке">☑️ Все</button>
-          <input data-search placeholder="Поиск в этой папке и подпапках" style="margin-left:auto;min-width:180px">`}
+          <button data-bulk="select-all" title="Выделить все элементы в текущей папке">☑️ Все</button>`}
+          </div>
+          ${activeBlankTab ? "" : `<input id="${safeAttr(viewMenuId)}-search" data-search aria-label="Поиск в этой папке и подпапках" placeholder="Поиск в этой папке и подпапках">`}
         </div>`;
   }
 
@@ -386,7 +393,7 @@
           ${explorerTabsHTML(tabs)}
           <button class="explorer-tab-add" data-action="new-tab" title="Новая вкладка">+</button>
         </div>
-        ${explorerPathToolbarHTML({ canGoUp, pathValue, activeBlankTab, showPinButton, pinButtonLabel, view, viewMenuId })}
+        ${explorerPathToolbarHTML({ canGoUp, pathValue, activeBlankTab, showPinButton, pinButtonLabel, view, viewMenuId, folderTitle: tabs.find(tab => tab.active)?.label || "Пустая вкладка" })}
         ${explorerBulkbarHTML()}
         ${explorerContentHTML({ activeBlankTab, currentFolder, previewHTML })}
       </main>`;
@@ -726,7 +733,7 @@
           showProperties: showItemProperties,
           deleteItem
         }));
-        showContext(event.clientX, event.clientY, folderEntries);
+        showContext(event.clientX, event.clientY, folderEntries, { title: state.fs[folderId]?.name });
       },
       showItemMenu,
       enableDrag: enableItemPointerDrag,
@@ -839,8 +846,45 @@
       openItem
     });
 
+    // Panel state belongs to this view only; never change saved folder preferences.
+    const setMobilePanel = panel => {
+      const toolbar = $('.explorer-path-toolbar', root);
+      for (const name of ["path", "search", "tools"]) {
+        toolbar.classList.toggle(`mobile-${name}-open`, name === panel);
+        $(`[data-mobile-panel="${name}"]`, root)?.setAttribute("aria-expanded", String(name === panel));
+      }
+      const search = $('[data-search]', root);
+      if (panel !== "search" && search?.value) {
+        search.value = "";
+        clearSelection();
+        draw({ resetScroll: true });
+      }
+      for (const menu of $$('.explorer-view-menu', root)) {
+        if (menu.matches(':popover-open')) menu.hidePopover();
+      }
+      if (panel === "path") $('[data-path-input]', root)?.focus();
+      if (panel === "search") search?.focus();
+    };
+    root.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || !coreUtils.isMobileLayout?.() || !event.target.closest('.explorer-path-toolbar')) return;
+      const control = $('[data-mobile-panel][aria-expanded="true"]', root);
+      if (!control) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setMobilePanel("");
+      control.focus();
+    });
+
     root.addEventListener("click", async event => {
       if (event.target.closest("[data-folder-row][data-drag-just-ended='1'], [data-pinned-item][data-drag-just-ended='1']")) return;
+
+      const mobileControl = event.target.closest('[data-mobile-panel]');
+      if (mobileControl) {
+        event.preventDefault();
+        event.stopPropagation();
+        setMobilePanel(mobileControl.getAttribute("aria-expanded") === "true" ? "" : mobileControl.dataset.mobilePanel);
+        return;
+      }
 
       const tabAction = explorerTabAction(event.target);
       if (tabAction) {
@@ -1506,17 +1550,46 @@
       grid.appendChild(header);
     }
     items.forEach((item, index) => {
-      const card = document.createElement("button");
+      const card = document.createElement("div");
       card.className = "file-card explorer-file-icon";
+      card.setAttribute("role", "group");
       card.dataset.itemId = item.id;
       if (item.type === "folder") card.dataset.folderTarget = item.id;
       card.title = item.name;
       card.setAttribute("aria-label", item.name);
       card.innerHTML = explorerFileCardHTML({ icon: getCardIcon(item), name: explorerDisplayName(item, view.extensions !== false), pinned: Boolean(item.pinnedInExplorer), meta: getCardMeta(item, viewMode, searchMode ? getLocation(item) : ""), details: getCardDetails(item) });
+      // A checkbox is an action, not the start of a card drag. Pointer capture on
+      // the card would retarget its click and lose the checkbox toggle semantics.
+      $('.explorer-item-check', card)?.addEventListener("pointerdown", event => event.stopPropagation());
+      // Separate native buttons avoid nesting a menu button inside the open button.
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      openButton.className = "explorer-item-open";
+      openButton.setAttribute("aria-label", item.name);
+      card.prepend(openButton);
+      const menuButton = document.createElement("button");
+      menuButton.type = "button";
+      menuButton.className = "explorer-item-menu";
+      menuButton.setAttribute("aria-label", `Действия: ${item.name}`);
+      menuButton.title = "Действия с материалом";
+      menuButton.textContent = "⋯";
+      menuButton.addEventListener("pointerdown", event => event.stopPropagation());
+      menuButton.addEventListener("dblclick", event => { event.preventDefault(); event.stopPropagation(); });
+      menuButton.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (item.type === "folder") showFolderMenu(event, item.id);
+        else showItemMenu(event, item.id);
+      });
+      card.appendChild(menuButton);
       card.addEventListener("click", event => {
         if (card.dataset.dragJustEnded === "1") return;
         event.stopPropagation();
         selectItem(item.id, closestElement(event.target, ".explorer-item-check") ? { ctrlKey: true } : event);
+        if ((event.pointerType === "touch" || event.detail === 0) && !closestElement(event.target, ".explorer-item-check") && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+          if (item.type === "folder") openFolder(item.id);
+          else openItem(item.id);
+        }
       });
       card.addEventListener("dblclick", event => {
         event.preventDefault();
@@ -1530,11 +1603,16 @@
         else showItemMenu(event, item.id);
       });
       enableDrag(card, item.id, { source: "explorer" });
+      coreUtils.bindTouchContextMenu?.(card, event => {
+        if (!selected.has(item.id)) selectItem(item.id, event);
+        if (item.type === "folder") showFolderMenu(event, item.id);
+        else showItemMenu(event, item.id);
+      });
       grid.appendChild(card);
       if (!naturalLayout) positionedCards.push({ card, item });
     });
     const reflow = () => {
-      if (!grid.isConnected || grid._iconLayout !== reflow || naturalLayout) return;
+      if (!grid.isConnected || grid._iconLayout !== reflow || naturalLayout || coreUtils.isMobileLayout?.()) return;
       const occupied = [];
       positionedCards.forEach(({ card, item }, index) => {
         const position = window.ZETER_DESKTOP_LAYOUT_UTILS.resolveIconPosition({
@@ -1748,6 +1826,7 @@
     };
 
     grid.addEventListener("pointerdown", event => {
+      if (event.pointerType === "touch") return;
       if (event.button !== 0 || isDisabled()) return;
       if (closestElement(event.target, ".explorer-table-header")) return;
       if (closestElement(event.target, ".explorer-file-icon,.file-card,.explorer-empty,.context-menu,input,textarea,select,button")) return;
@@ -1834,7 +1913,7 @@
       $$(".explorer-file-icon", root).forEach(card => {
         const isSelected = selected.has(card.dataset.itemId);
         card.classList.toggle("selected", isSelected);
-        card.setAttribute("aria-pressed", String(isSelected));
+        $('.explorer-item-open', card)?.setAttribute("aria-pressed", String(isSelected));
       });
       const items = selectedItems();
       const bulkbar = $("[data-bulkbar]", root);

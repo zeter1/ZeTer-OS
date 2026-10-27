@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "zeter-google-drive-broker",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  // Required Secrets (never place values here): GOOGLE_CLIENT_ID,
+  // GOOGLE_CLIENT_SECRET, DESKTOP_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY.
+  "vars": {
+    "ALLOWED_ORIGINS": "https://dkl.do.am",
+    "DESKTOP_CLIENT_ID": "596333951366-plnunnogqvpcsc89th5v2chhd0qv8hv7.apps.googleusercontent.com",
+    "PUBLIC_URL": "https://REPLACE-WITH-WORKER.workers.dev"
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "zeter-google-drive-broker", "database_id": "REPLACE-WITH-D1-ID" }
+  ]
+}

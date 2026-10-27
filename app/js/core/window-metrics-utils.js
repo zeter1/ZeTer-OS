@@ -50,10 +50,10 @@
   }
 
   function standardWindowRect() {
-    const viewportW = Math.max(330, window.innerWidth || document.documentElement.clientWidth || 1280);
+    const viewportW = window.innerWidth || document.documentElement.clientWidth || 1280;
     const areaH = availableWindowHeight();
     const topOverlap = Math.min(STANDARD_WINDOW_TOP_OVERLAP, Math.max(0, topMenuHeight() - 6));
-    const width = Math.max(330, Math.round(viewportW - STANDARD_WINDOW_SIDE_GAP * 2));
+    const width = Math.max(1, Math.round(viewportW - STANDARD_WINDOW_SIDE_GAP * 2));
     const height = Math.max(240, Math.round(areaH + topOverlap));
     return {
       left: `${STANDARD_WINDOW_SIDE_GAP}px`,
@@ -80,7 +80,7 @@
     const rawWidth = windowMetricToPx(rect.width, "x");
     const rawHeight = windowMetricToPx(rect.height, "y");
     if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight) || rawWidth <= 0 || rawHeight <= 0) return standard;
-    const width = clamp(rawWidth, 330, parseFloat(standard.width));
+    const width = clamp(rawWidth, Math.min(330, parseFloat(standard.width)), parseFloat(standard.width));
     const height = clamp(rawHeight, 240, parseFloat(standard.height));
     const left = windowMetricToPx(rect.left, "x");
     const top = windowMetricToPx(rect.top, "y");

@@ -183,6 +183,20 @@ async function smokeReadableRuntime() {
   assert.strictEqual(state.fs.note.name, "План 2");
   assert.strictEqual(state.fs.note.content, "new");
   assert.strictEqual(saveCount, 1);
+  const unchanged = JSON.stringify(state);
+  assert.strictEqual(controller.syncLiveEditors(), false, 'collecting an unchanged editor must not schedule another save/sync');
+  assert.strictEqual(saveCount, 1);
+  assert.strictEqual(JSON.stringify(state), unchanged);
+  for (const appId of ['markdown', 'table', 'sticky']) {
+    const item = {id:'test',type:'note',name:'Title',content:'text',richContent:'<p>text</p>',updatedAt:7};
+    const title={value:'Title'},area={value:'text',innerText:'text',innerHTML:'<p>text</p>',getAttribute:()=>null};
+    const source={dataset:{noteId:'test'}},fields={'.editor-title':title,textarea:area,'.table-title':title,'[data-sticky-title]':title,'[data-sticky-text]':area};
+    const opts={windows:appId==='sticky'?[]:[{appId,params:{itemId:'test'},el:source}],stickyCards:appId==='sticky'?[source]:[],getItem:()=>item,query:key=>fields[key],plainToRichHtml:value=>`<p>${value}</p>`,now:()=>99};
+    const sync=context.window.ZETER_EXPORT_UTILS.syncLiveExportSources;
+    assert.strictEqual(sync(opts),false,appId+' unchanged input');assert.strictEqual(item.updatedAt,7);
+    title.value='Edited';assert.strictEqual(sync(opts),true,appId+' actual edit');assert.strictEqual(item.name,'Edited');assert.strictEqual(item.updatedAt,99);
+    assert.strictEqual(sync(opts),false,appId+' edit is captured once');
+  }
   assert.ok(ensureCount >= 3);
   console.log("readable live-source sync smoke: ok");
 }

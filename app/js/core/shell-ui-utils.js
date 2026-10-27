@@ -176,6 +176,116 @@
     const buildTaskbarPinnedAppMenuEntries = typeof options.buildTaskbarPinnedAppMenuEntries === "function" ? options.buildTaskbarPinnedAppMenuEntries : () => [];
     const buildRunningTaskbarWindowMenuEntries = typeof options.buildRunningTaskbarWindowMenuEntries === "function" ? options.buildRunningTaskbarWindowMenuEntries : () => [];
     const buildStartAppContextMenuEntries = typeof options.buildStartAppContextMenuEntries === "function" ? options.buildStartAppContextMenuEntries : () => [];
+    let overflowBound = false;
+    let overflowFrame = null;
+
+    function closeOverflow(restoreFocus = false) {
+      const panel = $("#taskbar-overflow-panel");
+      if (panel) panel.hidden = true;
+      $("#taskbar-overflow-button")?.setAttribute("aria-expanded", "false");
+      if (restoreFocus) $("#taskbar-overflow-button")?.focus();
+    }
+
+    function renderOverflow() {
+      const list = $("[data-taskbar-overflow-list]");
+      if (!list) return;
+      const focusedKey = list.ownerDocument.activeElement?.dataset?.overflowKey;
+      list.replaceChildren();
+      const apps = getApps(), pinned = pinnedApps(), windows = [...getWindows().values()];
+      const addRow = (appId, record = null) => {
+        const app = apps[appId];
+        if (!app) return;
+        const button = list.ownerDocument.createElement("button");
+        button.type = "button";
+        button.dataset.overflowKey = record ? `window:${record.winId}` : `app:${appId}`;
+        if (record) button.dataset.overflowWinId = record.winId;
+        else button.dataset.overflowAppId = appId;
+        const icon = list.ownerDocument.createElement("span");
+        icon.className = "taskbar-overflow-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = app.icon || "□";
+        const text = list.ownerDocument.createElement("span");
+        text.className = "taskbar-overflow-text";
+        const title = list.ownerDocument.createElement("b");
+        title.textContent = record?.el.querySelector(".window-title b, .win-title b")?.textContent || app.name;
+        const detail = list.ownerDocument.createElement("small");
+        detail.textContent = record
+          ? `${app.name} · ${record.el.classList.contains("minimized") ? "Свернуто" : "Открыто"}${pinned.includes(appId) ? " · Закреплено" : ""}`
+          : "Закреплено · Нажмите, чтобы открыть";
+        if (record?.winId === getActiveWindow() && !record.el.classList.contains("minimized")) button.setAttribute("aria-current", "true");
+        text.append(title, detail);
+        button.append(icon, text);
+        button.addEventListener("click", () => {
+          closeFloating();
+          if (!record) return openByDataApp(appId);
+          const live = getWindows().get(record.winId);
+          if (!live) return;
+          live.el.classList.remove("minimized");
+          focusWindow(live.winId);
+          persistWindows();
+        });
+        list.appendChild(button);
+      };
+      pinned.forEach(appId => {
+        const records = windows.filter(record => record.appId === appId);
+        if (records.length) records.forEach(record => addRow(appId, record));
+        else addRow(appId);
+      });
+      windows.filter(record => !pinned.includes(record.appId)).forEach(record => addRow(record.appId, record));
+      [...list.children].find(button => button.dataset.overflowKey === focusedKey)?.focus({ preventScroll: true });
+    }
+
+    function updateOverflow() {
+      const button = $("#taskbar-overflow-button"), switcher = $(".taskbar-switcher");
+      if (!button || !switcher) return;
+      const mobile = Boolean(coreUtils.isMobileLayout?.());
+      // Move the existing bell: one badge and one notification event handler.
+      const bell = $("#notifications-button"), header = $(".mobile-header"), tray = $("#tray");
+      if (bell && header && tray) {
+        if (mobile && bell.parentElement !== header) header.insertBefore(bell, header.querySelector('[data-top-action="search"]'));
+        else if (!mobile && bell.parentElement !== tray.parentElement) tray.parentElement.insertBefore(bell, tray);
+      }
+      const gap = parseFloat(getComputedStyle(switcher.parentElement).columnGap) || 0;
+      // Test against the room WITHOUT this button, avoiding a sticky overflow state.
+      const available = switcher.clientWidth + (button.hidden ? 0 : button.offsetWidth + gap);
+      const overflow = mobile && switcher.clientWidth > 0 && switcher.scrollWidth > available + 1;
+      button.hidden = !overflow;
+      if (!overflow) closeOverflow();
+      else if (!$("#taskbar-overflow-panel").hidden) renderOverflow();
+    }
+
+    function scheduleOverflow() {
+      if (overflowFrame != null) return;
+      overflowFrame = window.requestAnimationFrame(() => { overflowFrame = null; updateOverflow(); });
+    }
+
+    function bindOverflow() {
+      const button = $("#taskbar-overflow-button"), panel = $("#taskbar-overflow-panel"), switcher = $(".taskbar-switcher");
+      if (!button || !panel || !switcher || overflowBound) return;
+      overflowBound = true;
+      button.addEventListener("click", () => {
+        const willOpen = panel.hidden;
+        closeFloating();
+        if (!willOpen) return;
+        renderOverflow();
+        panel.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+        $("button", $("[data-taskbar-overflow-list]"))?.focus({ preventScroll: true });
+      });
+      $("[data-close-taskbar-overflow]", panel).addEventListener("click", () => closeOverflow(true));
+      const doc = panel.ownerDocument;
+      doc.addEventListener("pointerdown", event => {
+        if (!panel.hidden && !event.target.closest("#taskbar-overflow-panel,#taskbar-overflow-button")) closeOverflow();
+      });
+      doc.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !panel.hidden) { event.preventDefault(); closeOverflow(true); }
+      });
+      window.addEventListener("resize", scheduleOverflow);
+      if (window.ResizeObserver) {
+        const observer = new window.ResizeObserver(scheduleOverflow);
+        [switcher, $("#taskbar-apps"), $("#taskbar-pinned-extra")].filter(Boolean).forEach(element => observer.observe(element));
+      }
+    }
 
     function ensurePinnedContainer() {
       let container = $("#taskbar-pinned-extra");
@@ -186,7 +296,7 @@
       container = document.createElement("div");
       container.id = "taskbar-pinned-extra";
       container.className = "taskbar-pinned-extra";
-      taskbar.insertBefore(container, taskbarApps);
+      (taskbarApps.parentElement || taskbar).insertBefore(container, taskbarApps);
       return container;
     }
 
@@ -234,6 +344,8 @@
         button.classList.toggle("active", records.some(record => record.winId === getActiveWindow() && !record.el.classList.contains("minimized")));
         button.classList.toggle("minimized", running && records.every(record => record.el.classList.contains("minimized")));
       });
+      bindOverflow();
+      if (overflowBound) scheduleOverflow();
     }
 
     function setPinned(appId, pinned) {
@@ -571,6 +683,11 @@
     }
 
     function closeFloating() {
+      const overflowPanel = $("#taskbar-overflow-panel");
+      if (overflowPanel) overflowPanel.hidden = true;
+      $("#taskbar-overflow-button")?.setAttribute("aria-expanded", "false");
+      $("#top-menu")?.classList.remove("mobile-menu-open");
+      $("#mobile-menu-button")?.setAttribute("aria-expanded", "false");
       $("#start-menu").classList.add("hidden");
       $("#quick-panel").classList.add("hidden");
       $("#notification-center").classList.add("hidden");
@@ -613,8 +730,9 @@
       return openApp("calendar");
     }
 
-    function handleTopMenuAction(action) {
+    function handleTopMenuAction(action, event) {
       if (action !== "search") closeFloating();
+      if (action === "desktop-menu") return showDesktopMenu(event);
       if (action === "export") return exportData();
       if (action === "import") return $("#import-file")?.click();
       if (action === "settings") return openApp("settings");
@@ -665,6 +783,39 @@
       }, true);
 
       $("#start-button").addEventListener("click", toggleStart);
+      $("#mobile-desktop-switch")?.addEventListener("click", event => {
+        event.stopPropagation();
+        closeFloating();
+        const current = getDesktopRoot();
+        const entries = (getState().desktops || []).map(desktop => [
+          desktop.id === current ? "✓" : "▦",
+          `${getDesktopName(desktop.id)}${desktop.id === current ? " (текущий)" : ""}`,
+          () => { closeFloating(); options.switchDesktop?.(desktop.id); }
+        ]);
+        options.showContext?.(event.clientX, event.clientY, entries, {
+          title: "Рабочие столы", returnFocus: event.currentTarget
+        });
+      });
+      $("#mobile-desktop-create")?.addEventListener("click", event => {
+        event.stopPropagation();
+        handleTopMenuAction("desktop-menu", event);
+      });
+      $("#mobile-menu-button")?.addEventListener("click", () => {
+        const willOpen = !$("#top-menu").classList.contains("mobile-menu-open");
+        closeFloating();
+        $("#top-menu").classList.toggle("mobile-menu-open", willOpen);
+        $("#mobile-menu-button").setAttribute("aria-expanded", String(willOpen));
+      });
+      $("#mobile-home-button")?.addEventListener("click", () => {
+        closeFloating();
+        options.showDesktop?.();
+      });
+      documentRef.addEventListener("click", event => {
+        if (!event.target.closest("#top-menu,#mobile-menu-button") && $("#top-menu")?.classList.contains("mobile-menu-open")) {
+          $("#top-menu").classList.remove("mobile-menu-open");
+          $("#mobile-menu-button")?.setAttribute("aria-expanded", "false");
+        }
+      });
       $("#tray").addEventListener("click", toggleCalendarFromTray);
       $("#notifications-button").addEventListener("click", () => togglePanel("notifications"));
       bindNotificationCenter({
@@ -710,7 +861,7 @@
       $$("[data-app]").forEach(button => {
         if (!button.closest("#taskbar")) button.addEventListener("click", () => openByDataApp(button.dataset.app));
       });
-      $$("[data-top-action]").forEach(button => button.addEventListener("click", () => handleTopMenuAction(button.dataset.topAction)));
+      $$("[data-top-action]").forEach(button => button.addEventListener("click", event => handleTopMenuAction(button.dataset.topAction, event)));
       $("#top-menu")?.addEventListener("focusin", event => {
         event.target.closest("[data-top-action]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
       });

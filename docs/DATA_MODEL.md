@@ -276,6 +276,12 @@ Windows-читаемая копия сначала полностью строи
 
 ## Контракты критических операций
 
+### Google Drive
+
+Контракт синхронизации и владельцы — [GOOGLE_DRIVE.md](GOOGLE_DRIVE.md). Облачный snapshot содержит только каноническое пользовательское состояние и обязательные internal payload; внешние цели ярлыков не обходятся. OAuth credentials, broker handles, device baseline и pending/conflict metadata не добавляются в экспортируемое состояние. На Drive сохраняются обычные файлы и immutable inventories, без облачного ZIP. Private browser Blob store удерживает исходные bytes для safety/version roundtrip; локальный post-apply hash отделён от cloud contentHash из-за native remap путей. Реальное облачное подключение должно быть подтверждено отдельно от synthetic проверок.
+
+Private native metadata также содержит `uploadIntent` (либо `null`): строго поля `{accountKey, operationId, snapshotId, createdAt, expectedGeneration, localHash, bootstrap, fileIds}`. Account обязан совпадать с metadata; operation/snapshot и ключи `fileIds` — 32 lowercase hex, localHash/accountKey — 64 lowercase hex, createdAt — положительное целое время в миллисекундах, expectedGeneration — неотрицательное safe integer. `bootstrap` — `null` либо четыре разных Drive ID `{rootFolderId,dataFolderId,historyFolderId,stagingFolderId}`; `fileIds` содержит максимум 10000 пар ключ→различный Drive ID. Лишние/повреждённые поля отклоняются до сохранения, прежняя private запись сохраняется. Intent подтверждается до первой облачной мутации, ID каждого immutable файла — до POST: перезапуск повторно проверяет тот же объект, даже если listing ещё не показывает его. Поля не входят в пользовательский snapshot/экспорт; account-bound резервирование папок описано в [broker README](../cloud/google-drive-broker/README.md#резервирование-id-и-миграция).
+
 Этот раздел описывает поведение выбранных API; [CORE_API_INDEX.md](CORE_API_INDEX.md) остаётся индексом имён. Сигнатуры и consumers подтверждай в исходниках. Примеры используют уже созданные runtime-объекты, а не вводят новые глобалы или второй механизм хранения.
 
 | API и владелец | Вход и результат | Мутация, порядок и отказ | Ближайшая проверка |

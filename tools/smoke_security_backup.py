@@ -71,6 +71,23 @@ def main():
         root = Path(temp)
         api, record, paths = fixture(root)
         before = copy.deepcopy(record)
+        # Native canonicalizes portable metadata; the readback receipt must
+        # validate the saved canonical state without mutating the caller.
+        point_state = copy.deepcopy(record["state"])
+        point_state["desktops"] = [{"id": "main", "data": {
+            "externalSaveStatus": zeter.NATIVE_DATA_STATUS_PREFIX + " " + str(zeter.DATA_DIR),
+            "tasks": [{"id": "synthetic-task"}],
+        }}]
+        point_state["tasks"] = []
+        point = {"id": "restore-synthetic-canonical", "createdAt": 1, "state": point_state}
+        original_point = copy.deepcopy(point)
+        receipt = checked(api.save_restore_point(point))
+        assert receipt["stateVerified"] is True
+        stored = checked(api.load_restore_points())["points"][0]
+        assert stored["state"]["desktops"][0]["data"]["externalSaveStatus"] == zeter.NATIVE_DATA_PORTABLE_STATUS
+        assert stored["state"]["tasks"] == [{"id": "synthetic-task"}]
+        assert point == original_point
+        checks.append("native safety point canonicalization, disk readback and caller immutability")
         assert checked(api.get_security_backup_status())["configured"] is False
         assert not (zeter.DATA_DIR / "security-backups.json").exists()
         built = checked(api.build_security_backup(record))

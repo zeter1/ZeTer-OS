@@ -93,9 +93,10 @@
     const scrollTop = container.scrollTop || 0;
     const preferredPositions = new Map(items.map(item => [item.id, clampPosition(item.x ?? 20, item.y ?? 20)]));
     container.innerHTML = "";
-    const occupied = desktopLayoutUtils.desktopForbiddenRects([
+    const forbiddenRects = desktopLayoutUtils.desktopForbiddenRects([
       document.querySelector?.(".top-menu"), document.querySelector?.(".taskbar")
     ]).map(rect => ({ ...rect, x: rect.x + scrollLeft, y: rect.y + scrollTop }));
+    const occupied = [];
     items.forEach(item => {
       const icon = document.createElement("button");
       const selected = selectedId === item.id || selectedIds?.has(item.id);
@@ -114,7 +115,7 @@
         event.stopPropagation();
         if (icon.dataset.dragJustEnded === "1") return;
         onSelect(item.id, event);
-        if ((view.openMode === "single" || event.detail === 0) && (event.detail || 0) <= 1 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) onOpen(item.id);
+        if ((event.pointerType === "touch" || view.openMode === "single" || event.detail === 0) && (event.detail || 0) <= 1 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) onOpen(item.id);
       });
       icon.addEventListener("dblclick", event => {
         event.preventDefault();
@@ -123,11 +124,31 @@
         onOpen(item.id);
       });
       icon.addEventListener("contextmenu", event => onShowMenu(event, item.id));
+      coreUtils.bindTouchContextMenu?.(icon, event => onShowMenu(event, item.id));
       onEnableDrag(icon, item.id);
-      container.appendChild(icon);
+      // Separate siblings keep the actions button out of the open/drag target.
+      const entry = document.createElement("div");
+      entry.className = "desktop-item";
+      const menu = document.createElement("button");
+      menu.type = "button";
+      menu.className = "desktop-item-menu";
+      menu.innerHTML = '<span class="desktop-item-menu-glyph" aria-hidden="true">⋯</span>';
+      menu.setAttribute("aria-label", `Действия: ${item.name}`);
+      menu.setAttribute("aria-haspopup", "menu");
+      menu.addEventListener("pointerdown", event => event.stopPropagation());
+      menu.addEventListener("click", event => {
+        event.stopPropagation();
+        onSelect(item.id, event);
+        onShowMenu(event, item.id);
+      });
+      entry.appendChild(icon);
+      entry.appendChild(menu);
+      container.appendChild(entry);
+      // Phone uses a flowing grid; viewing it must not change saved desktop coordinates.
+      if (coreUtils.isMobileLayout?.()) { icon.title = item.name; return; }
       const placed = desktopLayoutUtils.resolveIconPosition({
         ...position, w: icon.offsetWidth || minimumSize.w, h: icon.offsetHeight || minimumSize.h
-      }, occupied, { width: container.clientWidth || window.innerWidth, gap });
+      }, occupied, { width: container.clientWidth || window.innerWidth, gap, forbiddenRects });
       icon.style.left = placed.x + "px";
       icon.style.top = placed.y + "px";
       item.x = placed.x;
@@ -213,7 +234,8 @@
       if (!surface || !box || surface.dataset.selectionBound === "1") return false;
       surface.dataset.selectionBound = "1";
       surface.addEventListener("pointerdown", event => {
-        if (event.button !== 0 || event.target.closest(".desktop-icon,.desktop-sticky,.window,.taskbar,.start-menu,.quick-panel,.notification-center,.global-search,.context-menu")) return;
+        if (event.pointerType === "touch") return;
+        if (event.button !== 0 || event.target.closest(".desktop-icon,.desktop-item-menu,.desktop-sticky,.window,.taskbar,.start-menu,.quick-panel,.notification-center,.global-search,.context-menu")) return;
         setSelectionDrag({ startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY });
         getSelectedIds()?.clear();
         setSelectedId(null);

@@ -46,18 +46,41 @@ STAGES = frozenset({
     "read_managed_document", "save_managed_document",
     "open_data_folder", "open_logs_folder", "open_problem_logs_folder", "open_readable_folder",
     "get_windows_startup_status", "set_windows_startup_enabled", "close_app", "shutdown",
+    "google_drive_connection", "google_drive_sync_rpc", "google_drive_client",
 })
 OUTCOMES = frozenset({"started", "success", "error", "partial", "cancelled", "recovered", "slow", "incomplete"})
 NUMBER_FIELDS = frozenset({"stateBytes", "size", "receivedSize", "expectedSize", "count", "removed",
                           "preserved", "readableFiles", "readableBytes", "managedFilesRemoved", "itemAssetsRemoved",
                           "line", "column", "pending", "dropped", "durationMs", "lockWaitMs",
-                          "publishedFiles", "unchangedFiles", "staleFilesRemoved", "selfMs", "childMs"})
+                          "publishedFiles", "unchangedFiles", "staleFilesRemoved", "selfMs", "childMs",
+                          "cloudGeneration", "localFileCount", "syncAttempt", "httpStatus"})
 BOOL_FIELDS = frozenset({"primaryVerified", "readableOk", "archiveOk", "backupOk", "payloadGcOk",
                          "cancelled", "recorded", "successAfterIssue", "publicationComplete",
-                         "targetExisted", "targetReadOnly", "targetStatusKnown"})
+                         "targetExisted", "targetReadOnly", "targetStatusKnown",
+                         "cloudHeadPresent", "rootMissing", "localChanged", "cloudChanged",
+                         "conflictSaved", "uploadPending", "connectionReady"})
 ENUM_FIELDS = {"publishAction": frozenset({"mkdir", "compare", "replace", "stale_delete", "summary_replace"}),
-               "fileKind": frozenset({"docx", "json", "csv", "txt", "image", "other"})}
-CLIENT_KINDS = frozenset({"boot_timeout", "runtime_error", "unhandled_rejection", "storage_load_error"})
+               "fileKind": frozenset({"docx", "json", "csv", "txt", "image", "other"}),
+               "driveAction": frozenset({"status", "connect", "disconnect", "list", "upload", "download",
+                   "sync_head", "allocate_id", "directory_id", "bootstrap", "recreate_root", "make_folder", "zip_preferences",
+                   "files", "put_file", "read_file", "move_file", "sync_commit", "sync_preferences", "sync_preserve"}),
+               "driveEvent": frozenset({"phase", "remote_checked", "local_collected", "conflict_saved",
+                   "publish_start", "publish_committed", "reconcile_complete", "incoming_offered", "choice_selected", "reserved_ids_replaced", "failure"}),
+               "drivePhase": frozenset({"loading", "cloud", "local", "conflict", "synced", "offline",
+                   "reconnect", "pending", "incoming"}),
+               "driveError": frozenset({"broker_unreachable", "token_broker_unreachable", "google_unreachable",
+                   "network_timeout", "auth_required", "http_failure", "invalid_response", "stale_cloud", "missing_cloud_snapshot",
+                   "safety_readback", "invalid_data", "unknown_failure", "none"}),
+               "driveChoice": frozenset({"local", "cloud", "incoming", "none"}),
+               "driveApiField": frozenset({"fileId", "parents", "fields", "q", "other"}),
+               "driveApiReason": frozenset({"insufficientFilePermissions", "storageQuotaExceeded",
+                   "appNotAuthorizedToFile", "userRateLimitExceeded", "rateLimitExceeded",
+                   "fileNotFound", "notFound", "invalid", "invalidArgument", "badRequest",
+                   "forbidden", "conflict", "insufficientPermissions", "quotaExceeded",
+                   "dailyLimitExceeded", "activeItemCreationLimitExceeded",
+                   "teamDriveFileLimitExceeded", "teamDriveHierarchyTooDeep",
+                   "cannotCopyFile", "sharingRateLimitExceeded", "authError", "other"})}
+CLIENT_KINDS = frozenset({"boot_timeout", "runtime_error", "unhandled_rejection", "storage_load_error", "drive_sync_error"})
 RUN_NAME_PATTERN = re.compile(r"run-\d{6}-\d{3}-[a-f0-9]{32}")
 
 

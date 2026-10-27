@@ -40,17 +40,19 @@
 
   // Use rendered dimensions: long labels and large icons can exceed nominal cells.
   // Grow downwards when full instead of returning an occupied position.
-  function resolveIconPosition(rect, occupied = [], { width = 980, gap = DESKTOP_ICON_GAP } = {}) {
+  function resolveIconPosition(rect, occupied = [], { width = 980, gap = DESKTOP_ICON_GAP, forbiddenRects = [] } = {}) {
     const maxX = Math.max(0, width - rect.w - gap);
     const preferred = { x: clamp(rect.x || 0, 0, maxX), y: Math.max(0, rect.y || 0) };
-    const free = p => !occupied.some(other => rectsOverlap({ ...rect, ...p }, other, gap));
+    const forbiddenGap = Math.max(gap, DESKTOP_FORBIDDEN_GAP);
+    const free = p => !occupied.some(other => rectsOverlap({ ...rect, ...p }, other, gap)) &&
+      !forbiddenRects.some(other => rectsOverlap({ ...rect, ...p }, other, forbiddenGap));
     if (free(preferred)) return preferred;
-    const xs = [...new Set([preferred.x, gap, ...occupied.map(other => other.x + other.w + gap)])]
+    const xs = [...new Set([preferred.x, gap, ...occupied.map(other => other.x + other.w + gap), ...forbiddenRects.map(other => other.x + other.w + forbiddenGap)])]
       .filter(x => x >= 0 && x <= maxX);
-    const ys = [...new Set([preferred.y, gap, ...occupied.map(other => other.y + other.h + gap)])]
+    const ys = [...new Set([preferred.y, gap, ...occupied.map(other => other.y + other.h + gap), ...forbiddenRects.map(other => other.y + other.h + forbiddenGap)])]
       .filter(y => y >= 0).sort((a, b) => a - b);
     for (const y of ys) for (const x of xs) if (free({ x, y })) return { x, y };
-    return { x: 0, y: Math.max(0, ...occupied.map(other => other.y + other.h + gap)) };
+    return { x: 0, y: Math.max(0, ...occupied.map(other => other.y + other.h + gap), ...forbiddenRects.map(other => other.y + other.h + forbiddenGap)) };
   }
 
   function desktopMaxPosition(viewportWidth = window.innerWidth, viewportHeight = window.innerHeight) {

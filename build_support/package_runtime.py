@@ -27,6 +27,8 @@ def run_packaged_self_test() -> int:
 
     import webview  # noqa: F401 - import itself validates pywebview packaging
     import security_backup  # noqa: F401 - full backup vault and recovery payload support
+    import google_drive_backup  # noqa: F401 - Google Drive transport, inert import
+    import google_drive_sync  # noqa: F401 - immutable cloud file transport and coordinator
     import problem_logs  # noqa: F401 - validate the native launcher dependency
     from app_updater import read_manifest, verify_file
     manifest = read_manifest(root)

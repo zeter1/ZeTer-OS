@@ -244,6 +244,17 @@
 .notification-text { display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .notification-delete { position: absolute; right: 10px; top: 10px; width: 28px; height: 28px; border-radius: 10px; background: rgba(255,255,255,.12); display: grid; place-items: center; font-size: 16px; line-height: 1; }
 .notification-delete:hover { background: rgba(255,255,255,.22); }
+.drive-incoming-notice { border: 1px solid #74bfff; border-radius: 16px; padding: 14px; background: #123b66; color: #fff; overflow-wrap: anywhere; }
+.drive-incoming-notice b { display: block; font-size: 15px; }
+.drive-incoming-notice p { margin: 8px 0 12px; color: #e0efff; font-size: 13px; line-height: 1.5; }
+.drive-incoming-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.drive-incoming-actions button { min-height: 40px; max-width: 100%; padding: 9px 12px; border-radius: 10px; white-space: normal; background: #e0efff; color: #102e4c; font-weight: 650; }
+.drive-incoming-actions button:last-child { background: #205181; color: #fff; border: 1px solid #85b8e9; }
+.drive-incoming-actions button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.drive-incoming-actions button:disabled { opacity: .6; cursor: wait; }
+.drive-incoming-progress { display: block; color: #e0efff; font-size: 12px; margin-top: 8px; }
+.drive-incoming-progress:empty { display: none; }
+.drive-incoming-popup-host { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(90px, calc(env(safe-area-inset-bottom) + 76px)); width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 140px); overflow: auto; z-index: 7250; box-shadow: 0 16px 50px #0005; border-radius: 16px; }
 .calendar-mini-head { margin-top: 20px; }
 .agenda-mini-card { border-radius: 14px; padding: 10px; background: rgba(255,255,255,.1); display: flex; justify-content: space-between; gap: 12px; }
 

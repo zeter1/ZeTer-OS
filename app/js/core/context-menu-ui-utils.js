@@ -209,7 +209,7 @@
         taskbarPinned: pinAppId ? isTaskbarPinned(pinAppId) : false,
         desktopRootId: getDesktopRoot()
       }), action => itemActions[action.type]?.(itemId, action, item));
-      showContext(event.clientX, event.clientY, entries);
+      showContext(event.clientX, event.clientY, entries, { title: item.name });
       return true;
     }
 
@@ -246,25 +246,47 @@
     ];
   }
 
-  function renderContextMenu({ menu, x, y, entries = [], anchorEl = null, placement, viewport = window } = {}) {
+  function renderContextMenu({ menu, x, y, entries = [], anchorEl = null, placement, title = "", returnFocus = null, viewport = window } = {}) {
     if (!menu) return false;
     const documentRef = menu.ownerDocument || document;
     const safeEntries = Array.isArray(entries) ? entries : [];
     menu.innerHTML = "";
+    if (title) {
+      const heading = documentRef.createElement("div");
+      heading.className = "context-menu-title";
+      heading.textContent = String(title);
+      menu.appendChild(heading);
+    }
+    menu.setAttribute("role", "dialog");
+    menu.setAttribute("aria-label", title ? String(title) : "Действия");
+    const close = () => {
+      menu.classList.add("hidden");
+      if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+    };
+    menu.onkeydown = event => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      }
+    };
+    const items = documentRef.createElement("div");
+    items.className = "context-menu-items";
+    menu.appendChild(items);
 
     for (const entry of safeEntries) {
       if (entry?.[1] === "hr") {
-        menu.appendChild(documentRef.createElement("hr"));
+        items.appendChild(documentRef.createElement("hr"));
         continue;
       }
 
       const button = documentRef.createElement("button");
       button.innerHTML = contextMenuButtonHTML({ icon: entry?.[0], label: entry?.[1] });
       button.addEventListener("click", () => {
-        menu.classList.add("hidden");
+        close();
         entry?.[2]?.();
       });
-      menu.appendChild(button);
+      items.appendChild(button);
     }
 
     menu.appendChild(documentRef.createElement("hr"));
@@ -272,7 +294,7 @@
     const closeButton = documentRef.createElement("button");
     closeButton.className = "context-close-btn";
     closeButton.innerHTML = contextMenuCloseButtonHTML();
-    closeButton.addEventListener("click", () => menu.classList.add("hidden"));
+    closeButton.addEventListener("click", close);
     menu.appendChild(closeButton);
 
     menu.style.left = "0px";
@@ -306,6 +328,7 @@
     menu.style.left = `${left}px`;
     menu.style.top = `${top}px`;
     menu.style.visibility = "";
+    if (returnFocus) items.querySelector?.("button")?.focus({ preventScroll: true });
     return true;
   }
 

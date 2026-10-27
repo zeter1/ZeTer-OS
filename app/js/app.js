@@ -597,6 +597,7 @@
 
   const documentEditorRuntimeController = createDocumentEditorRuntimeController({
     getState: () => state,
+    showContext,
     getDesktopRoot,
     createItem,
     saveState: saveStateWithNoteAutomation,
@@ -654,8 +655,12 @@
   });
 
   let securityRecoveryController = null;
+  let googleDriveBackupController = null;
+  let googleDriveSyncController = null;
+  let driveIncomingUiController = null;
   const securityRuntimeController = createSecurityRuntimeController({
     getRecoveryController: () => securityRecoveryController,
+    getDriveController: () => googleDriveBackupController,
     isMutationBlocked: () => recoveryApplying,
     getState: () => state,
     currentWorkspace,
@@ -1296,6 +1301,7 @@
     syncOpenEditors: syncLiveEditorsBeforeExport,
     cleanupRemovedItemReferences,
     nativeStorageCall,
+    getBrowserPayloadStore:()=>browserCloudPayloadStore,
     openShortcutTarget: (target, name) => openShortcutTarget(target, name),
     openDocument: async file => {
       let item = Object.values(state.fs).find(entry => !entry.deletedAt && entry.type === "managedFile" && entry.managedFile?.managedPath === file.managedPath);
@@ -1502,6 +1508,7 @@
       if (result?.skipped || result?.saved === false) {
         throw new Error("Хранилище ещё не готово к записи.");
       }
+      googleDriveSyncController?.requestSync?.();
       return result;
     }).finally(() => { searchRevision += 1; });
     savePromise.catch(() => {});
@@ -1509,7 +1516,7 @@
   }
 
   function persistSearchAwareTransaction(operation) {
-    return primaryStateSaveQueue.transaction(operation).finally(() => { searchRevision += 1; });
+    return primaryStateSaveQueue.transaction(operation).then(result=>{googleDriveSyncController?.requestSync?.();return result;}).finally(() => { searchRevision += 1; });
   }
 
   function persistSearchPreferences(ownerState, ownerSettings) {
@@ -1911,6 +1918,12 @@
   }
 
   function renderDesktop() {
+    const mobileName = $("#mobile-desktop-name");
+    if (mobileName) {
+      const name = desktopName(getDesktopRoot());
+      mobileName.textContent = name;
+      mobileName.title = name;
+    }
     return desktopSurfaceController.render();
   }
 
@@ -2093,7 +2106,9 @@
       y,
       entries,
       anchorEl: options.anchorEl,
-      placement: options.placement
+      placement: options.placement,
+      title: options.title,
+      returnFocus: options.returnFocus
     });
   }
 
@@ -3365,6 +3380,7 @@
     getFilter: () => ui.notificationFilter,
     setFilter: filter => { ui.notificationFilter = filter; },
     getNotifications: deskNotifications,
+    getIncoming: () => driveIncomingUiController?.getIncoming(),
     setNotifications: setDeskNotifications,
     getCurrentDesktopId: getDesktopRoot,
     getWorkspaceForDesktop: workspaceDataForDesktopId,
@@ -3385,6 +3401,14 @@
     if (!notificationDecision(options).store) return null;
     return notificationCenterController.addNotification(title, text, options);
   }
+
+  driveIncomingUiController = notificationUiUtils.createDriveIncomingController({
+    document,
+    acceptIncoming: key => googleDriveSyncController?.acceptIncoming(key),
+    deferIncoming: key => googleDriveSyncController?.deferIncoming(key),
+    onChange: renderNotifications,
+    onError: error => toast("Новые данные не загружены", error?.message || "Повторите загрузку из центра уведомлений.")
+  });
 
   function automationStateForCurrentWorkspace() {
     const root = getDesktopRoot();
@@ -4061,6 +4085,7 @@
     openNotification,
     showDesktopMenu,
     bindDesktopSelectionBox: () => desktopSurfaceController.bindSelectionBox(),
+    showDesktop: () => windowRuntimeController.showDesktop(),
     cycleWindows,
     openItem,
     deleteItems,
@@ -4070,6 +4095,8 @@
     normalizeSystemSettings,
     hotkeyActionForEvent,
     switchRelativeDesktop,
+    switchDesktop: switchVirtualDesktop,
+    showContext,
     customWallpaperCssUrl,
     firstRunScreenHTML,
     startFirstRunSetup: (dialog, onFinish) => startFirstRunSetup({
@@ -4248,6 +4275,7 @@
   }
 
   let securityVaultFolder = null;
+  const browserCloudPayloadStore=window.ZETER_CLOUD_PAYLOAD_UTILS.createPayloadStore();
   const SECURITY_VAULT_DB = "zeter-security-vault-folder";
   async function rememberSecurityVaultFolder(handle) {
     const db = await openIndexedDb(SECURITY_VAULT_DB, "handles", {keyPath:"id"});
@@ -4268,7 +4296,10 @@
       const binary=atob(result.base64),bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));
       return new Blob([bytes],{type:"application/zip"});
     }
-    if(window.ZETER_SECURITY_RECOVERY_UTILS.payloadPaths(snapshot).size) throw new Error("Полная копия содержит файлы Windows. Создай её в ZeTer OS через Python или EXE.");
+    if(window.ZETER_CLOUD_PAYLOAD_UTILS.references(snapshot).size){
+      const files=[];for(const path of window.ZETER_CLOUD_PAYLOAD_UTILS.references(snapshot)){const blob=await browserCloudPayloadStore.get(path);if(!blob)throw new Error('Файл ещё не загружен для полной копии: '+path);files.push({path,blob});}
+      return window.ZETER_CLOUD_PAYLOAD_UTILS.buildVerifiedArchive({app:'ZeTer OS',versionNumber:OS_VERSION_NUMBER,state:snapshot},files);
+    }
     const zip=await buildDownloadOsDataZip(snapshot);
     await window.ZETER_SECURITY_RECOVERY_UTILS.inspectBackupFile(new File([zip],"check.zip",{type:"application/zip"}),{validate:validateImportedStateForImport,migrate});
     return zip;
@@ -4284,13 +4315,36 @@
     try {const result=await browserSecurityVaultRaw.configure(payload);if(result.cancelled){securityVaultFolder=previous;return result;}if(payload.chooseFolder)await rememberSecurityVaultFolder(securityVaultFolder);return result;}
     catch(error){securityVaultFolder=previous;throw error;}
   }};
+  function prepareCloudStateForPublication(candidate) {
+    // Existing runtime owners also initialize roots and lay out icons when rendering.
+    // Run that work on the detached candidate before its primary ACK, never on live state.
+    const explorer=createExplorerRuntimeController({getState:()=>candidate,createId:uid});
+    syncLegacyWorkspaceAliases(candidate,{ensureWorkspaceExplorerRoot:explorer.ensureWorkspaceExplorerRoot});
+    const surface=$("#desktop-items");
+    if(!surface?.parentElement)throw new Error('Рабочий стол ещё не готов к применению облачной версии.');
+    const rootId=candidate.currentDesktop,workspace=candidate.desktops.find(desk=>desk.id===rootId)?.data;
+    const items=Object.values(candidate.fs).filter(item=>item.parent===rootId&&!item.deletedAt&&!item.hiddenFromDesktop&&item.systemRole!=="explorerRoot"&&!(item.type==="app"&&item.appId==="notes"));
+    const staging=surface.cloneNode(false);staging.removeAttribute("id");staging.inert=true;staging.style.visibility="hidden";staging.style.pointerEvents="none";
+    surface.parentElement.append(staging);
+    try {
+      staging.scrollLeft=surface.scrollLeft;staging.scrollTop=surface.scrollTop;
+      const offset={x:surface.scrollLeft||0,y:surface.scrollTop||0};
+      const forbiddenRects=desktopLayoutUtils.desktopForbiddenRects([$("#top-menu"),$("#taskbar")]).map(rect=>({...rect,x:rect.x+offset.x,y:rect.y+offset.y}));
+      const viewportWidth=surface.clientWidth||window.innerWidth,viewportHeight=Math.max(window.innerHeight,surface.scrollHeight||0,...items.map(item=>(item.y||0)+216));
+      desktopUiUtils.renderDesktopIcons({container:staging,items,appearance:workspace?.settings?.desktopAppearance,itemIcon,clampPosition:(x,y)=>desktopLayoutUtils.clampDesktopPosition(x,y,{viewportWidth,viewportHeight,forbiddenRects})});
+      desktopUiUtils.renderDesktopStickies({root:staging,stickies:workspace?.noteStickies,getNote:id=>candidate.fs[id],plainToRichHtml,cleanRichHtml});
+      return candidate;
+    } finally {staging.remove();}
+  }
   securityRecoveryController=window.ZETER_SECURITY_RECOVERY_UTILS.createRecoveryController({
     getState:()=>state,transaction:operation=>persistSearchAwareTransaction(operation),
     validate:validateImportedStateForImport,migrate,nativeMode:shouldUseNativeStorage,nativeCall:nativeStorageCall,
     browserVault:browserSecurityVault,buildBackup:buildFullSecurityBackup,
+    browserPayloadStore:browserCloudPayloadStore,readPrimary:readPrimaryStateRecord,
     createSafetyPoint:snapshot=>securityRuntimeController.createRecoverySafetyPoint(snapshot),
     syncEditors:syncLiveEditorsBeforeExport,
     prepareApply:async()=>{await automationMutationChain;},
+    prepareIncoming:prepareCloudStateForPublication,
     setLocked:locked=>{recoveryApplying=Boolean(locked);const os=document.querySelector("#os");if(os)os.inert=recoveryApplying||appUpdateApplying;},
     hasOpenEditors:()=>[...ui.windows.values()].some(record=>!["security","help","about","monitor"].includes(record.appId)),
     requestPassphrase:file=>prompt(`Пароль от «${file.name}» (не сохраняется):`,""),
@@ -4302,6 +4356,21 @@
     },
     rememberFolder:rememberSecurityVaultFolder
   });
+
+  let googleDriveConfigPromise = null;
+  function loadGoogleDriveConfig() {
+    if(!googleDriveConfigPromise)googleDriveConfigPromise=fetch(new URL('google-drive-config.json',document.baseURI),{cache:'no-store'}).then(async response=>{
+      if(!response.ok)return {};
+      const value=await response.json();
+      const config={webClientId:typeof value.webClientId==='string'?value.webClientId:'',brokerUrl:typeof value.brokerUrl==='string'?value.brokerUrl:''};
+      if(config.webClientId&&!window.google?.accounts?.oauth2&&!document.querySelector('[data-google-drive-identity]')){
+        const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';script.async=true;script.dataset.googleDriveIdentity='1';document.head.append(script);
+      }
+      return config;
+    }).catch(()=>({}));
+    return googleDriveConfigPromise;
+  }
+  // Cloud backup panel removed. ZIP backups are local import/export only.
 
   function nextWallpaper(){
     const settings = deskSettings();
@@ -4356,12 +4425,13 @@
     if (bootInitialized) return;
     state = await storageStateRuntimeController.loadStateForBoot();
     bootInitialized = true;
+    // Cloud ZIP backup never blocks startup or imports any remote state.
     init();
     if (!shouldUseNativeStorage()) {
       try { await loadSecurityVaultFolder(); } catch (error) { console.warn("[ZeTer OS backup history folder]",error); }
     }
-    securityRecoveryController.start();
-    window.addEventListener("pagehide",()=>securityRecoveryController.stop(),{once:true});
+    // No cloud polling, automatic backup history, or point generation on startup.
+    window.addEventListener("pagehide",()=>{securityRecoveryController.stop();browserCloudPayloadStore.close();},{once:true});
     void updateUiController.start();
   }
 

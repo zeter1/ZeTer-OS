@@ -32,6 +32,7 @@
 .snap-overlay [data-snap="max"] { grid-column: 1 / -1; }
 
 .context-menu { position: absolute; width: 250px; z-index: 7000; border-radius: 18px; padding: 8px; }
+.context-menu-items { display: contents; }
 .context-menu button { width: 100%; border-radius: 12px; padding: 10px 12px; background: transparent; text-align: left; display: flex; justify-content: space-between; gap: 10px; }
 .context-menu button:hover { background: rgba(255,255,255,.14); }
 .context-menu hr { border: 0; border-top: 1px solid var(--stroke); margin: 6px; }

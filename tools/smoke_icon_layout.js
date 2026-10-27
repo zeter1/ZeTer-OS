@@ -52,4 +52,12 @@ assert.equal(dense.x, 84, "80px icons can be placed with a 4px gap");
 assert.equal(dense.y, 0);
 const longLabel = layout.resolveIconPosition({ x: 0, y: 85, w: 80, h: 110 }, [{ x: 0, y: 0, w: 80, h: 120 }], { width: 80 });
 assert.ok(longLabel.y >= 124, "actual long-label height remains protected");
+// Measured cloud-apply regression: menu bottom=36, collision search used 4px,
+// then the next render's 8px forbidden-area clamp moved saved y=40 to y=46.
+const menu={x:0,y:0,w:1400,h:36},firstIcon={x:32,y:46,w:80,h:82};
+const belowMenu=layout.resolveIconPosition({...firstIcon},[firstIcon],{width:1400,gap:4,forbiddenRects:[menu]});
+assert.ok(belowMenu.y>=44,'collision search must preserve at least 8px below the 36px system menu');
+const nextRender=layout.clampDesktopPosition(belowMenu.x,belowMenu.y,{viewportWidth:1400,viewportHeight:1100,forbiddenRects:[menu]});
+assert.deepEqual(plainPosition(nextRender),plainPosition(belowMenu),'the next render must not move ACKed coordinates out of the menu clearance');
+function plainPosition(value){return {x:value.x,y:value.y};}
 console.log("icon layout, empty defaults, numbered folders: ok");

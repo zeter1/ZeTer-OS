@@ -17,8 +17,10 @@ const sandbox = {
   document: {
     querySelector() { return null; },
     createElement(tag) {
-      if (tag === "div") return root;
       return {
+        tagName: tag.toUpperCase(), children: [], attributes: {},
+        appendChild(child) { this.children.push(child); },
+        setAttribute(name, value) { this.attributes[name] = value; },
         style: {}, dataset: {}, listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; },
         get offsetWidth() { return { small: 64, medium: 80, large: 104 }[activeContainer.dataset.iconSize]; },
         get offsetHeight() {
@@ -66,7 +68,7 @@ function render(appearance, sourceItems, width = 640) {
   desktop.renderDesktopIcons({ container: activeContainer, items: sourceItems, appearance,
     clampPosition: (x, y) => ({ x, y }), itemIcon: () => "📄"
   });
-  return children;
+  return children.map(entry => entry.children[0]);
 }
 const data = [
   { id: "a", type: "file", name: "Отчёт.txt", x: 0, y: 0, content: "preserve" },
@@ -108,7 +110,7 @@ for (const mode of ['double', 'single']) {
   const children=[];let opens=0,selections=0;
   activeContainer={dataset:{},clientWidth:640,appendChild:child=>children.push(child),set innerHTML(_value){children.length=0;}};
   desktop.renderDesktopIcons({container:activeContainer,items:[{id:'activation',name:'Имя.txt'}],appearance:{openMode:mode},onSelect:()=>{selections++;},onOpen:()=>{opens++;}});
-  const icon=children[0];
+  const icon=children[0].children[0];
   const event=(detail=1,extra={})=>({detail,stopPropagation(){},preventDefault(){},...extra});
   icon.listeners.click(event(1));icon.listeners.click(event(2));icon.listeners.dblclick(event(2));
   assert.equal(opens,1,`${mode}: full double event sequence opens exactly once`);

@@ -522,6 +522,7 @@ async function smokeSelectiveDesktopDeletion() {
   });
   sandbox.state = state;
   sandbox.primaryStateSaveQueue = queue;
+  sandbox.googleDriveSyncController = null;
   sandbox.searchRevision = 0;
   sandbox.syncLegacyWorkspaceAliases = workspace.syncLegacyWorkspaceAliases;
   sandbox.storageStateRuntimeController = sandbox.ZETER_STORAGE_UTILS.createStorageStateRuntimeController({ getState: () => state,

@@ -87,6 +87,12 @@
       return String(clone.innerText ?? clone.textContent ?? "").replace(/\u00a0/g, " ");
     };
     let changed = false;
+    const capture = (item, values) => {
+      if (Object.keys(values).every(key => item[key] === values[key])) return;
+      Object.assign(item, values);
+      item.updatedAt = now();
+      changed = true;
+    };
     windows.forEach(record => {
       const itemId = record?.params?.itemId;
       const item = itemId ? getItem(itemId) : null;
@@ -102,29 +108,21 @@
         const title = query(".editor-title", record.el);
         const area = query(".rich-editor-area", record.el);
         if (!area) return;
-        item.name = title?.value?.trim() || item.name;
-        item.richContent = cleanRichHtml(area.innerHTML);
-        item.content = editablePlainText(area);
-        item.updatedAt = now();
-        changed = true;
+        capture(item, {name:title?.value?.trim() || item.name,
+          richContent:cleanRichHtml(area.innerHTML),content:editablePlainText(area)});
       }
 
       if (record.appId === "markdown") {
         const title = query(".editor-title", record.el);
         const area = query("textarea", record.el);
         if (!area) return;
-        item.name = title?.value?.trim() || item.name;
-        item.content = area.value;
-        item.updatedAt = now();
-        changed = true;
+        capture(item, {name:title?.value?.trim() || item.name,content:area.value});
       }
 
       if (record.appId === "table") {
         const title = query(".table-title", record.el);
         if (title?.value?.trim()) {
-          item.name = title.value.trim();
-          item.updatedAt = now();
-          changed = true;
+          capture(item, {name:title.value.trim()});
         }
       }
     });
@@ -135,16 +133,15 @@
       const title = query("[data-sticky-title]", card);
       const text = query("[data-sticky-text]", card);
       if (!text) return;
-      note.name = title?.value?.trim() || note.name;
+      const values = {name:title?.value?.trim() || note.name};
       if (text.getAttribute?.("contenteditable") !== null) {
-        note.content = editablePlainText(text);
-        note.richContent = cleanRichHtml(text.innerHTML);
+        values.content = editablePlainText(text);
+        values.richContent = cleanRichHtml(text.innerHTML);
       } else {
-        note.content = text.value;
-        note.richContent = plainToRichHtml(text.value);
+        values.content = text.value;
+        values.richContent = plainToRichHtml(text.value);
       }
-      note.updatedAt = now();
-      changed = true;
+      capture(note, values);
     });
     return changed;
   }

@@ -26,6 +26,8 @@ def make_project(root: Path) -> None:
     write_fixture(root / "problem_logs.py", "OWNER = 'zeter-os-problem-logs'\n")
     write_fixture(root / "document_converter.py", "# Word document converter\n")
     write_fixture(root / "security_backup.py", "# Full backup dependency\n")
+    write_fixture(root / "google_drive_backup.py", "# Google Drive authentication dependency\n")
+    write_fixture(root / "google_drive_sync.py", "# Google Drive synchronization dependency\n")
     write_fixture(root / "app_updater.py", "# source dependency; installer disabled outside EXE\n")
     write_fixture(root / "update_runner.py", "# standalone updater source\n")
     write_fixture(root / "requirements.txt", "pywebview>=5.0\n")
@@ -80,6 +82,8 @@ def main() -> None:
         assert f"{ARCHIVE_ROOT}/run_zeter_os.py" in names
         assert f"{ARCHIVE_ROOT}/problem_logs.py" in names
         assert f"{ARCHIVE_ROOT}/security_backup.py" in names
+        assert f"{ARCHIVE_ROOT}/google_drive_backup.py" in names
+        assert f"{ARCHIVE_ROOT}/google_drive_sync.py" in names
         assert f"{ARCHIVE_ROOT}/app_updater.py" in names
         assert f"{ARCHIVE_ROOT}/update_runner.py" in names
         assert f"{ARCHIVE_ROOT}/Логи проблем/README_FOR_CODEX.md" in names

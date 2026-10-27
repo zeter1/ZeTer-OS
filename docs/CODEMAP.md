@@ -5,9 +5,9 @@
 <!-- BEGIN GENERATED CORE SUMMARY -->
 > Этот блок обновляется командой `python tools/update_docs.py --write`.
 
-- Core-модулей: 92.
-- Публичных глобалов: 92.
-- Статических зависимостей: 212.
+- Core-модулей: 95.
+- Публичных глобалов: 95.
+- Статических зависимостей: 218.
 - Подробный порядок: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
 <!-- END GENERATED CORE SUMMARY -->
 
@@ -20,6 +20,8 @@
 | `tools/prepare_web.py`, `prepare_web.cmd`, `app/web-release.json`, `app/js/web-bootstrap.js`, `app/service-worker.js` | Прямая публикация содержимого app: generated SHA-256 manifest последним, ранний gate, целые комплекты кэша и привязка вкладок; контракт в [UCOZ.md](UCOZ.md) |
 | `app/assets/icons/zeter-mark.svg`, `tools/build_brand_assets.ps1` | Исходник знака из двух синих плоскостей, цвет подложки и генератор общих SVG/PNG/ICO; потребители и контракт в [BRANDING.md](BRANDING.md) |
 | `run_zeter_os.py` | Python launcher, локальный сервер, pywebview API, пользовательский автозапуск Windows, уникальные атомарные записи, транзакционная primary-запись, синхронизированные restore points, `data/`, резервные и Windows-копии, объединённое удержание/GC payload и preflight локального восстановления; runtime-сеанс diagnostics создаёт в `_run_normal_app()` |
+| `google_drive_backup.py` | Desktop Google OAuth/PKCE, private per-user DPAPI и узкий Drive HTTP transport |
+| `google_drive_sync.py` | Собственные обычные Drive-файлы, immutable upload/readback, operation dedupe, metadata-only move, account-bound CAS broker; private per-install sync metadata и локальные конфликтные ветки |
 | `document_converter.py` | Изолированное преобразование DOC/DOCX через LibreOffice, безопасный HTML и встроенные картинки, проверка содержимого DOCX, durable pending-маркеры; native-публикация принадлежит `NativeStorageApi` |
 | `app_updater.py`, `update_runner.py` | Проверка канала и пакета EXE, staging, manifest-owned замена, журнал, gates установки и rollback; контракт в [UPDATES.md](UPDATES.md) |
 | `build_exe.bat`, `build_support/package_runtime.py` | Сборка Windows EXE и runtime hook для `--self-test`; инструкция в [BUILD_EXE.md](../BUILD_EXE.md) |
@@ -62,9 +64,9 @@
 
 | Файл | Публичный глобал | Назначение |
 |---|---|---|
-| `app/js/core/shell-ui-utils.js` | `ZETER_SHELL_UI_UTILS` | Boot/first-run lifecycle, глобальные shell-события, floating-панели, top-menu dispatch, часы, toast и controllers закреплённых/running-приложений панели задач |
+| `app/js/core/shell-ui-utils.js` | `ZETER_SHELL_UI_UTILS` | Boot/first-run lifecycle, глобальные shell-события, floating-панели, top-menu dispatch, часы, toast, controllers панели задач; мобильное меню переполнения, выбор стола из шапки и перенос существующей кнопки уведомлений |
 | `app/js/core/first-run-ui-utils.js` | `ZETER_FIRST_RUN_UI_UTILS` | Приветствие, шесть этапов настроек/приложений/запуска, staged snapshot, первый ZIP-бэкап и обучение на рабочем столе |
-| `app/js/core/context-menu-ui-utils.js` | `ZETER_CONTEXT_MENU_UI_UTILS` | Модели и action-dispatchers desktop/item-меню, меню Пуска, окон, панели задач и Проводника, разметка, callbacks и позиционирование контекстного меню |
+| `app/js/core/context-menu-ui-utils.js` | `ZETER_CONTEXT_MENU_UI_UTILS` | Модели и action-dispatchers desktop/item-меню, меню Пуска, окон, панели задач и Проводника, разметка, literal-заголовок мобильного меню, Escape/фокус, callbacks и позиционирование контекстного меню |
 | `app/js/core/pinning-utils.js` | `ZETER_PINNING_UTILS` | Закрепления taskbar и меню Пуск |
 | `app/js/core/desktop-layout-utils.js` | `ZETER_DESKTOP_LAYOUT_UTILS` | Геометрия, запрещённые зоны, свободные позиции, единый delta группового перемещения и runtime-controller координат desktop-иконок |
 | `app/js/core/item-drag-ui-utils.js` | `ZETER_ITEM_DRAG_UI_UTILS` | Runtime-controller pointer drag/drop: threshold, точный delta от точки захвата, ghost, широкие fallback-зоны текущей папки, подсветка folder/inline/table целей и перенос managed-файлов без создания дубля через callbacks |
@@ -144,6 +146,9 @@
 | `app/js/core/security-utils.js` | `ZETER_SECURITY_UTILS` | Снимки browser/native-хранилища, validators, полная integrity-проверка, безопасный ремонт и расчёт риска |
 | `app/js/core/security-restore-utils.js` | `ZETER_SECURITY_RESTORE_UTILS` | Чистый план выборочного восстановления, зависимости и переназначение ID |
 | `app/js/core/security-vault-utils.js` | `ZETER_SECURITY_VAULT_UTILS` | Browser-история полных ZIP, Web Locks, pin и безопасное ограничение истории |
+| `app/js/core/cloud-payload-utils.js` | `ZETER_CLOUD_PAYLOAD_UTILS` | Неизменяемые browser Blob, проверка путей/hash, collision remap, сохранение локальных веток и локальная сборка проверяемого архива |
+| `app/js/core/google-drive-sync-utils.js` | `ZETER_GOOGLE_DRIVE_SYNC_UTILS` | Общий incremental sync engine: baseline, новые обычные файлы, D1 CAS, конфликты устройств и согласование видимой папки data |
+| `app/js/core/google-drive-backup-utils.js` | `ZETER_GOOGLE_DRIVE_BACKUP_UTILS` | Google native/web/broker adapters и панель подключения/правил синхронизации; прежний ZIP transport остаётся внутренним |
 | `app/js/core/security-recovery-utils.js` | `ZETER_SECURITY_RECOVERY_UTILS` | Проверка выбранного архива, preview/apply и расписание полных копий |
 | `app/js/core/security-ui-utils.js` | `ZETER_SECURITY_UI_UTILS` | Data-safety runtime-controller: четыре раздела Центра безопасности, независимая загрузка статусов/истории/очистки, read deadline и operation busy guard, snapshot/integrity/fix, storage pressure/cleanup/reset, restore points с native payload-preflight и откатом state при отказе сохранения, внешний browser folder handle |
 | `app/js/core/table-utils.js` | `ZETER_TABLE_UTILS` | Табличные данные, стили и импорт CSV с автоопределением разделителей `;`/`,` |
@@ -203,6 +208,7 @@
 | `app/css/80-overrides.css` | Поздние shell/app overrides |
 | `app/css/85-explorer-plus.css` | Tabs, address, preview и selection |
 | `app/css/90-security.css` | Центр безопасности |
+| `app/css/95-mobile.css` | Автоматическая телефонная оболочка: панели, сетка значков, полноэкранные окна, touch-контролы и safe-area; кнопка выбора стола и компактный плюс в шапке, маленькие меню на углах ярлыков; заголовки меню и «Ещё» редактора; компактная панель Проводника, кнопки действий материалов и закрытия вкладок; media query синхронизирована с `ZETER_CORE_UTILS.isMobileLayout` |
 
 ## Данные и проверки
 

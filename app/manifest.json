@@ -1,7 +1,7 @@
 {
   "name": "ZeTer OS",
   "short_name": "ZeTer OS",
-  "description": "ZeTer OS desktop-среда с хранением данных в папке data.",
+  "description": "Рабочая среда для компьютера и телефона: материалы, задачи и календарь.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

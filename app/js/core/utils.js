@@ -6,6 +6,55 @@
   const pad = value => String(value).padStart(2, "0");
   const uid = (prefix = "id") => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
+  // Keep in sync with 95-mobile.css. Also covers phones rotated to landscape.
+  const isMobileLayout = () => Boolean(window.matchMedia?.("(max-width: 600px), (max-width: 1024px) and (pointer: coarse)").matches);
+
+  function bindTouchContextMenu(element, showMenu) {
+    let gesture = null;
+    let clickGuard = null;
+    const documentRef = element.ownerDocument;
+    const clearClickGuard = () => {
+      if (clickGuard) documentRef?.removeEventListener("click", clickGuard, true);
+      documentRef?.removeEventListener("pointerdown", clearClickGuard, true);
+      documentRef?.removeEventListener("keydown", clearClickGuard, true);
+      clickGuard = null;
+    };
+    const cancel = () => { if (gesture) clearTimeout(gesture.timer); gesture = null; };
+    element.addEventListener("pointerdown", event => {
+      cancel();
+      delete element.dataset.dragJustEnded;
+      if (event.pointerType !== "touch") return;
+      const current = { x: event.clientX, y: event.clientY, id: event.pointerId };
+      gesture = current;
+      current.timer = setTimeout(() => {
+        if (gesture !== current || !element.isConnected) return;
+        element.dataset.dragJustEnded = "1";
+        // The new menu can appear under the held finger. Consume this gesture's
+        // compatibility click even when the browser retargets it to a menu action.
+        clearClickGuard();
+        clickGuard = click => {
+          if (click.pointerId != null && click.pointerId !== current.id) return;
+          click.preventDefault();
+          click.stopImmediatePropagation();
+          clearClickGuard();
+        };
+        documentRef?.addEventListener("click", clickGuard, true);
+        documentRef?.addEventListener("pointerdown", clearClickGuard, true);
+        documentRef?.addEventListener("keydown", clearClickGuard, true);
+        showMenu(event);
+      }, 550);
+    });
+    element.addEventListener("pointermove", event => {
+      if (gesture && (event.pointerId !== gesture.id || Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 10)) cancel();
+    });
+    element.addEventListener("pointerup", event => {
+      if (element.dataset.dragJustEnded === "1") event.preventDefault();
+      cancel();
+    });
+    element.addEventListener("pointercancel", cancel);
+    element.addEventListener("lostpointercapture", cancel);
+  }
+
   const todayISO = () => {
     const date = new Date();
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -78,6 +127,8 @@
       $$,
       pad,
       uid,
+      isMobileLayout,
+      bindTouchContextMenu,
       todayISO,
       dateISO,
       parseISO,

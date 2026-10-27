@@ -46,6 +46,12 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q run_zeter_os.py problem_logs.py app_updater.py update_runner.py tools build_support
 
+      - name: Run Google Drive diagnostic privacy regression
+        run: python tools/smoke_google_drive_diagnostics.py
+
+      - name: Verify ZIP-only per-install cloud settings
+        run: python tools/smoke_google_drive_zip_mode.py
+
       - name: Run full project verification
         run: python tools/check_project.py --strict-node
 

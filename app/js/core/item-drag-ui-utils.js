@@ -77,6 +77,8 @@
     }
 
     element.addEventListener("pointerdown", event => {
+      // A finger scrolls the page; it must never move or relocate a material.
+      if (event.pointerType === "touch") return;
       if (event.button !== 0 || (ignoreSelector && event.target?.closest(ignoreSelector))) return;
       clearActiveListeners();
       down = {

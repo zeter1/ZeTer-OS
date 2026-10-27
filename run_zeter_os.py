@@ -42,6 +42,57 @@ from problem_logs import DailyProblemLogs, ProblemLogs, diagnosed, plain_path
 from app_updater import UpdateError, UpdateManager, normal_instance_lock
 import document_converter
 from security_backup import SecurityBackupStore
+from google_drive_backup import DriveError, GoogleDriveBackup
+from google_drive_sync import GoogleDriveSync
+from problem_logs import ENUM_FIELDS as DIAGNOSTIC_ENUM_FIELDS, NUMBER_FIELDS as DIAGNOSTIC_NUMBER_FIELDS, BOOL_FIELDS as DIAGNOSTIC_BOOL_FIELDS
+
+
+def drive_diagnostic_error(exc: BaseException) -> str:
+    """Map known, public error classes to fixed codes; never log exception text."""
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return "network_timeout"
+    if isinstance(exc, (ValueError, TypeError)):
+        return "invalid_data"
+    message = str(exc)
+    if getattr(exc, "status", None) in {400, 403, 404, 409, 429, 500, 502, 503, 504}:
+        return "http_failure"
+    if message.startswith("Нет соединения с сервером подключения Google Drive"):
+        return "token_broker_unreachable"
+    if message.startswith("Нет соединения с сервером синхронизации"):
+        return "broker_unreachable"
+    if message.startswith("Нет соединения с Google Drive"):
+        return "google_unreachable"
+    if message == "Принятый манифест облачной копии отсутствует в Google Drive.":
+        return "missing_cloud_snapshot"
+    if "контрольное чтение" in message or "контрольная сумма" in message:
+        return "safety_readback"
+    if "повторно" in message and "подключ" in message:
+        return "auth_required"
+    if "облачная версия изменилась" in message.lower():
+        return "stale_cloud"
+    return "unknown_failure"
+
+
+def sanitized_drive_diagnostic(payload: Any) -> Optional[Dict[str, Any]]:
+    """Strict, bounded allowlist: no URLs, account IDs, file names or tokens."""
+    keys = {"driveEvent", "drivePhase", "driveError", "driveChoice", "cloudGeneration", "localFileCount",
+            "syncAttempt", "cloudHeadPresent", "rootMissing", "localChanged", "cloudChanged",
+            "conflictSaved", "uploadPending", "connectionReady"}
+    if not isinstance(payload, dict) or not set(payload).issubset(keys):
+        return None
+    if payload.get("driveEvent") not in DIAGNOSTIC_ENUM_FIELDS["driveEvent"]:
+        return None
+    result = {}
+    for key, value in payload.items():
+        if key in DIAGNOSTIC_ENUM_FIELDS and isinstance(value, str) and value in DIAGNOSTIC_ENUM_FIELDS[key]:
+            result[key] = value
+        elif key in DIAGNOSTIC_BOOL_FIELDS and type(value) is bool:
+            result[key] = value
+        elif key in DIAGNOSTIC_NUMBER_FIELDS and type(value) is int and 0 <= value <= 10**12:
+            result[key] = value
+        else:
+            return None
+    return result
 
 APP_NAME = "ZeTer OS"
 WINDOWS_RUN_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -1978,6 +2029,7 @@ class NativeStorageApi:
         windows_startup_manager: Optional[Any] = None,
         problem_logs: Optional[ProblemLogs | DailyProblemLogs] = None,
         app_updater: Optional[Any] = None,
+        google_drive_credentials_root: Optional[Path] = None,
     ) -> None:
         self._problem_logs = problem_logs
         ensure_dirs()
@@ -1995,6 +2047,7 @@ class NativeStorageApi:
         self._native_operation_gate = threading.RLock()
         self._active_native_operations = 0
         self._closing = False
+        self._google_drive = GoogleDriveBackup(self, sys.modules[__name__], credentials_root=google_drive_credentials_root)
         # Effective paths are taken at construction, after test overrides are applied.
         self._app_updater = app_updater or UpdateManager(BASE_DIR, DATA_DIR)
         self._uncommitted_file_paths: Dict[str, float] = {}
@@ -2036,6 +2089,163 @@ class NativeStorageApi:
     def _security_backup_store(self) -> SecurityBackupStore:
         # Resolve DATA_DIR at each operation, including isolated native smokes.
         return SecurityBackupStore(self, sys.modules[__name__])
+
+    def _google_drive_call(self, method: str, payload: Any = None) -> Dict[str, Any]:
+        with self._diagnostic_operation("google_drive_connection") as observed:
+            self._diagnostic_fields(driveAction=method)
+            try:
+                operation = getattr(self._google_drive, method)
+                if method in {"upload", "download"}:
+                    payload = self._payload_dict(payload, "Некорректный запрос Google Drive.")
+                    result = operation(payload)
+                elif method == "zip_preferences":
+                    result = operation(self._payload_dict(payload, "Некорректные ZIP-настройки.") if payload is not None else None)
+                else:
+                    result = operation()
+                if isinstance(result, dict):
+                    self._diagnostic_fields(connectionReady=bool(result.get("connected")) if method in {"connect", "status"} else None)
+                if observed is not None:
+                    observed.result(result)
+                return result
+            except Exception as exc:
+                code = drive_diagnostic_error(exc)
+                self._diagnostic_fields(driveError=code, httpStatus=getattr(exc, "status", None),
+                                        driveApiReason=getattr(exc, "reason", None),
+                                        driveApiField=getattr(exc, "location", None))
+                self._problem(exc, stage="google_drive_connection")
+                log(f"GOOGLE_DRIVE connection action={method} failure={code}")
+                message = str(exc) if isinstance(exc, DriveError) else "Не удалось выполнить действие Google Drive. Повторите позже."
+                result = {"ok": False, "error": message}
+                if observed is not None:
+                    observed.result(result)
+                return result
+
+    @guard_native_operation
+    def google_drive_status(self) -> Dict[str, Any]:
+        return self._google_drive_call("status")
+
+    @guard_native_operation
+    def google_drive_connect(self) -> Dict[str, Any]:
+        return self._google_drive_call("connect")
+
+    @guard_native_operation
+    def google_drive_disconnect(self) -> Dict[str, Any]:
+        return self._google_drive_call("disconnect")
+
+    @guard_native_operation
+    def google_drive_list(self) -> Dict[str, Any]:
+        return self._google_drive_call("list")
+
+    @guard_native_operation
+    def google_drive_upload(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_call("upload", payload)
+
+    @guard_native_operation
+    def google_drive_download(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_call("download", payload)
+
+    @guard_native_operation
+    def google_drive_zip_preferences(self, payload: Any = None) -> Dict[str, Any]:
+        return self._google_drive_call("zip_preferences", payload)
+
+    def _google_drive_sync_call(self, method: str, payload: Any = None) -> Dict[str, Any]:
+        with self._diagnostic_operation("google_drive_sync_rpc") as observed:
+            self._diagnostic_fields(driveAction=method)
+            try:
+                operation = getattr(GoogleDriveSync(self._google_drive), method)
+                if method in {"sync_head", "allocate_id"} or (method == "sync_preferences" and payload is None):
+                    result = operation()
+                else:
+                    result = operation(self._payload_dict(payload, "Некорректный запрос синхронизации."))
+                if method == "sync_head" and isinstance(result, dict):
+                    self._diagnostic_fields(cloudHeadPresent=result.get("head") is not None,
+                                            cloudGeneration=result.get("generation"),
+                                            rootMissing=bool(result.get("missingRootFolderId")))
+                if observed is not None:
+                    observed.result(result)
+                return result
+            except Exception as exc:
+                code = drive_diagnostic_error(exc)
+                self._diagnostic_fields(driveError=code, httpStatus=getattr(exc, "status", None),
+                                        driveApiReason=getattr(exc, "reason", None),
+                                        driveApiField=getattr(exc, "location", None))
+                self._problem(exc, stage="google_drive_sync_rpc")
+                log(f"GOOGLE_DRIVE sync action={method} failure={code} httpStatus={getattr(exc, 'status', None)} reason={getattr(exc, 'reason', 'other')}")
+                message = str(exc) if isinstance(exc, DriveError) else "Не удалось выполнить синхронизацию Google Drive. Повторите позже."
+                result = {"ok": False, "error": message}
+                if (method == "make_folder" and isinstance(exc, DriveError) and exc.status == 400
+                        and exc.reason == "invalid" and exc.location == "fileId"):
+                    result["code"] = "invalid_reserved_folder_id"
+                    result["error"] = "Google Drive отклонил ранее зарезервированный ID папки."
+                if observed is not None:
+                    observed.result(result)
+                return result
+
+    @guard_native_operation
+    def google_drive_sync_diagnostic(self, payload: Any) -> Dict[str, Any]:
+        """Record strict structured UI decisions without user content or credentials."""
+        value = sanitized_drive_diagnostic(payload)
+        if value is None:
+            return {"ok": False, "error": "Некорректное диагностическое событие Google Drive."}
+        if self._problem_logs:
+            self._problem_logs.event("google_drive_client", "error" if value["driveEvent"] == "failure" else "success", **value)
+            if value["driveEvent"] == "failure":
+                # Attempt numbers change every 20 seconds: never fingerprint by them.
+                stable = {key: item for key, item in value.items() if key not in {"syncAttempt", "localFileCount"}}
+                self._problem_logs.failure(stage="google_drive_client", client={"kind": "drive_sync_error", **stable})
+        return self._ok(recorded=bool(self._problem_logs))
+
+    @guard_native_operation
+    def google_drive_allocate_id(self) -> Dict[str, Any]:
+        return self._google_drive_sync_call("allocate_id")
+
+    @guard_native_operation
+    def google_drive_directory_id(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("directory_id", payload)
+
+    @guard_native_operation
+    def google_drive_bootstrap(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("bootstrap", payload)
+
+    @guard_native_operation
+    def google_drive_recreate_root(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("recreate_root", payload)
+
+    @guard_native_operation
+    def google_drive_make_folder(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("make_folder", payload)
+
+    @guard_native_operation
+    def google_drive_files(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("files", payload)
+
+    @guard_native_operation
+    def google_drive_put_file(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("put_file", payload)
+
+    @guard_native_operation
+    def google_drive_read_file(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("read_file", payload)
+
+    @guard_native_operation
+    def google_drive_move_file(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("move_file", payload)
+
+    @guard_native_operation
+    def google_drive_sync_head(self) -> Dict[str, Any]:
+        return self._google_drive_sync_call("sync_head")
+
+    @guard_native_operation
+    def google_drive_sync_commit(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("sync_commit", payload)
+
+    @guard_native_operation
+    def google_drive_sync_preferences(self, payload: Any = None) -> Dict[str, Any]:
+        return self._google_drive_sync_call("sync_preferences", payload)
+
+    @guard_native_operation
+    def google_drive_sync_preserve(self, payload: Any) -> Dict[str, Any]:
+        return self._google_drive_sync_call("sync_preserve", payload)
 
     def _choose_security_backup_folder(self) -> Optional[Path]:
         if self._window is None:
@@ -3634,8 +3844,14 @@ class NativeStorageApi:
                     points.sort(key=lambda item: int(item.get("createdAt") or 0), reverse=True)
                     points = points[:RESTORE_LIMIT]
                     atomic_write_json(RESTORE_FILE, points)
+                    # Confirm the canonical (portable) payload after a real disk read.
+                    # The JS caller's original snapshot can legitimately differ
+                    # because normalization occurs before writing this file.
+                    stored_points = read_json_file(RESTORE_FILE)
+                    if stored_points != points:
+                        raise RuntimeError("Точка восстановления не прошла контрольное чтение с диска.")
                     payload_gc = self._garbage_collect_payload()
-                    return self._ok(count=len(points), restoreFile=str(RESTORE_FILE), **payload_gc)
+                    return self._ok(count=len(points), restoreFile=str(RESTORE_FILE), stateVerified=True, **payload_gc)
         except Exception as exc:
             return self._error(exc)
 

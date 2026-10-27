@@ -297,10 +297,26 @@ vm.createContext(windowSandbox);
 runScript("app/js/core/window-ui-utils.js", windowSandbox);
 const windowUi = windowSandbox.window.ZETER_WINDOW_UI_UTILS;
 const classes = new Set();
+const hintClasses = new Set();
+const slotListeners = new Map();
+let resizeHints;
+let observerDisconnected = false;
+windowSandbox.window.ResizeObserver = class {
+  constructor(callback) { resizeHints = callback; }
+  observe() {}
+  disconnect() { observerDisconnected = true; }
+};
 const slot = {
   child: null,
   hidden: true,
   attributes: {},
+  scrollLeft: 70, scrollWidth: 400, clientWidth: 100,
+  classList: {
+    toggle(name, enabled) { if (enabled) hintClasses.add(name); else hintClasses.delete(name); },
+    remove(...names) { names.forEach(name => hintClasses.delete(name)); }
+  },
+  addEventListener(name, callback) { slotListeners.set(name, callback); },
+  removeEventListener(name, callback) { if (slotListeners.get(name) === callback) slotListeners.delete(name); },
   replaceChildren() { this.child = null; },
   appendChild(child) { this.child = child; return child; },
   setAttribute(name, value) { this.attributes[name] = value; }
@@ -318,10 +334,24 @@ assert.strictEqual(slot.child, headerSource);
 assert.strictEqual(slot.hidden, false);
 assert.strictEqual(slot.attributes["aria-hidden"], "false");
 assert.strictEqual(classes.has("has-window-header-tools"), true);
+assert.strictEqual(slot.scrollLeft, 0);
+assert.strictEqual(hintClasses.has("has-more-after"), true);
+assert.strictEqual(hintClasses.has("has-more-before"), false);
+slot.scrollLeft = 300;
+slotListeners.get("scroll")();
+assert.strictEqual(hintClasses.has("has-more-after"), false);
+assert.strictEqual(hintClasses.has("has-more-before"), true);
+slot.scrollLeft = 0;
+slot.clientWidth = 500;
+resizeHints();
+assert.strictEqual(hintClasses.size, 0, "resize clears hints when commands fit");
 assert.strictEqual(windowUi.syncWindowHeaderTools(windowElement, { matches: () => false, querySelector: () => null }), false);
 assert.strictEqual(slot.child, null);
 assert.strictEqual(slot.hidden, true);
 assert.strictEqual(classes.has("has-window-header-tools"), false);
+assert.strictEqual(observerDisconnected, true);
+assert.strictEqual(slotListeners.size, 0);
+assert.strictEqual(slot.disposeScrollHints, undefined);
 const windowSource = fs.readFileSync(path.join(projectRoot, "app/js/core/window-ui-utils.js"), "utf8");
 assert.match(windowSource, /syncWindowHeaderTools\(element, bodyNode\)/);
 assert.match(windowSource, /syncWindowHeaderTools\(record\.el, bodyNode\)/);

@@ -27,6 +27,83 @@
     return `<p class="muted">Уведомлений нет.</p>`;
   }
 
+  function driveIncomingHTML(incoming, popup = false) {
+    if (!incoming?.key) return "";
+    const busy = Boolean(incoming.busy);
+    return `<section class="drive-incoming-notice${popup ? " drive-incoming-popup" : ""}" data-drive-incoming-notice data-incoming-key="${escapeHtml(incoming.key)}" aria-busy="${busy}"><b>Доступны новые данные</b><p>${escapeHtml(incoming.text || "На другом устройстве появились новые данные. Загрузить их сейчас?")}</p><div class="drive-incoming-actions"><button type="button" data-drive-incoming-action="accept" ${busy ? "disabled" : ""}>Загрузить новые данные</button><button type="button" data-drive-incoming-action="defer" ${busy ? "disabled" : ""}>Позже</button></div><span class="drive-incoming-progress" role="status">${busy ? "Проверяем и загружаем данные…" : ""}</span></section>`;
+  }
+
+  // This projection deliberately lives outside workspace notifications and synced state.
+  function createDriveIncomingController(options = {}) {
+    const document = options.document;
+    let incoming = null, popup = null, popupKey = "", pendingKey = "";
+    const announced = new Set();
+    function getIncoming() { return incoming ? { ...incoming, busy: Boolean(incoming.busy || pendingKey === incoming.key) } : null; }
+    function focusedAction() {
+      const button = document.activeElement?.closest?.("[data-drive-incoming-action]");
+      return button ? { name: button.dataset.driveIncomingAction, key: button.closest("[data-incoming-key]")?.dataset.incomingKey } : null;
+    }
+    function restoreFocus(target) {
+      if (!target || (document.activeElement && document.activeElement !== document.body)) return;
+      const button = [...document.querySelectorAll("[data-drive-incoming-action]")].find(item => !item.disabled && item.dataset.driveIncomingAction === target.name && item.closest("[data-incoming-key]")?.dataset.incomingKey === target.key);
+      button?.focus();
+    }
+    function render() {
+      const focused = focusedAction();
+      if (popup) { popup.remove(); popup = null; }
+      const offer = getIncoming();
+      if (offer && popupKey === offer.key && !offer.deferred) {
+        popup = document.createElement("div");
+        popup.className = "drive-incoming-popup-host";
+        popup.setAttribute("aria-live", "polite");
+        popup.innerHTML = driveIncomingHTML(offer, true);
+        document.body.append(popup);
+      }
+      options.onChange?.();
+      restoreFocus(focused);
+    }
+    function setIncoming(value) {
+      incoming = value?.key ? { ...value } : null;
+      if (!incoming) { popupKey = ""; pendingKey = ""; }
+      else if (!incoming.deferred && !announced.has(incoming.key)) {
+        announced.add(incoming.key);
+        popupKey = incoming.key;
+      }
+      render();
+    }
+    async function action(name, key) {
+      if (!["accept", "defer"].includes(name) || !incoming || incoming.key !== key || incoming.busy || pendingKey) return false;
+      const focused = focusedAction();
+      if (name === "defer") {
+        // Hide immediately while retaining the notification-center projection.
+        popupKey = "";
+        incoming = { ...incoming, deferred: true };
+      }
+      pendingKey = key;
+      render();
+      try {
+        if (name === "accept") await options.acceptIncoming?.(key);
+        else if (name === "defer") await options.deferIncoming?.(key);
+        return true;
+      } catch (error) {
+        if (incoming?.key === key && !error?.cancelled) options.onError?.(error);
+        return false;
+      } finally {
+        if (pendingKey === key) { pendingKey = ""; render(); restoreFocus(focused); }
+      }
+    }
+    document.addEventListener("click", event => {
+      const button = event.target?.closest?.("[data-drive-incoming-action]");
+      if (!button || button.disabled) return;
+      const card = button.closest("[data-incoming-key]");
+      if (!card) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void action(button.dataset.driveIncomingAction, card.dataset.incomingKey);
+    });
+    return Object.freeze({ setIncoming, getIncoming, action });
+  }
+
   function notificationListHTML(notifications = [], options = {}) {
     const filter = options.filter || "all";
     const matchesFilter = typeof options.matchesFilter === "function" ? options.matchesFilter : () => true;
@@ -89,11 +166,12 @@
       options.clearReadButton.disabled = !notifications.some(notification => notification.read);
     }
     if (list) {
-      list.innerHTML = notificationListHTML(notifications, {
+      const transient = ["all", "unread"].includes(filter) ? driveIncomingHTML(options.incoming) : "";
+      list.innerHTML = transient + (notifications.length ? notificationListHTML(notifications, {
         filter,
         matchesFilter: options.matchesFilter,
         canOpen: options.canOpen
-      });
+      }) : transient ? "" : notificationsEmptyHTML());
     }
     if (agenda) agenda.innerHTML = miniAgendaHTML(options.events || []);
     if (agendaTitle) agendaTitle.textContent = miniAgendaTitle(options.date || new Date());
@@ -119,7 +197,7 @@
     function updateBadge() {
       const badge = document.querySelector("#notif-count");
       if (!badge) return;
-      const unread = getNotifications().filter(notification => !notification.read).length;
+      const unread = getNotifications().filter(notification => !notification.read).length + (integration.getIncoming?.() ? 1 : 0);
       badge.textContent = unread;
       badge.classList.toggle("hidden", unread === 0);
     }
@@ -161,6 +239,7 @@
         agendaTitle: document.querySelector("#mini-date-title"),
         filter: getFilter() || "all",
         notifications: getNotifications(),
+        incoming: integration.getIncoming?.(),
         matchesFilter: notificationMatchesFilter,
         canOpen: notificationCanOpen,
         events: getEventsForDate(todayISO()).slice(0, 5),
@@ -284,6 +363,8 @@
 
   window.ZETER_NOTIFICATION_UI_UTILS = Object.freeze({
     notificationCardHTML,
+    driveIncomingHTML,
+    createDriveIncomingController,
     notificationListHTML,
     notificationsEmptyHTML,
     notificationCenterAction,
