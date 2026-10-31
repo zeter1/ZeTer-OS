@@ -8,7 +8,7 @@
   // Required Secrets (never place values here): GOOGLE_CLIENT_ID,
   // GOOGLE_CLIENT_SECRET, DESKTOP_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY.
   "vars": {
-    "ALLOWED_ORIGINS": "https://dkl.do.am",
+    "ALLOWED_ORIGINS": "https://dkoles.com",
     "DESKTOP_CLIENT_ID": "596333951366-plnunnogqvpcsc89th5v2chhd0qv8hv7.apps.googleusercontent.com",
     "PUBLIC_URL": "https://REPLACE-WITH-WORKER.workers.dev"
   },

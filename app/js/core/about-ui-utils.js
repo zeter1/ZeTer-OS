@@ -53,7 +53,7 @@
               <li>Работайте в одном и том же профиле браузера: здесь сохраняются ваши материалы.</li>
             </ol>
             <p class="muted">Некоторые функции Windows и операции с локальными документами доступны только в настольной версии.</p>
-            <div class="about-links">${linkHTML("Открыть веб-версию", "https://dkl.do.am/zeteros/index.html")}</div>
+            <div class="about-links">${linkHTML("Открыть веб-версию", "https://dkoles.com/zeteros/index.html")}</div>
           </article>
           <article class="about-launch-card">
             <h4>Приложение .exe</h4>

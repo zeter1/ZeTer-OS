@@ -58,11 +58,11 @@ function informationPage(privacy = false) {
       '<h2>Подключение и сервер</h2><p>Для браузера сервер обменивает код Google OAuth на токены и хранит refresh token в D1 в зашифрованном виде AES-256-GCM. Сессия действует не более 90 дней; Google может ограничить срок доступа раньше. Для Windows код подключения, PKCE verifier и refresh token проходят через этот сервер только на время обмена с Google и не сохраняются на сервере. Windows хранит собственное подключение локально с защитой DPAPI текущего пользователя.</p>' +
       '<p>Сервер хранит привязанные к аккаунту служебные метаданные: хэш идентификатора Google Drive, сессии, указатель на согласованный снимок и историю принятых операций синхронизации. Эти данные нужны для согласования устройств и защиты от повторной записи. Пользовательские файлы на сервер не загружаются. На этих информационных страницах нет аналитики, cookies и сторонних скриптов.</p>' +
       '<h2>Отключение и удаление</h2><p>Отключение устройства удаляет его сессию; файлы в вашем Google Drive и служебная история синхронизации остаются. Файлы можно удалить в Google Drive. Отозвать доступ приложения можно в <a href="https://myaccount.google.com/connections">подключениях аккаунта Google</a>. Для запроса удаления серверных служебных данных напишите на <a href="mailto:zeter11@gmail.com">zeter11@gmail.com</a>.</p>' +
-      '<p><a href="/">О сервисе</a> · <a href="https://dkl.do.am/zeteros/index.html">Открыть ZeTer OS</a></p>'
+      '<p><a href="/">О сервисе</a> · <a href="https://dkoles.com/zeteros/index.html">Открыть ZeTer OS</a></p>'
     : '<h1>ZeTer OS — подключение Google Drive</h1>' +
       '<p>ZeTer OS объединяет рабочие столы, заметки, задачи и файлы в Windows и браузере. Этот сервер обеспечивает подключение Google и согласование синхронизации между вашими устройствами.</p>' +
       '<p>Подключение начинается в приложении. Вы выбираете аккаунт Google и разрешаете приложению работать с его собственными файлами в вашем Google Drive.</p>' +
-      '<p><a href="https://dkl.do.am/zeteros/index.html">Открыть ZeTer OS</a> · <a href="/privacy">Конфиденциальность</a></p>' +
+      '<p><a href="https://dkoles.com/zeteros/index.html">Открыть ZeTer OS</a> · <a href="/privacy">Конфиденциальность</a></p>' +
       '<p>Поддержка: <a href="mailto:zeter11@gmail.com">zeter11@gmail.com</a></p>';
   return new Response('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + '</title><main>' + content + '</main></html>', {
     headers: { ...headers(), 'Content-Type': 'text/html; charset=utf-8',

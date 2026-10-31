@@ -19,7 +19,7 @@ assert.ok(html.includes(sandbox.window.ZETER_OS_CONFIG.OS_VERSION), "About must 
 const expectedLinks = [
   "https://github.com/zeter1/ZeTer-OS/blob/main/CHANGELOG.md", "https://github.com/zeter1/ZeTer-OS/releases",
   "https://github.com/zeter1/ZeTer-OS",
-  "https://dkl.do.am/zeteros/index.html", "https://github.com/zeter1/ZeTer-OS/releases",
+  "https://dkoles.com/zeteros/index.html", "https://github.com/zeter1/ZeTer-OS/releases",
   "https://developer.microsoft.com/microsoft-edge/webview2/", "https://github.com/zeter1/ZeTer-OS/blob/main/README_PYTHON.md",
   "https://t.me/zeter1", "https://www.linkedin.com/in/zeter/", "https://www.facebook.com/zeter1", "https://vk.ru/zeter1",
   "https://www.instagram.com/zeter1992/", "https://tenchat.ru/zeter", "https://x.com/zeter1", "https://www.threads.com/@zeter1992",

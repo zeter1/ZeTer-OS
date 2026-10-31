@@ -1,5 +1,5 @@
 const ZETER_CACHE_REVISION = "web-snapshots-1";
-const ZETER_CACHE = "zeter-os-4.0.100-web-snapshots-1";
+const ZETER_CACHE = "zeter-os-4.0.101-web-snapshots-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",

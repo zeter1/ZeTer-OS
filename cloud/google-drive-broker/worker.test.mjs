@@ -46,7 +46,7 @@ class MemoryD1 {
     } finally { release(); }
   }
 }
-const appOrigin = 'https://dkl.do.am';
+const appOrigin = 'https://dkoles.com';
 const brokerOrigin = 'https://broker.example';
 const nonce = randomBytes(32).toString('base64url');
 const digest = s => createHash('sha256').update(s).digest('base64url');
@@ -195,7 +195,7 @@ test('public home and privacy disclose data boundaries without scripts, network 
     assert.equal(response.headers.get('Access-Control-Allow-Origin'), null);
     const html = await response.text();
     assert.match(html, /<html lang="ru">/);
-    assert.match(html, /https:\/\/dkl\.do\.am\/zeteros\/index\.html/);
+    assert.match(html, /https:\/\/dkoles\.com\/zeteros\/index\.html/);
     assert.match(html, /mailto:zeter11@gmail\.com/);
     assert.doesNotMatch(html, /<(?:script|iframe|img|form|input|link|style)\b|\son\w+=/i);
     if (path === '/privacy') {
@@ -494,7 +494,7 @@ test('invalid, expired and replayed state never exchange a code; failed consent 
 
 test('origin and nonce injection, strict CORS/method/body boundaries', async t => {
   const f = fixture(t);
-  for (const origin of ['null', '*', appOrigin + '.evil.example', appOrigin + '/path', 'http://dkl.do.am']) assert.equal((await f.start(origin)).status, 400);
+  for (const origin of ['null', '*', appOrigin + '.evil.example', appOrigin + '/path', 'http://dkoles.com']) assert.equal((await f.start(origin)).status, 400);
   for (const value of ['<script>alert(1)</script>', nonce + 'x', '', 'a'.repeat(42)]) assert.equal((await f.start(appOrigin, value)).status, 400);
   assert.equal((await f.request('/token', { method: 'GET', headers: { Origin: appOrigin } })).status, 405);
   assert.equal((await f.api('/token', nonce, { Origin: 'null' })).status, 403);

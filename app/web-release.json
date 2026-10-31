@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "runtime": 1,
-  "version": "4.0.100",
-  "build": "00fac5702ca24fe2b264540b9344feea2bd7e57c8f8792efb061667e0e58f8e6",
+  "version": "4.0.101",
+  "build": "03d98ef345941873ac0d0a1f696d4b1e8a7fcc2db10725622afd8f8962a3b958",
   "files": [
     {
       "path": "assets/1.png",
@@ -186,8 +186,8 @@
     },
     {
       "path": "js/core/about-ui-utils.js",
-      "size": 9556,
-      "sha256": "2f8423c1c050e1dde2fb1133b4b043aabc71c22d7908d74ed2372ee7076c6ae5"
+      "size": 9557,
+      "sha256": "af546e3f67be2a95844d4aa925b1eec7958172d6201c83e59243f4323309d48e"
     },
     {
       "path": "js/core/app-catalog.js",
@@ -627,7 +627,7 @@
     {
       "path": "js/core/version.js",
       "size": 38,
-      "sha256": "2f2e59d1e02f9d6782fdce5d36da8b247f35dce0af45b7591e21bc170aa23a01"
+      "sha256": "cf6b7bbacf0468029255328667b707cec09e7f99a9587a16fc5d4e008ce618d2"
     },
     {
       "path": "js/core/visual-utils.js",
@@ -677,7 +677,7 @@
     {
       "path": "service-worker.js",
       "size": 17526,
-      "sha256": "bb37f34d3780b3fa6f535b8e039754c0f84d4f9b3ec2c36f7b56de882be58420"
+      "sha256": "ef9e4cac391f857447a3c9e8cb37bbb19f70a53347947649edeb31fc2afc5a3b"
     },
     {
       "path": "update-probe.html",
