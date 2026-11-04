@@ -4,7 +4,9 @@ async function runSecurityRecoverySmoke({chromium,startPreview,outputDir}) {
  const root=path.resolve(__dirname,'..'),out=outputDir||path.join(root,'work/security-recovery-qa');fs.mkdirSync(out,{recursive:true});
  const preview=await startPreview({root:path.join(root,'app'),allow:['index.html','js','css','assets','manifest.json','service-worker.js'],ttlSeconds:600});let browser;
  try{
-  browser=await chromium.launch({headless:false,chromiumSandbox:true});const context=await browser.newContext({viewport:{width:1400,height:1100},serviceWorkers:'block'});const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  browser=await chromium.launch({headless:false,chromiumSandbox:true});const context=await browser.newContext({viewport:{width:1400,height:1100},serviceWorkers:'block'});
+  await context.addInitScript(() => { window.__ZETER_UI_PREVIEW__ = true; });
+  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const seed=`const fixture=ZETER_INITIAL_STATE_UTILS.defaultState();fixture.firstRunCompleted=true;fixture.fs['local-note']={id:'local-note',type:'note',parent:'desktop',name:'Сегодняшняя заметка',content:'Сохранить сегодняшний текст',richContent:'<p>Сохранить сегодняшний текст</p>',x:10,y:10};localStorage.setItem('zeter_os_state_v3',JSON.stringify(fixture));`;
   await page.route('**/*',route=>{
    if(!route.request().url().startsWith(preview.url))return route.abort();
@@ -29,12 +31,15 @@ async function runSecurityRecoverySmoke({chromium,startPreview,outputDir}) {
     let raw='';for(const c of new Uint8Array(await encrypted.arrayBuffer()))raw+=String.fromCharCode(c);return btoa(raw);
   },b64);
   const encryptedFile={name:'Проверенная копия.zeterbak',mimeType:'application/x-zeter-backup',buffer:Buffer.from(encryptedB64,'base64')};
-  page.once('dialog',d=>d.accept('Неверный пароль'));
-  await app.locator('[data-recovery-file]').setInputFiles(encryptedFile);await busyDone();
+  await app.locator('[data-recovery-file]').setInputFiles(encryptedFile);
+  assert.equal(await page.locator('dialog.zeter-dialog[open] input').getAttribute('type'), 'password');
+  await page.locator('dialog.zeter-dialog[open]').locator('input').fill('Неверный пароль'); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
+  await busyDone();
   assert.match(await app.locator('[data-recovery-status]').textContent(),/Не удалось расшифровать/);
   assert.equal(await page.evaluate(()=>JSON.stringify(__securityTest.getState())),before,'wrong password leaves live data unchanged');
-  page.once('dialog',d=>d.accept('Тестовый пароль 123'));
-  await app.locator('[data-recovery-file]').setInputFiles(encryptedFile);await busyDone();
+  await app.locator('[data-recovery-file]').setInputFiles(encryptedFile);
+  await page.locator('dialog.zeter-dialog[open]').locator('input').fill('Тестовый пароль 123'); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
+  await busyDone();
   assert.match(await app.locator('[data-recovery-file-result]').textContent(),/Архив прочитан и проверен/);
   assert.equal(await page.evaluate(()=>JSON.stringify(__securityTest.getState())),before,'encrypted inspection is readonly');
   await app.locator('[data-recovery-file]').setInputFiles({name:'Проверенная копия.zip',mimeType:'application/zip',buffer:Buffer.from(b64,'base64')});await busyDone();
@@ -54,11 +59,11 @@ async function runSecurityRecoverySmoke({chromium,startPreview,outputDir}) {
   await app.locator('[data-recovery-action="apply"]').click();await busyDone();
   assert.match(await app.locator('[data-recovery-status]').textContent(),/Данные изменились после сравнения/,'resizing persisted window sessions invalidates stale comparison');
   await app.locator('[data-recovery-action="compare"]').click();await busyDone();
-  await page.evaluate(()=>window.__failRecoveryWrite=true);page.once('dialog',d=>d.accept());await app.locator('[data-recovery-action="apply"]').click();await busyDone();
+  await page.evaluate(()=>window.__failRecoveryWrite=true);await app.locator('[data-recovery-action="apply"]').click(); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();await busyDone();
   assert.match(await app.locator('[data-recovery-status]').textContent(),/Тестовый отказ primary/);
   assert.equal(await page.evaluate(()=>Object.values(__securityTest.getState().fs).some(f=>f.content==='Архивный текст')),false);
   assert.equal(await page.evaluate(()=>__securityTest.getState().fs['local-note'].content),'Сохранить сегодняшний текст');
-  await page.evaluate(()=>window.__failRecoveryWrite=false);page.once('dialog',d=>d.accept());await app.locator('[data-recovery-action="apply"]').click();await busyDone();
+  await page.evaluate(()=>window.__failRecoveryWrite=false);await app.locator('[data-recovery-action="apply"]').click(); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();await busyDone();
   assert.match(await app.locator('[data-recovery-status]').textContent(),/Восстановление завершено/);
   assert.equal(await page.evaluate(()=>Object.values(__securityTest.getState().fs).filter(f=>f.content==='Архивный текст').length),1);
   assert.equal(await page.evaluate(()=>__securityTest.getState().fs['local-note'].content),'Сохранить сегодняшний текст');

@@ -5,6 +5,9 @@ const { spawnSync } = require("node:child_process");
 
 const projectRoot = path.resolve(__dirname, "..");
 const smokeFiles = [
+  "smoke_sticker_library.js",
+  "smoke_expenses.js",
+  "smoke_expenses_integration.js",
   "smoke_contacts.js",
   "smoke_contacts_integration.js",
   "smoke_web_cache.js",
@@ -21,6 +24,7 @@ const smokeFiles = [
   "smoke_explorer_navigation.js",
   "smoke_explorer_view_persistence.js",
   "smoke_system_settings.js",
+  "smoke_system_notifications.js",
   "smoke_start_preferences.js",
   "smoke_start_preferences_queue.js",
   "smoke_window_sizes.js",
@@ -77,6 +81,7 @@ const smokeFiles = [
   "smoke_persistence_ack.js",
   "smoke_help_content.js",
   "smoke_about_ui.js",
+  "smoke_runtime_capabilities.js",
   "smoke_update_runtime.js",
 ];
 

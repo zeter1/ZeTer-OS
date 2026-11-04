@@ -21,7 +21,17 @@
     mint: { name: "Мятный", bg: "linear-gradient(155deg, rgba(74,211,170,.74), rgba(34,123,106,.62))" },
     yellow: { name: "Жёлтый", bg: "linear-gradient(155deg, rgba(255,218,103,.84), rgba(191,129,35,.68))" },
     pink: { name: "Розовый", bg: "linear-gradient(155deg, rgba(255,126,188,.78), rgba(154,61,118,.62))" },
-    graphite: { name: "Графит", bg: "linear-gradient(155deg, rgba(84,90,122,.82), rgba(32,35,59,.72))" }
+    graphite: { name: "Графит", bg: "linear-gradient(155deg, rgba(84,90,122,.82), rgba(32,35,59,.72))" },
+    orange: { name: "Оранжевый", bg: "linear-gradient(155deg, rgba(177,90,38,.92), rgba(99,50,26,.85))" },
+    coral: { name: "Коралловый", bg: "linear-gradient(155deg, rgba(175,76,67,.92), rgba(103,43,47,.85))" },
+    red: { name: "Красный", bg: "linear-gradient(155deg, rgba(163,54,71,.92), rgba(91,33,51,.85))" },
+    lime: { name: "Лаймовый", bg: "linear-gradient(155deg, rgba(95,120,39,.92), rgba(50,70,27,.85))" },
+    teal: { name: "Бирюзовый", bg: "linear-gradient(155deg, rgba(31,126,121,.92), rgba(23,68,75,.85))" },
+    indigo: { name: "Индиго", bg: "linear-gradient(155deg, rgba(73,80,157,.92), rgba(39,43,100,.85))" },
+    lavender: { name: "Лавандовый", bg: "linear-gradient(155deg, rgba(117,88,167,.92), rgba(67,44,108,.85))" },
+    plum: { name: "Сливовый", bg: "linear-gradient(155deg, rgba(134,65,138,.92), rgba(77,36,87,.85))" },
+    brown: { name: "Коричневый", bg: "linear-gradient(155deg, rgba(128,88,61,.92), rgba(73,48,37,.85))" },
+    sand: { name: "Песочный", bg: "linear-gradient(155deg, rgba(142,117,63,.92), rgba(79,63,34,.85))" }
   });
   const STICKY_TEXT_COLORS = Object.freeze({
     light: { name: "Светлый", value: "#f7f8ff" },

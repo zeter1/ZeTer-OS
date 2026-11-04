@@ -26,8 +26,8 @@ async function verifyPermanentDeleteUI() {
   const controller = sandbox.ZETER_TIME_TRACKING_UTILS.createTimeTrackingController({ getWorkspace: () => workspace,
     persistTransaction: operation => operation(async () => { writes++; if (release) await new Promise(resolve => { release.resolve = resolve; }); return { saved: !fail }; }),
     saveSnapshot: (write, candidate) => write(candidate) });
-  const doc = { createElement: () => root, activeElement: null, defaultView: { setInterval() {}, clearInterval() {}, confirm: text => { warning = text; return accepted; } } };
-  sandbox.ZETER_TIME_TRACKING_UI_UTILS.createTimeTrackingApp({}, { documentRef: doc, controller, getWorkspace: () => workspace, onChange: () => { changed++; } });
+  const doc = { createElement: () => root, activeElement: null, defaultView: { setInterval() {}, clearInterval() {} } };
+  sandbox.ZETER_TIME_TRACKING_UI_UTILS.createTimeTrackingApp({}, { documentRef: doc, controller, getWorkspace: () => workspace, confirm: text => { warning = text; return accepted; }, onChange: () => { changed++; } });
   const rows = () => nodes.get("[data-time-results]").innerHTML;
   assert.doesNotMatch(root.innerHTML + rows(), /Корзина|В корзину|data-time-action="(?:trash|restore|purge|journal)"|data-time-purge/);
   assert.doesNotMatch(rows(), /data-time-row="legacy-entry"/);
@@ -87,6 +87,6 @@ async function main() {
   const disappearing = sandbox.ZETER_CALENDAR_UTILS.createCalendarPlanController({ ...options, getWorkspace: () => available, persistTransaction: async operation => { await gate; return options.persistTransaction(operation); } });
   const disappearingSave = disappearing.createPlan(draft); available = null; enter(); await assert.rejects(disappearingSave, /стол/i);
   await verifyPermanentDeleteUI();
-  console.log("time clarity smoke PASS: permanent-delete UI native confirmation/cancel/refusal/retry/ACK, project-scoped tasks, future calendar plan isolation, date/time validation, private pending save, refusal/retry, concurrent edit preservation, ID collision and missing workspace");
+  console.log("time clarity smoke PASS: permanent-delete UI confirmation/cancel/refusal/retry/ACK, project-scoped tasks, future calendar plan isolation, date/time validation, private pending save, refusal/retry, concurrent edit preservation, ID collision and missing workspace");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

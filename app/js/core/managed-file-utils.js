@@ -808,7 +808,7 @@
       const normalized = normalizeManagedFile(file?.managedFile || file);
       if (!normalized) return toast("Файл недоступен", "В ярлыке нет корректного пути к копии в data.");
       if (normalized.kind === "shortcut") return openShortcutTarget(normalized.shortcutTarget, normalized.name);
-      if (EXECUTABLE_EXTENSIONS.has(normalized.extension) && !confirmUser(`Запустить потенциально исполняемый файл «${normalized.name}» из ZeTer OS\\data?`)) return false;
+      if (EXECUTABLE_EXTENSIONS.has(normalized.extension) && !await confirmUser(`Запустить потенциально исполняемый файл «${normalized.name}» из ZeTer OS\\data?`)) return false;
       try {
         if(!nativeMode()){
           const store=options.getBrowserPayloadStore?.();
@@ -844,14 +844,17 @@
     }
 
     async function removeManagedFile(fileId, context = {}) {
-      const location = findManagedFileLocation(getState(), fileId, context);
-      if (!location) return false;
-      const file = normalizeManagedFile(location.files[location.index]);
+      const original = findManagedFileLocation(getState(), fileId, context);
+      if (!original) return false;
+      const file = normalizeManagedFile(original.files[original.index]);
       if (!file) return false;
       const shortcutOnly = file.kind === "shortcut";
-      if (!confirmUser(shortcutOnly
+      if (!await confirmUser(shortcutOnly
         ? `Удалить ярлык «${file.name}»? Исходный файл, папка или сайт не изменятся.`
         : `Удалить ярлык «${file.name}»? Если других ярлыков на эту копию нет, файл будет удалён из ZeTer OS\\data.`)) return false;
+      const location = findManagedFileLocation(getState(), fileId, context);
+      if (!location || location.item !== original.item || location.page !== original.page ||
+          JSON.stringify(normalizeManagedFile(location.files[location.index])) !== JSON.stringify(file)) return false;
       context.hostRoot?.querySelectorAll?.("[data-managed-file-inline]").forEach(marker => {
         if (String(marker.dataset?.managedFileInline || "") === fileId) marker.remove();
       });

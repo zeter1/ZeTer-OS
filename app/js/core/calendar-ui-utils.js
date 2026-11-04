@@ -406,7 +406,7 @@
     const findOccurrence = (id, date) => calendarOccurrences(getEvents().filter(event => event.id === id), date || selected(), date || selected()).find(event => event.occurrenceDate === (date || selected()));
     const remove = async (id, occurrenceDate, scope = "all") => {
       const original = getEvents().find(event => event.id === id); if (!original || deleting) return;
-      if (!confirmUser(scope === "one" ? "Удалить только это вхождение?" : scope === "future" ? "Удалить это и последующие вхождения?" : "Удалить событие целиком, включая повторы?")) return;
+      if (!await confirmUser(scope === "one" ? "Удалить только это вхождение?" : scope === "future" ? "Удалить это и последующие вхождения?" : "Удалить событие целиком, включая повторы?")) return;
       deleting = true;
       try { await removeEvent(id, { scope, occurrenceDate }, JSON.parse(JSON.stringify(original))); pendingDelete = null; saved(); }
       catch (error) { toast("Не удалось удалить событие", error.message || "Повторите попытку."); }
@@ -449,7 +449,7 @@
           find("[data-category-replacement]").focus(); return;
         }
         const consequence = replacementId ? `Все её события будут перенесены в «${categoryName(replacementId, getCategories())}».` : "Связанных событий нет.";
-        if (!confirmUser(`Удалить категорию «${original.name}»?\n${consequence}\nСобытия и файлы не удаляются.`)) return;
+        if (!await confirmUser(`Удалить категорию «${original.name}»?\n${consequence}\nСобытия и файлы не удаляются.`)) return;
         setCategoryBusy(true);
         try {
           await deleteCategory(original.id, replacementId, original);

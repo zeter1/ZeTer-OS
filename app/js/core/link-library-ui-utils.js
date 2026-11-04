@@ -162,16 +162,16 @@
       else if (action === "cancel") { draft = null; editingId = ""; message = ""; render(); }
       else if (action === "favorite" && entry) await commit(() => controller.toggleFavorite(entry.id));
       else if (action === "pin" && entry) await commit(() => controller.togglePinned(entry.id, filter));
-      else if (action === "delete" && entry && options.confirm(`Удалить ссылку «${entry.name}»? Сам файл, сайт или объект останется.`)) await commit(() => controller.removeEntry(entry.id));
+      else if (action === "delete" && entry && await options.confirm(`Удалить ссылку «${entry.name}»? Сам файл, сайт или объект останется.`)) await commit(() => controller.removeEntry(entry.id));
       else if ((action === "category-add" || action === "form-category")) {
-        readDraft(); const name = options.prompt("Название новой категории:", "");
+        readDraft(); const name = await options.prompt("Название новой категории:", "", { title: "Новая категория", action: "Создать" });
         if (name != null) await commit(() => controller.addCategory(name), category => { if (action === "form-category" && draft) draft.categoryId = category.id; else filter = category.id; });
       } else if (action === "category-rename") {
         const category = controller.library().categories.find(item => item.id === categoryId); if (!category) return;
-        const name = options.prompt("Новое название категории:", category.name);
+        const name = await options.prompt("Новое название категории:", category.name);
         if (name != null) await commit(() => controller.renameCategory(categoryId, name));
       } else if (action === "category-pin") await commit(() => controller.toggleCategoryPinned(categoryId));
-      else if (action === "category-delete" && options.confirm("Удалить категорию? Все ссылки в ней перейдут в «Без категории».")) await commit(() => controller.removeCategory(categoryId), () => { if (filter === categoryId) filter = "uncategorized"; if (draft?.categoryId === categoryId) draft.categoryId = ""; });
+      else if (action === "category-delete" && await options.confirm("Удалить категорию? Все ссылки в ней перейдут в «Без категории».")) await commit(() => controller.removeCategory(categoryId), () => { if (filter === categoryId) filter = "uncategorized"; if (draft?.categoryId === categoryId) draft.categoryId = ""; });
       else if (action === "category-up" || action === "category-down") await commit(() => controller.moveCategory(categoryId, action === "category-up" ? -1 : 1));
       else if (action === "copy" && entry) {
         try { await options.copyText(entry.target); setMessage("Адрес скопирован"); } catch { setMessage("Не удалось скопировать. Выделите адрес в форме «Изменить» и скопируйте вручную.", true); }

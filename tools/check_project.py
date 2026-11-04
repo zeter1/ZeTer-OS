@@ -97,16 +97,21 @@ REQUIRED_DOCS = (
     *GENERATED_NAVIGATION_DOCS,
 )
 REQUIRED_SCRIPT_ORDER = (
+    "js/core/training-runtime-utils.js",
     "js/core/boot-guard.js",
     "js/core/version.js",
     "js/core/config.js",
     "js/core/utils.js",
+    "js/core/dialog-utils.js",
+    "js/core/runtime-capabilities-utils.js",
     "js/core/system-settings-utils.js",
     "js/core/shortcut-utils.js",
     "js/core/link-library-utils.js",
     "js/core/link-library-ui-utils.js",
     "js/core/prompt-library-utils.js",
     "js/core/contacts-utils.js",
+    "js/core/expenses-utils.js",
+    "js/core/expenses-ui-utils.js",
     "js/core/contacts-ui-utils.js",
     "js/core/prompt-library-ui-utils.js",
     "js/core/business-calculations-utils.js",
@@ -126,6 +131,8 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/window-session-utils.js",
     "js/core/window-ui-utils.js",
     "js/core/sticky-utils.js",
+    "js/core/sticker-library-utils.js",
+    "js/core/sticker-library-ui-utils.js",
     "js/core/native-storage.js",
     "js/core/managed-file-utils.js",
     "js/core/storage-utils.js",
@@ -724,7 +731,8 @@ def analyze_core_module_contracts() -> tuple[list[CoreModuleContract], list[str]
     known_exports = set(path_by_export)
     if APP_JS.exists():
         app_references = set(re.findall(r"window\.(ZETER_[A-Z0-9_]+)", read_text(APP_JS)))
-        unknown_app = app_references - known_exports - set(ALLOWED_EXTERNAL_ZETER_GLOBALS)
+        # Composition-root bridge queried by the dedicated, storage-free sticker windows.
+        unknown_app = app_references - known_exports - set(ALLOWED_EXTERNAL_ZETER_GLOBALS) - {"ZETER_STICKY_NATIVE"}
         for name in sorted(unknown_app):
             failures.append(f"app.js: unknown global {name}")
 
@@ -1343,6 +1351,8 @@ def check_python_syntax() -> list[CheckResult]:
         PROJECT_ROOT / "tools/smoke_security_backup.py",
         PROJECT_ROOT / "tools/smoke_storage_info.py",
         PROJECT_ROOT / "tools/smoke_calendar_exports.py",
+        PROJECT_ROOT / "tools/smoke_system_notifications.py",
+        PROJECT_ROOT / "tools/smoke_sticky_windows.py",
         Path(__file__).resolve(),
         UPDATE_DOCS_TOOL,
         NAVIGATION_INDEX_TOOL,
@@ -1555,6 +1565,9 @@ def run_checks(strict_node: bool) -> list[CheckResult]:
     checks.extend(check_javascript_syntax(strict_node=strict_node))
     checks.extend(check_scenario_smokes(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_calendar_exports.py", key="python.calendar_exports_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_system_notifications.py", key="python.system_notifications_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_sticky_windows.py", key="python.sticky_windows_smoke"))
+    checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_runtime_capabilities.py", key="python.runtime_capabilities_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_security_backup.py", key="python.security_backup_smoke"))
     checks.extend(check_native_smoke(strict_node=strict_node, smoke=PROJECT_ROOT / "tools/smoke_google_drive_backup.py", key="python.google_drive_smoke"))

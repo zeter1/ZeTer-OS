@@ -215,8 +215,9 @@ async function runSearchUpgradeSmoke({chromium,startPreview,outputDir}={}) {
     });
     await check('desktop-rename-invalidates-cache',async()=>{
       await open('Орбита');await idle();const before=await page.evaluate(()=>__searchUpgrade.revision());
-      page.once('dialog',dialog=>dialog.accept('Основной обновлённый'));
-      await page.evaluate(()=>__searchUpgrade.renameDesktop('desktop'));await idle();
+      const rename = page.evaluate(()=>__searchUpgrade.renameDesktop('desktop'));
+      await page.locator('dialog.zeter-dialog[open]').locator('input').fill('Основной обновлённый'); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
+      await rename;await idle();
       assert.ok(await page.evaluate(()=>__searchUpgrade.revision())>before,'Accepted rename must invalidate index');
       await field.fill('Основной обновлённый');assert.ok(await row('search-folder').count());
     });
@@ -327,11 +328,12 @@ async function runSearchUpgradeSmoke({chromium,startPreview,outputDir}={}) {
     });
     await check('filesystem-delete-cancel-refusal-retry-keeps-editor',async()=>{
       await page.evaluate(()=>{__searchUpgrade.switchDesktop('desktop');const s=__searchUpgrade.state();s.fs['delete-a']={id:'delete-a',type:'note',name:'Удаляемый черновик',content:'Текст редактора',parent:'desktop'};s.fs['delete-b']={id:'delete-b',type:'note',name:'До правки',parent:'desktop'};__searchUpgrade.bump();__searchUpgrade.openEditor('delete-a');});
-      page.once('dialog',dialog=>dialog.dismiss());
-      assert.equal(await page.evaluate(()=>__searchUpgrade.deleteFile('delete-a')),false);
+      const cancelled = page.evaluate(()=>__searchUpgrade.deleteFile('delete-a'));
+      await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-cancel]').click();
+      assert.equal(await cancelled,false);
       assert.equal(await page.evaluate(()=>!!__searchUpgrade.state().fs['delete-a']),true);
-      page.once('dialog',dialog=>dialog.accept());
       await page.evaluate(()=>{window.__holdSearchWrite=true;window.__fileDelete='pending';__searchUpgrade.deleteFile('delete-a').then(value=>window.__fileDelete=value);});
+      await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
       await page.waitForFunction(()=>window.__pendingSearchWrites>0);
       assert.equal(await page.evaluate(()=>!!__searchUpgrade.state().fs['delete-a']),true);
       assert.equal(await page.evaluate(()=>__searchUpgrade.windows().some(w=>w.appId==='editor')),true);
@@ -339,8 +341,10 @@ async function runSearchUpgradeSmoke({chromium,startPreview,outputDir}={}) {
       await page.waitForFunction(()=>window.__fileDelete!=='pending');assert.equal(await page.evaluate(()=>window.__fileDelete),false);
       assert.equal(await page.evaluate(()=>__searchUpgrade.state().fs['delete-b'].name),'Параллельная правка');
       assert.equal(await page.evaluate(()=>!!__searchUpgrade.state().fs['delete-a']),true);
-      await page.evaluate(()=>{window.__refuseSearchWrite=false;});page.once('dialog',dialog=>dialog.accept());
-      assert.equal(await page.evaluate(()=>__searchUpgrade.deleteFile('delete-a')),true);await idle();
+      await page.evaluate(()=>{window.__refuseSearchWrite=false;});
+      const removed = page.evaluate(()=>__searchUpgrade.deleteFile('delete-a'));
+      await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
+      assert.equal(await removed,true);await idle();
       assert.equal(await page.evaluate(()=>!!__searchUpgrade.state().fs['delete-a']),false);
       assert.equal(await page.evaluate(()=>__searchUpgrade.state().fs['delete-b'].name),'Параллельная правка');
     });
@@ -349,10 +353,10 @@ async function runSearchUpgradeSmoke({chromium,startPreview,outputDir}={}) {
       const time=page.locator('.time-tracking-app:visible').last();const card=()=>time.locator('[data-time-row="delete-time"]');
       assert.equal(await time.locator('[data-time-action="trash"],[data-time-action="restore"],[data-time-action="purge-all"]').count(),0);
       assert.doesNotMatch(await time.innerText(),/Корзина|В корзину/);
-      page.once('dialog',dialog=>dialog.dismiss());await card().locator('[data-time-action="delete"]').click();assert.equal(await card().count(),1);
-      await page.evaluate(()=>{window.__refuseSearchWrite=true;});page.once('dialog',dialog=>dialog.accept());await card().locator('[data-time-action="delete"]').click();
+      await card().locator('[data-time-action="delete"]').click(); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-cancel]').click();assert.equal(await card().count(),1);
+      await page.evaluate(()=>{window.__refuseSearchWrite=true;});await card().locator('[data-time-action="delete"]').click(); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
       await page.waitForFunction(()=>document.querySelectorAll('.time-tracking-app .time-status.error').length>0);await idle();assert.equal(await card().count(),1);
-      await page.evaluate(()=>{window.__refuseSearchWrite=false;});page.once('dialog',dialog=>dialog.accept());await card().locator('[data-time-action="delete"]').click();
+      await page.evaluate(()=>{window.__refuseSearchWrite=false;});await card().locator('[data-time-action="delete"]').click(); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
       await page.waitForFunction(()=>!__searchUpgrade.state().desktops.find(d=>d.id==='desktop').data.timeTracking.entries.some(e=>e.id==='delete-time'));await idle();
       assert.equal(await card().count(),0);assert.equal(await time.locator('[data-time-row="legacy-time"]').count(),0);
       assert.equal(await page.evaluate(()=>__searchUpgrade.state().desktops.find(d=>d.id==='desktop').data.timeTracking.entries.find(e=>e.id==='legacy-time').deletedAt),1);

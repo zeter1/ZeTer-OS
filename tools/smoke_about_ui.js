@@ -5,8 +5,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const sandbox = { window: { ZETER_CORE_UTILS: { escapeHtml: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])) } } };
+sandbox.URLSearchParams = URLSearchParams;
 vm.createContext(sandbox);
-for (const name of ["version.js", "config.js", "app-catalog.js", "about-ui-utils.js"]) {
+for (const name of ["version.js", "config.js", "app-catalog.js", "runtime-capabilities-utils.js", "about-ui-utils.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", "js", "core", name), "utf8"), sandbox);
 }
 const about = sandbox.window.ZETER_ABOUT_UI_UTILS;
@@ -17,11 +18,12 @@ assert.match(html, /class="about-brand"[\s\S]*?<img src="assets\/icons\/zeter-lo
 assert.match(html, /data-update-check/, "About must let the user check for app updates");
 assert.ok(html.includes(sandbox.window.ZETER_OS_CONFIG.OS_VERSION), "About must display the running product version");
 const expectedLinks = [
+  "https://github.com/zeter1/ZeTer-OS/releases",
   "https://github.com/zeter1/ZeTer-OS/blob/main/CHANGELOG.md", "https://github.com/zeter1/ZeTer-OS/releases",
   "https://github.com/zeter1/ZeTer-OS",
-  "https://dkoles.com/zeteros/index.html", "https://github.com/zeter1/ZeTer-OS/releases",
+  "https://dkl.do.am/zeteros/index.html", "https://github.com/zeter1/ZeTer-OS/releases",
   "https://developer.microsoft.com/microsoft-edge/webview2/", "https://github.com/zeter1/ZeTer-OS/blob/main/README_PYTHON.md",
-  "https://t.me/zeter1", "https://www.linkedin.com/in/zeter/", "https://www.facebook.com/zeter1", "https://vk.ru/zeter1",
+  "https://dkoles.com/", "https://t.me/zeter1", "https://www.linkedin.com/in/zeter/", "https://www.facebook.com/zeter1", "https://vk.ru/zeter1",
   "https://www.instagram.com/zeter1992/", "https://tenchat.ru/zeter", "https://x.com/zeter1", "https://www.threads.com/@zeter1992",
   "https://ok.ru/zeter1", "https://t.me/zeterchat"
 ];

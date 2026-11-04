@@ -625,7 +625,7 @@
     };
 
     if (templateHost) templateHost.innerHTML = templateCardsHTML(integration.templates || AUTOMATION_TEMPLATES);
-    root.addEventListener("click", event => {
+    root.addEventListener("click", async event => {
       if (busy) return;
       if (event.target?.closest?.("[data-check-sample]")) {
         const editor = event.target.closest("[data-automation-editor]");
@@ -643,7 +643,7 @@
         const remove = categoryAction.matches("[data-delete-category], [data-delete-category-rules]");
         const deleteAutomations = categoryAction.matches("[data-delete-category-rules]");
         const count = normalizeAutomations(getAutomations()).filter(rule => rule.categoryId === current?.id).length;
-        if (remove && !confirmUser(deleteAutomations ? `Удалить категорию «${current.name}» и ${count} автоматизаций? Их ожидающие запуски будут отменены. Для восстановления настроек правил потребуется резервная копия. Созданные файлы, заметки и история сохранятся.` : `Удалить только категорию «${current.name}»? ${count} автоматизаций перейдут в «Без категории», история сохранится.`)) return;
+        if (remove && !await confirmUser(deleteAutomations ? `Удалить категорию «${current.name}» и ${count} автоматизаций? Их ожидающие запуски будут отменены. Для восстановления настроек правил потребуется резервная копия. Созданные файлы, заметки и история сохранятся.` : `Удалить только категорию «${current.name}»? ${count} автоматизаций перейдут в «Без категории», история сохранится.`)) return;
         const change = { type: create ? "create" : remove ? "delete" : "rename", id: create ? uid("automation_category") : current.id, name: root.querySelector("[data-category-name]").value, deleteAutomations };
         void runMutation(() => integration.mutateCategory ? integration.mutateCategory(change) : Promise.reject(new Error("Сохранение категорий недоступно."))).then(result => {
           if (result !== false) { root.querySelector("[data-category-name]").value = ""; notify("Категории обновлены", "Изменение сохранено."); }
@@ -710,8 +710,10 @@
         });
         return;
       }
-      if (action.type === "delete" && current && confirmUser(`Удалить автоматизацию «${current.name}»?`)) {
-        void commit(all.filter(item => item.id !== current.id)).then(saved => { if (saved !== false && editingDraft?.id === current.id) hideEditor(); });
+      if (action.type === "delete" && current && await confirmUser(`Удалить автоматизацию «${current.name}»?`)) {
+        const latest = normalizeAutomations(getAutomations());
+        if (!latest.some(item => item.id === current.id && item.name === current.name)) return setError("Правило изменилось. Повторите удаление.");
+        void commit(latest.filter(item => item.id !== current.id)).then(saved => { if (saved !== false && editingDraft?.id === current.id) hideEditor(); });
         return;
       }
       if (action.type === "duplicate" && current) {
@@ -731,8 +733,11 @@
         void runMutation(() => runAutomation(current.id, runContext)).then(result => { if (result !== false) notify("Автоматизация запущена", result.message || current.name); });
         return;
       }
-      if (action.type === "clear-history" && confirmUser(categoryFilter === "*" ? "Очистить всю историю запусков? Правила и объекты сохранятся." : "Очистить историю выбранной категории для всех статусов? Правила и объекты сохранятся.")) {
-        void runMutation(() => clearHistory(categoryFilter));
+      if (action.type === "clear-history") {
+        const scope = categoryFilter;
+        if (await confirmUser(scope === "*" ? "Очистить всю историю запусков? Правила и объекты сохранятся." : "Очистить историю выбранной категории для всех статусов? Правила и объекты сохранятся.")) {
+          void runMutation(() => clearHistory(scope));
+        }
       }
     });
 

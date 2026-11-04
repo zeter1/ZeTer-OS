@@ -712,7 +712,7 @@
       return true;
     };
 
-    const addLinkToSelection = () => {
+    const addLinkToSelection = async () => {
       area.focus();
       restoreSelection();
       const selection = getSelection();
@@ -729,13 +729,15 @@
         ? range.commonAncestorContainer
         : range.commonAncestorContainer?.parentElement;
       const currentHref = container?.closest?.("a[href]")?.getAttribute("href") || "https://";
-      const rawTarget = requestLink(currentHref, String(selection));
+      const rawTarget = await requestLink(currentHref, String(selection));
       if (rawTarget === null) return false;
       const href = normalizeRichTextLink(rawTarget);
       if (!href) {
         status.textContent = "Не удалось добавить ссылку: нужен адрес http:// или https://";
         return false;
       }
+      if (!area.isConnected || !rangeInsideArea(range)) return false;
+      savedRange = range;
       restoreSelection();
       documentRef.execCommand("createLink", false, href);
       rememberSelection();
@@ -1297,7 +1299,7 @@
     redraw = () => {}
   } = {}) {
     if (!root) return;
-    root.addEventListener("click", event => {
+    root.addEventListener("click", async event => {
       const crumb = event.target?.closest?.("[data-crumb]");
       if (crumb) {
         navigateFolder(crumb.dataset.crumb);
@@ -1314,7 +1316,7 @@
         return;
       }
       if (event.target?.closest?.("[data-new-folder]")) {
-        if (createFolder()) redraw();
+        if (await createFolder()) redraw();
       }
     });
   }
@@ -1709,10 +1711,10 @@
         },
         createNote: () => createItem("note", "Новая заметка", currentFolder, 60, 60, { content: "", richContent: "" }),
         openNote: itemId => openApp("editor", { itemId }),
-        createFolder: () => {
-          const name = requestText("Название папки для заметок:", "Новая папка");
+        createFolder: async () => {
+          const name = await requestText("Название папки для заметок:", "Новая папка", { title: "Новая папка", action: "Создать" });
           if (name === null) return false;
-          return Boolean(createFolderInFolder(currentFolder, { defaultName: name.trim() || "Новая папка", x: 60, y: 60, prompt: false, extra: { showInExplorerTree: true } }));
+          return Boolean(await createFolderInFolder(currentFolder, { defaultName: name.trim() || "Новая папка", x: 60, y: 60, prompt: false, extra: { showInExplorerTree: true } }));
         },
         redraw: draw
       });

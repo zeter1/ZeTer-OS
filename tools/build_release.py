@@ -27,6 +27,7 @@ RELEASE_ROOT_FILES = (
     "update_runner.py",
     "requirements.txt",
     "run_zeter_os.py",
+    "sticky_windows.py",
     "start_zeter_os.cmd",
     "Логи проблем/README_FOR_CODEX.md",
 )

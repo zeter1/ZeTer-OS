@@ -48,7 +48,7 @@ function loadCore(name) {
   "system-settings-utils.js",
   "shortcut-utils.js",
   "link-library-utils.js",
-  "prompt-library-utils.js", "contacts-utils.js", "business-calculations-utils.js", "time-tracking-utils.js",
+  "prompt-library-utils.js", "contacts-utils.js", "expenses-utils.js", "business-calculations-utils.js", "time-tracking-utils.js",
   "pinning-utils.js",
   "deletion-utils.js",
   "asset-utils.js",
@@ -200,7 +200,7 @@ function smokeInstalledUpdateNotifications() {
 smokeInstalledUpdateNotifications();
 
 const defaults = migrate(sandbox.ZETER_INITIAL_STATE_UTILS.defaultState());
-{
+async function smokeCreateDesktop() {
   const fixture = { desktops: [{ id: "desktop", name: "Основной" }], fs: {} };
   const installed = [];
   let reset = false;
@@ -209,7 +209,7 @@ const defaults = migrate(sandbox.ZETER_INITIAL_STATE_UTILS.defaultState());
     resetSelection: () => { reset = true; },
     addDesktopShortcut: appId => { assert.ok(reset, "reset scroll/selection before placing new shortcuts"); installed.push(appId); }
   });
-  assert.equal(controller.create(), "new-desktop");
+  assert.equal(await controller.create(), "new-desktop");
   assert.deepEqual(installed, plain(sandbox.ZETER_OS_CONFIG.DEFAULT_DESKTOP_APP_IDS));
   assert.deepEqual(plain(fixture.desktops[1].data.events), []);
   assert.deepEqual(plain(fixture.desktops[1].data.notifications), []);
@@ -489,7 +489,7 @@ async function smokeSelectiveDesktopDeletion() {
   await make(state, []).remove("second");
   assert.equal(state.desktops[0].data.library.entries[0].name, "Other");
   assert.equal(state.archivedDesktops[0].desktop.data.library.entries[0].name, "Путь", "archives allow same target without merging");
-  state = fixture(); await make(state, ["files","tasks","calendar","links","prompts","calculations","automation","notifications"]).remove("second");
+  state = fixture(); await make(state, ["files","tasks","calendar","links","prompts","contacts","expenses","calculations","timeTracking","automation","notifications"]).remove("second");
   assert.equal(state.archivedDesktops, undefined, "explicit selection of all groups leaves no retained archive");
   state = fixture(); state.desktops[1].data.calculations.selected = [];
   state.desktops[1].data.calculations.inputs.margin.cost = "987";
@@ -644,7 +644,7 @@ async function smokeTimeTrackingWorkspace() {
   console.log("time workspace: defaults, normalization, desktop backup, goal-only retention and selective archive PASS");
 }
 
-smokeSelectiveDesktopDeletion().then(smokeScopedLibraryRollbackWithNormalization).then(smokePromptWorkspacePersistence).then(smokeTimeTrackingWorkspace).then(smokePersistedDeletion).then(() => {
+smokeCreateDesktop().then(smokeSelectiveDesktopDeletion).then(smokeScopedLibraryRollbackWithNormalization).then(smokePromptWorkspacePersistence).then(smokeTimeTrackingWorkspace).then(smokePersistedDeletion).then(() => {
   console.log(`state migration smoke: ok (${fs.existsSync(MIGRATION_PATH) ? "core" : "app baseline"})`);
 }).catch(error => {
   console.error(error);

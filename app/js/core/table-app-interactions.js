@@ -50,8 +50,13 @@
     return { draw, drawPages, setActive };
   }
 
-  function bindTablePageActions(pagesEl, { getTable, draw, save, setStatus, promptName, confirmDelete, toast }) {
-    pagesEl.addEventListener("click", event => {
+  function sameActiveTablePage(previous, page, current, currentPage) {
+    return previous.activePage === current.activePage && previous.pages.length === current.pages.length &&
+      (page === currentPage || JSON.stringify(page) === JSON.stringify(currentPage));
+  }
+
+  function bindTablePageActions(pagesEl, { getTable, getCurrentTable = getTable, draw, save, setStatus, promptName, confirmDelete, toast }) {
+    pagesEl.addEventListener("click", async event => {
       const tab = event.target.closest("[data-table-page-index]");
       const action = event.target.closest("[data-table-page-action]")?.dataset.tablePageAction;
       const table = getTable();
@@ -65,16 +70,22 @@
         table.activePage = table.pages.length - 1; exposeActiveTablePage(table); draw(); setStatus("Добавлена новая страница"); save();
       }
       if (action === "rename") {
-        const page = activeTablePage(table); const nextName = promptName(page.name || `Страница ${table.activePage + 1}`);
-        if (nextName === null) return;
-        page.name = nextName.trim() || `Страница ${table.activePage + 1}`; draw(); setStatus("Страница переименована"); save();
+        const page = activeTablePage(table);
+        const nextName = await promptName(page.name || `Страница ${table.activePage + 1}`);
+        if (nextName === null || !pagesEl.isConnected) return;
+        const current = getCurrentTable();
+        const currentPage = activeTablePage(current);
+        if (!sameActiveTablePage(table, page, current, currentPage)) return;
+        currentPage.name = nextName.trim() || `Страница ${current.activePage + 1}`; draw(); setStatus("Страница переименована"); save();
       }
       if (action === "delete") {
         if (table.pages.length <= 1) return toast("Нельзя удалить", "В таблице должна остаться хотя бы одна страница");
         const page = activeTablePage(table);
-        if (!confirmDelete(page.name || `Страница ${table.activePage + 1}`)) return;
-        table.pages.splice(table.activePage, 1); table.activePage = Math.max(0, table.activePage - 1);
-        exposeActiveTablePage(table); draw(); setStatus("Страница удалена"); save();
+        if (!await confirmDelete(page.name || `Страница ${table.activePage + 1}`) || !pagesEl.isConnected) return;
+        const current = getCurrentTable();
+        if (!sameActiveTablePage(table, page, current, activeTablePage(current)) || current.pages.length <= 1) return;
+        current.pages.splice(current.activePage, 1); current.activePage = Math.max(0, current.activePage - 1);
+        exposeActiveTablePage(current); draw(); setStatus("Страница удалена"); save();
       }
     });
   }
@@ -130,10 +141,16 @@
     return true;
   }
 
-  function handleTableFileAction(action, { item, getTable, getPage, draw, save, downloadXlsx, confirmClear }) {
+  async function handleTableFileAction(action, { item, getTable, getCurrentTable = getTable, draw, save, downloadXlsx, confirmClear, isCurrent = () => true }) {
     if (action === "download-xlsx") { downloadXlsx(item, getTable()); return true; }
-    if (action !== "clear" || !confirmClear()) return action === "clear";
-    const page = getPage(); page.rows = page.rows.map(row => row.map(() => "")); page.cellStyles = {}; page.managedFiles = []; exposeActiveTablePage(item.table); draw(); save(); return true;
+    if (action !== "clear") return false;
+    const table = getTable();
+    const previousPage = activeTablePage(table);
+    if (!await confirmClear() || !isCurrent()) return true;
+    const current = getCurrentTable();
+    const page = activeTablePage(current);
+    if (!sameActiveTablePage(table, previousPage, current, page)) return true;
+    page.rows = page.rows.map(row => row.map(() => "")); page.cellStyles = {}; page.managedFiles = []; exposeActiveTablePage(item.table); draw(); save(); return true;
   }
 
   function createTableAppRuntimeController(options = {}) {
@@ -246,7 +263,7 @@
       });
 
       bindPageActions(pagesEl, {
-        getTable, draw, save, setStatus,
+        getTable, getCurrentTable: () => item.table, draw, save, setStatus,
         promptName: currentName => promptUser("Название страницы:", currentName),
         confirmDelete: currentName => confirmUser(`Удалить страницу «${currentName}»?`), toast
       });
@@ -258,7 +275,8 @@
         if (!action) return;
         if (runStructureAction(action, { getPage, draw, save, setActive, toast })) return;
         runFileAction(action, {
-          item, getTable, getPage, draw, save,
+          item, getTable, getCurrentTable: () => item.table, draw, save,
+          isCurrent: () => root.isConnected && getState().fs[item.id] === item,
           downloadXlsx: (currentItem, table) => {
             const base = ensureTableFileName(currentItem.name).replace(/\.(table|csv|xlsx)$/i, "");
             const fileName = `${base}.xlsx`;

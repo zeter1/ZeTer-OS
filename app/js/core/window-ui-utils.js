@@ -304,6 +304,10 @@
 
     function closeWindow(winId) {
       const record = getWindows().get(winId);
+      const stickers = record?.el?.querySelector?.(".sticker-library-app");
+      if (stickers?.requestStickerClose) {
+        return Promise.resolve(stickers.requestStickerClose()).then(allowed => allowed && getWindows().get(winId) === record && finishCloseWindow(winId));
+      }
       const editor = record?.el?.querySelector?.("[data-managed-document]");
       if (!editor?.disposeManagedDocument) return finishCloseWindow(winId);
       if (record.closingDocument) return false;
@@ -442,6 +446,7 @@
       if (!record) return false;
       const body = windowBodyEl(record.el);
       if (body?.querySelector?.("[data-managed-document]")?.hasUnsavedDocumentChanges?.()) return false;
+      if (body?.querySelector?.(".sticker-library-app")?.hasUnsavedStickerChanges?.()) return false;
       const app = getApps()[record.appId];
       if (!body || !app) return false;
       const title = windowTitleEl(record.el);

@@ -10,6 +10,11 @@ vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core/first-run-ui-utils.js"), "utf8"), sandbox);
 const api = sandbox.window.ZETER_FIRST_RUN_UI_UTILS;
 assert.equal(typeof api.applyFirstRunDraft, "function", "first-run choices need a staged snapshot owner");
+const welcome = api.firstRunScreenHTML("test");
+assert.match(welcome, /data-first-quick/, "welcome needs an explicit one-click path");
+assert.match(welcome, /data-first-create/, "custom setup must remain available");
+assert.match(welcome, /data-first-import-file/, "import must stay inside the welcome dialog until confirmed");
+assert.equal(typeof api.startFirstRunTour, "function", "the tour must be replayable independently of first-run setup");
 const fixture = {
   currentDesktop: "desktop", firstRunCompleted: false,
   desktops: [{ id: "desktop", name: "Основной", data: { settings: { volume: 41, explorerView: { compact: true } }, tasks: [{id:"task-1"}] } }, {id:"other",data:{settings:{wallpaper:"silk"}}}],

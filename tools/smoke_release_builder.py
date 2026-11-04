@@ -34,6 +34,7 @@ def make_project(root: Path) -> None:
     write_fixture(root / "app_updater.py", "# source dependency; installer disabled outside EXE\n")
     write_fixture(root / "update_runner.py", "# standalone updater source\n")
     write_fixture(root / "requirements.txt", "pywebview>=5.0\n")
+    write_fixture(root / "sticky_windows.py", "# Storage-free child sticker windows\n")
     write_fixture(root / "run_zeter_os.py", "print('ZeTer OS')\n")
     write_fixture(root / "start_zeter_os.cmd", b"@echo off\r\npython run_zeter_os.py\r\n")
     write_fixture(root / "Логи проблем" / "README_FOR_CODEX.md", "# CODEX read order\n")

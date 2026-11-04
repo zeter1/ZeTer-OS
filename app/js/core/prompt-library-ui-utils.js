@@ -139,7 +139,7 @@
       const action = button.dataset.promptAction, library = controller.library(), entry = library.entries.find(item => item.id === button.dataset.promptId);
       if (action === "add" || action === "edit") {
         if (action === "edit" && !entry) return;
-        if (draft && !options.confirm("Заменить открытый несохранённый черновик?")) return;
+        if (draft && !await options.confirm("Заменить открытый несохранённый черновик?")) return;
         editingId = entry?.id || ""; draft = entry ? { ...entry } : { projectId, categoryId: library.categories.some(item => item.projectId === projectId && item.id === filter) ? filter : "" }; message = ""; render(); root.querySelector('[name="name"]')?.focus();
       } else if (action === "cancel") { draft = null; editingId = ""; render(); }
       else if (action === "copy" && entry) {
@@ -148,7 +148,7 @@
       } else if (action === "favorite" && entry) {
         await commit(() => controller.toggleFavorite(entry.id));
         [...root.querySelectorAll('[data-prompt-action="favorite"]')].find(node => node.dataset.promptId === entry.id)?.focus();
-      } else if (action === "delete" && entry && options.confirm(`Удалить промпт «${entry.name}»?`)) await commit(() => controller.removeEntry(entry.id), () => { if (editingId === entry.id) { draft = null; editingId = ""; } });
+      } else if (action === "delete" && entry && await options.confirm(`Удалить промпт «${entry.name}»?`)) await commit(() => controller.removeEntry(entry.id), () => { if (editingId === entry.id) { draft = null; editingId = ""; } });
       else if (action === "project-add") nameDialog("Создать проект", "", async name => { const item = await controller.addProject(name); projectId = item.id; filter = "all"; query = ""; });
       else if (action === "project-rename") { const item = library.projects.find(item => item.id === projectId); if (item) nameDialog("Переименовать проект", item.name, name => controller.renameProject(item.id, name)); }
       else if (action === "project-delete") {
@@ -164,7 +164,7 @@
       }
       else if (action === "category-add" && projectId) { const id = projectId; nameDialog("Создать категорию", "", async name => { const item = await controller.addCategory(id, name); filter = item.id; }); }
       else if (action === "category-rename") { const item = library.categories.find(item => item.id === button.dataset.categoryId); if (item) nameDialog("Переименовать категорию", item.name, name => controller.renameCategory(item.id, name)); }
-      else if (action === "category-delete" && options.confirm("Удалить категорию? Промпты сохранятся в «Без категории» того же проекта.")) await commit(() => controller.removeCategory(button.dataset.categoryId), () => { if (draft?.categoryId === button.dataset.categoryId) draft.categoryId = ""; });
+      else if (action === "category-delete" && await options.confirm("Удалить категорию? Промпты сохранятся в «Без категории» того же проекта.")) await commit(() => controller.removeCategory(button.dataset.categoryId), () => { if (draft?.categoryId === button.dataset.categoryId) draft.categoryId = ""; });
     });
     root.refreshLibrary = () => { readDraft(); render(); };
     render(); return root;

@@ -126,7 +126,7 @@
     async function apply(root) {
       const {source,preview}=session(root);
       if(!preview || preview.fingerprint!==JSON.stringify(getState()))throw new Error('Данные изменились после сравнения. Нажми «Сравнить» ещё раз.');
-      if(!confirm(preview.selection.mode==='replace'?'Применить показанную замену? Перед записью будет создана страховочная точка.':'Восстановить выбранное отдельной копией? Текущие объекты сохранятся.'))return;
+      if(!await confirm(preview.selection.mode==='replace'?'Применить показанную замену? Перед записью будет создана страховочная точка.':'Восстановить выбранное отдельной копией? Текущие объекты сохранятся.'))return;
       if(options.hasOpenEditors?.())throw new Error("Закрой окна документов, задач и редакторов перед восстановлением, затем повтори сравнение.");
       await syncEditors();
       if(preview.fingerprint!==JSON.stringify(getState()))throw new Error('Открытые редакторы содержат изменения. Повтори сравнение.');
@@ -178,7 +178,7 @@
         }
         if(name==='restore-full') {
           if(!source?.verified||!source.entries)throw new Error('Сначала проверь проверенный ZIP-архив.');
-          if(!confirm('Полностью заменить данные ZeTer OS содержимым этого ZIP? Перед заменой создаётся локальная страховочная точка. Открытые редакторы нужно закрыть.'))return;
+          if(!await confirm('Полностью заменить данные ZeTer OS содержимым этого ZIP? Перед заменой создаётся локальная страховочная точка. Открытые редакторы нужно закрыть.'))return;
           if(options.hasOpenEditors?.())throw new Error('Закрой редакторы и другие рабочие окна перед полным восстановлением.');
           const files=[...payloadPaths(source.sourceState)].map(path=>{
             const bytes=source.entries.get('data/'+path)||source.entries.get(path);

@@ -502,6 +502,7 @@
       if (desk?.data?.calculations != null) window.ZETER_BUSINESS_CALCULATIONS_UTILS.validateBusinessCalculations(desk.data.calculations);
       if (desk?.data?.promptLibrary != null) window.ZETER_PROMPT_LIBRARY_UTILS.validatePromptLibrary(desk.data.promptLibrary);
       if (desk?.data?.contacts != null) window.ZETER_CONTACTS_UTILS.validateContacts(desk.data.contacts);
+      if (desk?.data?.expenses != null) window.ZETER_EXPENSES_UTILS.validateExpenses(desk.data.expenses);
       if (desk?.data?.timeTracking != null) window.ZETER_TIME_TRACKING_UTILS.validateTimeTracking(desk.data.timeTracking);
       validateImportString(desk?.id, `Рабочий стол #${index + 1}: ID`, 220);
       validateImportSafeId(desk?.id, `Рабочий стол #${index + 1}: ID`);
@@ -519,6 +520,20 @@
       validateImportedAutomationRuntime(desk?.data?.automationRuntime, `Рабочий стол «${desk?.name || index + 1}»: выполнение автоматизаций`);
       validateImportedObjectLinks(desk?.data?.objectLinks, `Рабочий стол «${desk?.name || index + 1}»: связи объектов`);
       validateImportArrayLimit(desk?.data?.openWindows, `Рабочий стол «${desk?.name || index + 1}»: окна`, OPEN_WINDOWS_MAX);
+      if (desk?.data?.stickyLibrary != null) {
+        const library = desk.data.stickyLibrary;
+        validateImportArrayLimit(library.projects, "Проекты стикеров", 200);
+        validateImportArrayLimit(library.categories, "Категории стикеров", 1000);
+        if (library.preferences != null) window.ZETER_STICKER_LIBRARY_UTILS.validateStickerPreferences(library.preferences);
+        for (const project of library.projects || []) {
+          if (["description", "iconId", "iconDataURL", "color"].some(key => Object.prototype.hasOwnProperty.call(project || {}, key))) window.ZETER_STICKER_LIBRARY_UTILS.validateProjectAppearance(project);
+          if (project?.iconDataURL) validateImportDataImage(project.iconDataURL, "Иконка проекта стикеров", usage);
+        }
+        for (const row of [...(library.projects || []), ...(library.categories || [])]) {
+          validateImportSafeId(row?.id, "ID раздела стикеров");
+          validateImportString(row?.name, "Название раздела стикеров", 120);
+        }
+      }
       validateImportArrayLimit(desk?.data?.noteStickies, `Рабочий стол «${desk?.name || index + 1}»: стикеры`, 1000);
     });
 

@@ -546,6 +546,7 @@
     const setTimeoutAction = typeof options.setTimeout === "function" ? options.setTimeout : setTimeout;
 
     function registerPWA() {
+      if (windowRef.ZETER_TRAINING_RUNTIME?.active) return;
       if (initSteps.shouldUseNativeStorage?.()) return;
       if (documentRef?.documentElement?.dataset?.zeterWebManaged === "true") return;
       if (!("serviceWorker" in navigatorRef)) return;
@@ -588,19 +589,48 @@
         $("#start-button")?.focus();
       };
       let pending = false;
+      overlay.addEventListener("change", async event => {
+        if (pending || !event.target.matches("[data-first-import-file]") || !event.target.files?.length) return;
+        pending = true;
+        const controls = overlay.querySelectorAll("button");
+        const status = overlay.querySelector("[data-first-error]");
+        controls.forEach(button => { button.disabled = true; });
+        status.hidden = false;
+        status.textContent = "Проверяем резервную копию…";
+        try {
+          const result = await importData(event, { firstRun: true });
+          if (result?.ok) {
+            status.textContent = "Данные восстановлены. Открываем рабочий стол…";
+            return;
+          }
+          status.textContent = result?.cancelled ? "Восстановление отменено." : (result?.error?.message || "Не удалось восстановить данные из этого файла.");
+        } catch {
+          status.textContent = "Не удалось завершить восстановление. Выбери файл ещё раз.";
+        }
+        pending = false;
+        controls.forEach(button => { button.disabled = false; });
+        overlay.querySelector("[data-first-import]")?.focus();
+      });
       overlay.addEventListener("click", async event => {
         if (pending) return;
         if (event.target.closest("[data-first-create]") && typeof options.startFirstRunSetup === "function") {
-          options.startFirstRunSetup(overlay, () => done(false));
+            options.startFirstRunSetup(overlay, async showTour => {
+            await done(false);
+            if (showTour) options.startFirstRunTour?.();
+          });
           return;
         }
-        const action = event.target.closest("[data-first-create], [data-first-import], [data-first-help]");
+                if (event.target.closest("[data-first-import]")) {
+          overlay.querySelector("[data-first-import-file]")?.click();
+          return;
+        }
+        const action = event.target.closest("[data-first-quick], [data-first-create], [data-first-help]");
         if (!action) return;
         pending = true;
         overlay.querySelectorAll?.("button").forEach(button => { button.disabled = true; });
         try {
           await done();
-          if (event.target.closest("[data-first-import]")) $("#import-file")?.click();
+          if (event.target.closest("[data-first-quick]")) options.startFirstRunTour?.();
           else if (event.target.closest("[data-first-help]")) openApp("help");
           else toastMessage("Рабочее пространство готово", getDesktopName(getDesktopRoot()));
         } catch (error) {

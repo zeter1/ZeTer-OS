@@ -934,7 +934,7 @@
           getItem: itemId => fs[itemId],
           descendants,
           confirmDelete,
-          deleteItem: itemId => deleteItem(itemId, { skipConfirm: true }),
+          deleteItem: (itemId, expectedItem) => deleteItem(itemId, { skipConfirm: true, expectedItem }),
           navigateAfterDelete: () => navigateFolder(desktopFolderMode ? desktopRoot : rootId)
         })) return;
       }
@@ -1451,9 +1451,9 @@
     const item = getItem(itemId);
     if (!item) return false;
     const label = item.type === "folder" ? `Удалить папку «${item.name}»?` : `Удалить «${item.name}»?`;
-    if (!confirmDelete(label)) return true;
+    if (!await confirmDelete(label)) return true;
     const removedIds = [itemId, ...descendants(itemId)];
-    const deleted = await deleteItem(itemId);
+    const deleted = await deleteItem(itemId, item);
     if (!deleted) return false;
     removeFolderReferences(removedIds);
     if (removedIds.includes(currentFolder)) navigateAfterDelete();

@@ -823,7 +823,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       if (!names.length) return toast("Нечего очищать", "Выбери хотя бы одну категорию.");
       const preview = await collectCleanupPreview();
       const warning = `Будут очищены: ${names.join(", ")}. История: ${preview.historyItems}, точки восстановления: ${preview.restorePoints}, служебные файлы: ${preview.nativeFiles}. Продолжить?`;
-      if (!confirmUser(warning)) return false;
+      if (!await confirmUser(warning)) return false;
 
       const destructive = selection.history || selection.restore;
       if (destructive) {
@@ -933,7 +933,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
         let name = String(pointOptions.name || "").trim();
         const reason = pointOptions.reason || "manual";
         if (!name && reason === "manual") {
-          const requested = promptUser("Название точки восстановления:", `Ручная точка ${new Date(now()).toLocaleString("ru-RU")}`);
+          const requested = await promptUser("Название точки восстановления:", `Ручная точка ${new Date(now()).toLocaleString("ru-RU")}`);
           if (requested == null) return null;
           name = String(requested).trim();
         }
@@ -972,7 +972,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       const points = await readRestorePoints();
       const point = points.find(item => item?.id === pointId);
       if (!point) return false;
-      if (ask && !confirmUser(`Удалить только точку «${point.name || "Точка восстановления"}»? Остальные точки и текущее состояние не изменятся.`)) return false;
+      if (ask && !await confirmUser(`Удалить только точку «${point.name || "Точка восстановления"}»? Остальные точки и текущее состояние не изменятся.`)) return false;
       if (shouldUseNativeStorage()) await deleteNativeRestorePoint(pointId);
       else {
         const db = await openRestoreDb();
@@ -1001,12 +1001,12 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
           if (!preflight?.ready) {
             const detail = restorePayloadPreflightMessage(preflight);
             toast("Точка не применена", detail);
-            if (confirmUser(`${detail}\n\nОткрыть импорт проверенного ZIP-бэкапа?`)) openImport();
+            if (await confirmUser(`${detail}\n\nОткрыть импорт проверенного ZIP-бэкапа?`)) openImport();
             return false;
           }
         }
         const when = new Date(point.createdAt || now()).toLocaleString("ru-RU");
-        if (!confirmUser(`Восстановить «${point.name || "Точка восстановления"}» от ${when}? Сначала будет создана страховочная точка текущего состояния.`)) return false;
+        if (!await confirmUser(`Восстановить «${point.name || "Точка восстановления"}» от ${when}? Сначала будет создана страховочная точка текущего состояния.`)) return false;
         const safety = await createRestorePoint(null, { name: "Перед восстановлением", reason: "pre-restore", silent: true });
         if (!safety) throw new Error("Не удалось создать страховочную точку текущего состояния.");
         previousState = cloneForBackup(getState());
@@ -1111,7 +1111,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
     async function resetZeTerOsFromUi(root = documentRef) {
       const scope = root?.querySelector?.("[data-security-reset-scope]")?.value || "settings";
       const scopeLabel = { settings: "только настройки оформления", workspace: "пользовательские данные с сохранением настроек", full: "всё текущее состояние ZeTer OS" }[scope] || scope;
-      if (!confirmUser(`Подготовить сброс: ${scopeLabel}? Сначала ZeTer OS создаст проверенный ZIP и аварийную точку. Пока страховка не готова, данные не изменятся.`)) return false;
+      if (!await confirmUser(`Подготовить сброс: ${scopeLabel}? Сначала ZeTer OS создаст проверенный ZIP и аварийную точку. Пока страховка не готова, данные не изменятся.`)) return false;
       try {
         const backup = await exportBackup({ source: "pre-reset" });
         if (!backup) throw new Error("Страховочный ZIP не был сохранён.");
@@ -1119,9 +1119,9 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
         if (!safety) throw new Error("Не удалось создать аварийную точку восстановления.");
 
         if (scope === "full") {
-          const phrase = promptUser("Проверенный ZIP и аварийная точка созданы. Для полного сброса введи слово СБРОС:", "");
+          const phrase = await promptUser("Проверенный ZIP и аварийная точка созданы. Для полного сброса введи слово СБРОС:", "");
           if (phrase !== "СБРОС") return toast("Полный сброс отменён", "Контрольное слово не совпало. Страховочные копии сохранены."), false;
-        } else if (!confirmUser(`Страховочные копии готовы. Выполнить сброс: ${scopeLabel}?`)) {
+        } else if (!await confirmUser(`Страховочные копии готовы. Выполнить сброс: ${scopeLabel}?`)) {
           return false;
         }
 
@@ -1184,9 +1184,9 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
 
     async function exportEncryptedBackup() {
       if (!encryptedBackupSupported()) return toast("Шифрование недоступно", "Используй актуальный Edge, Chrome или запуск ZeTer OS через Python."), null;
-      const first = promptUser("Придумай парольную фразу не короче 8 символов. Она не сохраняется и не восстанавливается:", "");
+      const first = await promptUser("Придумай парольную фразу не короче 8 символов. Она не сохраняется и не восстанавливается:", "", { title: "Парольная фраза", password: true });
       if (first == null) return null;
-      const second = promptUser("Повтори парольную фразу:", "");
+      const second = await promptUser("Повтори парольную фразу:", "", { title: "Парольная фраза", password: true });
       if (second == null) return null;
       if (first !== second) return toast("Парольные фразы не совпали", "Зашифрованный бэкап не создан."), null;
       const zipName = backupFileName();
@@ -1238,7 +1238,7 @@ ${nativeMode ? securityActionButtonHTML("data-security-readable-folder", "🗂�
       const verification = context.backupMetadata?.verification;
       const protection = verification?.verified ? "Манифест и контрольные суммы проверены." : "Старая копия без манифеста: структура будет проверена, но происхождение отдельных файлов подтвердить нельзя.";
       const encryption = context.backupMetadata?.encrypted ? " Копия успешно расшифрована." : "";
-      const approved = confirmUser(`Предварительная проверка завершена.\n${protection}${encryption}\n\n${summary}\n\nТекущее состояние будет заменено только после создания аварийной точки. Продолжить?`);
+      const approved = await confirmUser(`Предварительная проверка завершена.\n${protection}${encryption}\n\n${summary}\n\nТекущее состояние будет заменено только после создания аварийной точки. Продолжить?`);
       return { approved, current, incoming: next, changes, verification };
     }
 

@@ -250,10 +250,11 @@
       };
       if (desktopId && desktopId !== getCurrentDesktopId()) {
         if (!desktopExists(desktopId)) throw new Error("Рабочий стол больше недоступен.");
-        switchDesktop(desktopId);
-        return new Promise((resolve, reject) => {
+        const afterSwitch = switched => switched === false ? false : new Promise((resolve, reject) => {
           schedule(() => { try { resolve(run()); } catch (error) { reject(error); } });
         });
+        const switched = switchDesktop(desktopId);
+        return switched?.then ? switched.then(afterSwitch) : afterSwitch(switched);
       }
       return run();
     };

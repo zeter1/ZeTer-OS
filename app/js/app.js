@@ -29,6 +29,7 @@
 
   const coreUtils = window.ZETER_CORE_UTILS;
   if (!coreUtils) throw new Error("ZeTer OS core utils are not loaded.");
+  const { confirm: confirmDialog, prompt: promptDialog, alert: showDialogNotice } = window.ZETER_DIALOG_UTILS.createDialogs(document);
   const { $, $$, pad, uid, todayISO, escapeHtml, cssEscape, normalizeSafeId, truncateText, clamp, debounce, rand, byteSize, bytesToHuman } = coreUtils;
   const safeAttr = escapeHtml;
 
@@ -65,6 +66,7 @@
   const {
     firstRunScreenHTML,
     startFirstRunSetup,
+    startFirstRunTour,
     applyFirstRunDraft
   } = firstRunUiUtils;
 
@@ -537,6 +539,19 @@
     renderFileSurfaces: renderAllFileSurfaces,
     refreshNotesWindows,
     refreshOpenEditors,
+    openStickyWindows: async (noteId, desktopId) => {
+      await openStickerWindows({ desktopId, note: state.fs[noteId] });
+      await createStickersController().setDesktop(desktopId, noteId, false);
+    },
+    closeDesktopSticky: async (noteId, desktopId) => {
+      await createStickersController().setDesktop(desktopId, noteId, false);
+      openApp("stickers");
+    },
+    deleteDesktopSticky: async (noteId, desktopId) => {
+      if (!await confirmDialog("Удалить стикер? Исходная заметка и вложения останутся в ZeTer OS.")) return;
+      await createStickersController().removeEntry(desktopId, noteId);
+    },
+    nativeStickyAvailable: () => window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("windowsStickers").status === "available",
     itemIcon,
     openManagedFile: file => openManagedFile(file),
     openShortcut: item => openShortcutItem(item),
@@ -628,7 +643,7 @@
     showItemMenu,
     enableItemPointerDrag,
     createFolderInFolder,
-    prompt,
+    prompt: promptDialog,
     desktopRootOf,
     desktopName,
     isDesktopRoot,
@@ -647,8 +662,8 @@
     renderFileSurfaces: renderAllFileSurfaces,
     refreshWindowTitle,
     toast,
-    prompt,
-    confirm,
+    prompt: promptDialog,
+    confirm: confirmDialog,
     downloadBlob,
     openExternalLink: target => openExternalTarget(target),
     documentRef: document
@@ -680,8 +695,8 @@
     percent,
     readPrimaryStateRecord,
     saveState,
-    confirmUser: confirm,
-    promptUser: prompt,
+    confirmUser: confirmDialog,
+    promptUser: promptDialog,
     clearLegacyLocalStorageDataCore,
     oldLocalStorageKeys: OLD_LOCAL_STORAGE_KEYS,
     smallSettingsKey: SMALL_SETTINGS_KEY,
@@ -756,6 +771,7 @@
       explorer: renderExplorer,
       editor: documentEditorRuntimeController.renderRichEditorApp,
       notes: documentEditorRuntimeController.renderNotesApp,
+      stickers: renderStickersApp,
       markdown: documentEditorRuntimeController.renderMarkdownApp,
       table: tableAppRuntimeController.renderTableApp,
       tasks: renderTasksApp,
@@ -766,6 +782,7 @@
       links: renderLinkLibraryApp,
       prompts: renderPromptLibraryApp,
       calculations: renderBusinessCalculationsApp,
+      expenses: renderExpensesApp,
       timeTracking: renderTimeTrackingApp,
       contacts: renderContactsApp,
       automationEditor: renderAutomationEditorApp,
@@ -898,8 +915,8 @@
     downloadFile,
     todayISO,
     formatDate,
-    promptUser: prompt,
-    confirmUser: confirm,
+    promptUser: promptDialog,
+    confirmUser: confirmDialog,
     closeWindow,
     createProjectOverview: createTaskProjectOverview,
     createProjectPersistence: createTaskProjectPersistence,
@@ -947,6 +964,7 @@
   }
 
   let state = defaultState();
+  if (window.ZETER_TRAINING_RUNTIME?.active) window.ZETER_TRAINING_RUNTIME.seed(state);
   let searchRevision = 0;
   let appUpdateApplying = false;
   let recoveryApplying = false;
@@ -1090,10 +1108,7 @@
       closeFloating();
       if (action === "task") return openApp("taskedit", { mode: "create" });
       if (action === "explorer") return openApp("folder", { folderId: getExplorerRoot() });
-      if (action === "note") {
-        const id = createItem("note", "Новая заметка", getDesktopRoot(), 120, 120, { content: "", richContent: "" });
-        return openItem(id);
-      }
+      if (action === "note") return createDesktopNote();
     }
   });
 
@@ -1235,7 +1250,7 @@
     saveState,
     renderAllFileSurfaces,
     toast,
-    prompt: (message, defaultValue) => prompt(message, defaultValue),
+    prompt: promptDialog,
     desktopName,
     trashRoot: LEGACY_DELETED_ROOT,
     normalizeTaskStore,
@@ -1245,7 +1260,7 @@
     itemKind: startItemKind,
     itemSize: item => item.managedFile ? bytesToHuman(Number(item.managedFile.size) || 0) : item.dataURL ? bytesToHuman(dataUrlByteLength(item.dataURL)) : bytesToHuman(new Blob([JSON.stringify(item)]).size),
     itemPropertiesText,
-    alert: message => alert(message),
+    alert: message => showDialogNotice(message, { title: "Свойства объекта" }),
     starterContentForExtension,
     plainToRichHtml,
     openItem,
@@ -1256,6 +1271,8 @@
     defaultTaskProjectName: DEFAULT_TASK_PROJECT_NAME
   });
 
+  const pendingDeletionStyle = document.createElement("style");
+  document.head.append(pendingDeletionStyle);
   const deletionController = createDeletionController({
     getState: () => state,
     cloneState: cloneForBackup,
@@ -1277,7 +1294,13 @@
     })),
     renderAllFileSurfaces,
     toast,
-    confirm: message => confirm(message),
+    confirm: confirmDialog,
+    showPending: ids => {
+      pendingDeletionStyle.textContent = [...ids].map(id => {
+        const escaped = cssEscape(id);
+        return `#desktop-items [data-item-id="${escaped}"], .explorer :is([data-item-id="${escaped}"], [data-folder-row="${escaped}"], [data-pinned-item="${escaped}"])`;
+      }).join(",") + (ids.size ? " { display: none; }" : "");
+    },
     rememberDeletedIdsInTarget: rememberDeletedIdsForNativePurgeInTarget,
     clearSelection: () => {
       ui.selectedDesktop = null;
@@ -1315,7 +1338,7 @@
     },
     nativeMode: shouldUseNativeStorage,
     toast,
-    confirm: message => confirm(message),
+    confirm: confirmDialog,
     documentRef: document
   });
   managedFileRuntimeController.bind();
@@ -1345,7 +1368,7 @@
     getState: () => state,
     ensureDesktops,
     createId: uid,
-    requestName: (message, defaultName) => prompt(message, defaultName),
+    requestName: promptDialog,
     requestDeletion: (model, execute) => shellUiUtils.showDesktopDeletionDialog(model, execute, { download: () => downloadDesktopBackup(model) }),
     queueMutation: operation => queueAutomationMutation(operation),
     persistTransaction: persistSearchAwareTransaction,
@@ -1726,11 +1749,11 @@
     return result;
   }
 
-  function openStartItem(id) {
+  async function openStartItem(id) {
     const desktop = startItemDesktop(state.fs[id]);
     if (!desktop) return;
     closeFloating();
-    if (desktop.id !== getDesktopRoot()) switchVirtualDesktop(desktop.id);
+    if (desktop.id !== getDesktopRoot() && !await switchVirtualDesktop(desktop.id)) return;
     return openItem(id);
   }
 
@@ -1738,7 +1761,7 @@
     const desktop = state.desktops.find(entry => entry.id === id);
     if (!desktop) return;
     if (action === "rename") {
-      const name = prompt("Название рабочего стола:", desktopName(id));
+      const name = await promptDialog("Название рабочего стола:", desktopName(id), { title: "Переименовать рабочий стол" });
       if (name === null || !name.trim()) return;
       try {
         await persistSearchAwareTransaction(async write => {
@@ -1759,7 +1782,7 @@
     }
     if (action === "settings") {
       closeFloating();
-      if (id !== getDesktopRoot()) switchVirtualDesktop(id);
+      if (id !== getDesktopRoot() && !await switchVirtualDesktop(id)) return;
       openApp("settings");
     }
   }
@@ -1841,8 +1864,9 @@
   function desktopIconData(id) { return workspaceRuntimeController.desktopIconData(id); }
   function desktopAvatarHTML(id, active = false) { return workspaceRuntimeController.desktopAvatarHTML(id, active); }
 
-  function createVirtualDesktop() {
-    const desktopId = virtualDesktopController.create();
+  async function createVirtualDesktop() {
+    if (!await confirmStickerWindowsClose()) return null;
+    const desktopId = await virtualDesktopController.create();
     if (desktopId) {
       seedAutomationEventBaselines();
       scheduleAutomationCheck();
@@ -1872,7 +1896,21 @@
     return appShortcutController.uninstall(appId);
   }
 
+  async function confirmStickerWindowsClose() {
+    for (const root of document.querySelectorAll(".sticker-library-app")) {
+      if (root.requestStickerClose && !await root.requestStickerClose()) return false;
+    }
+    return true;
+  }
+
   function switchVirtualDesktop(id) {
+    if (id !== getDesktopRoot() && [...document.querySelectorAll(".sticker-library-app")].some(root => root.hasUnsavedStickerChanges?.())) {
+      return confirmStickerWindowsClose().then(allowed => allowed && applyDesktopSwitch(id));
+    }
+    return applyDesktopSwitch(id);
+  }
+
+  function applyDesktopSwitch(id) {
     const previousDesktopId = getDesktopRoot();
     const switched = virtualDesktopController.switchTo(id);
     if (switched && getDesktopRoot() !== previousDesktopId) {
@@ -1994,6 +2032,31 @@
     return result?.asset || null;
   }
 
+  function openCapabilities() {
+    const existing = [...ui.windows.values()].find(record => record.appId === "about" && record.desktopId === getDesktopRoot());
+    if (!existing) return openApp("about", { showCapabilities: true });
+    existing.el.classList.remove("minimized");
+    focusWindow(existing.winId);
+    const heading = existing.el.querySelector("[data-capabilities-heading]");
+    heading?.scrollIntoView({ block: "start" });
+    heading?.focus({ preventScroll: true });
+  }
+
+  function showCapabilityExplanation(id) {
+    const feature = window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature(id);
+    toast(feature.title, feature.message);
+    openCapabilities();
+  }
+
+  function bindCapabilityLinks(root) {
+    root.addEventListener("click", event => {
+      if (!event.target.closest?.("[data-capabilities-about]")) return;
+      event.preventDefault();
+      openCapabilities();
+    });
+    return root;
+  }
+
   async function openExternalTarget(target, label = "") {
     const normalized = normalizeShortcutTarget(target);
     if (!normalized) {
@@ -2001,9 +2064,13 @@
       return false;
     }
     if (normalized.kind === "zeter") return openShortcutTarget(normalized.target, label);
+    if (normalized.kind === "windows" && window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("windowsFiles").status !== "available") {
+      showCapabilityExplanation("windowsFiles");
+      return false;
+    }
     if (normalized.kind === "windows") {
       const extension = managedFileUtils.fileExtension(normalized.target);
-      if (managedFileUtils.EXECUTABLE_EXTENSIONS.has(extension) && !confirm(`Запустить потенциально исполняемый файл «${label || normalized.target}»?`)) return false;
+      if (managedFileUtils.EXECUTABLE_EXTENSIONS.has(extension) && !await confirmDialog(`Запустить потенциально исполняемый файл «${label || normalized.target}»?`)) return false;
     }
     if (!shouldUseNativeStorage()) {
       if (normalized.kind === "url") {
@@ -2011,7 +2078,7 @@
         if (opened) opened.opener = null;
         return Boolean(opened);
       }
-      toast("Нужен запуск через Windows", "Ярлыки на файлы и папки открываются при запуске ZeTer OS через run_zeter_os.py.");
+      showCapabilityExplanation("windowsFiles");
       return false;
     }
     try {
@@ -2084,6 +2151,7 @@
   function refreshNotesWindows() {
     ui.windows.forEach((rec, winId) => {
       if (rec.appId === "notes") refreshWindow(winId);
+      if (rec.appId === "stickers") rec.el.querySelector(".sticker-library-app")?.refreshStickers?.();
     });
   }
 
@@ -2120,6 +2188,11 @@
   }
 
   function folderNameExists(parent, name, excludeId = null) { return fsItemController.folderNameExists(parent, name, excludeId); }
+  function createDesktopNote() {
+    const id = createItem("note", "Новая заметка", getDesktopRoot(), 120, 120, { content: "", richContent: "" });
+    return openItem(id);
+  }
+
   function createItem(type, name, parent = getDesktopRoot(), x = 40, y = 40, extra = {}) {
     const id = fsItemController.createItem(type, name, parent, x, y, extra);
     if (id && type === "note") enqueueExternalAutomationEvent("note_created", state.fs?.[id]);
@@ -2244,7 +2317,7 @@
       togglePinnedItem, deleteItems, downloadExplorerItems, saveState, renderAllFileSurfaces,
       explorerFolderMoveTargets, explorerPathText, bulkMoveItemsToFolder,
       expandedExplorerSet, saveExpandedExplorerSet, explorerFolderIdForTab,
-      descendants, confirmDelete: confirm, removeFolderReferences, desktopRoot: getDesktopRoot(),
+      descendants, confirmDelete: confirmDialog, removeFolderReferences, desktopRoot: getDesktopRoot(),
       positionInFolderGrid, buildExplorerEmptyAreaMenuEntries, resolveExplorerAddress, importNativeFiles
     });
 
@@ -2443,7 +2516,7 @@
       getFileOptions: automationFileOptions,
       openSourceFolder: openAutomationSourceFolder,
       openSampleFile: openAutomationSampleFile,
-      confirmUser: confirm,
+      confirmUser: confirmDialog,
       toast,
       uid,
       getEventOptions: automationEventOptions,
@@ -2656,9 +2729,9 @@
         if (getDesktopRoot() !== workspaceId || !resolveAttachment(ref)) throw new Error("Файл удалён или недоступен на этом рабочем столе.");
         openItem(ref.id);
       },
-      canUploadEventFiles: () => shouldUseNativeStorage(),
+      canUploadEventFiles: () => window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("fileImport").status === "available",
       importEventFiles: async files => {
-        if (!shouldUseNativeStorage()) throw new Error("Загрузка с компьютера доступна в Windows/Python. Выберите файл из рабочего стола.");
+        if (window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("fileImport").status !== "available") throw new Error(window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("fileImport").message);
         const selected = Array.from(files || []);
         if (!selected.length || selected.length > 200) throw new Error("Выберите от 1 до 200 файлов.");
         const attachments = [];
@@ -2781,7 +2854,7 @@
       refreshOpenCalendars: () => refreshOpenCalendars(winId),
       renderNotifications,
       toast,
-      confirmUser: confirm,
+      confirmUser: confirmDialog,
       openEventEditor: params => openApp("calendaredit", params),
       openProjectSettings: (projectId, onSaved) => {
         const projectPersistence = createTaskProjectPersistence({}, {}, winId);
@@ -2851,11 +2924,144 @@
       openTarget: openShortcutTarget,
       isNative: shouldUseNativeStorage,
       copyText: text => navigator.clipboard.writeText(text),
-      confirm: text => confirm(text),
-      prompt: (text, value) => prompt(text, value),
+      confirm: confirmDialog,
+      prompt: promptDialog,
       onChange: () => {
         [...ui.windows.entries()].forEach(([id, record]) => {
           if (id !== winId && record.appId === "links" && record.desktopId === workspaceId) record.el.querySelector(".link-library-app")?.refreshLibrary?.();
+        });
+      }
+    });
+  }
+
+  function createStickersController() {
+    return window.ZETER_STICKER_LIBRARY_UTILS.createStickerLibraryController({
+      getState: () => state, createId: uid, queueMutation: queueAutomationMutation,
+      persistTransaction: persistSearchAwareTransaction,
+      beforeSnapshot: () => { syncLiveEditorsBeforeExport(); syncLegacyWorkspaceAliases(state); },
+      beforePublish: () => { syncLiveEditorsBeforeExport(); syncLegacyWorkspaceAliases(state); },
+      noteHtml: note => cleanRichHtml(note.richContent || plainToRichHtml(note.content || "")),
+      cleanHtml: cleanRichHtml, plainText: window.ZETER_RICH_TEXT_UTILS.richContentToPlainText,
+      onChange: (desktopId, noteIds) => {
+        renderAllFileSurfaces(); noteIds.forEach(refreshOpenEditors);
+        writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+      }
+    });
+  }
+
+  async function openStickerWindows(entry) {
+    const feature = window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("windowsStickers");
+    if (feature.status !== "available") throw new Error(feature.message);
+    await saveState({ requirePrimary: true });
+    return nativeStorageCall("open_sticky_window", { workspaceId: entry.desktopId, stickyId: entry.note.id });
+  }
+
+  function renderStickersApp(params = {}, winId = "") {
+    const controller = createStickersController();
+    return bindCapabilityLinks(window.ZETER_STICKER_LIBRARY_UI_UTILS.createStickerLibraryApp(params, {
+      controller, documentRef: document, currentDesktopId: ui.windows.get(winId)?.desktopId || getDesktopRoot(),
+      nativeAvailable: window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("windowsStickers").status === "available", confirm: confirmDialog,
+      capabilityNoticeHTML: window.ZETER_RUNTIME_CAPABILITIES_UTILS.featureNoticeHTML("windowsStickers"),
+      showCapabilities: () => showCapabilityExplanation("windowsStickers"),
+      createProjectIcon: window.ZETER_VISUAL_UTILS.createDesktopIconFromFile,
+      noteHtml: note => cleanRichHtml(note.richContent || plainToRichHtml(note.content || "")),
+      openWindows: openStickerWindows,
+      openNote: async entry => {
+        if (entry.desktopId !== getDesktopRoot() && !await switchVirtualDesktop(entry.desktopId)) return false;
+        return openApp("editor", { itemId: entry.note.id });
+      },
+      placeOnDesktop: async (entry, x, y) => {
+        if (entry.desktopId !== getDesktopRoot()) throw new Error("Выберите рабочий стол этого стикера или используйте «На стол ZeTer OS».");
+        const position = clientToDesktopPosition(x, y);
+        return controller.setDesktop(entry.desktopId, entry.note.id, true, position);
+      }
+    }));
+  }
+
+  let stickyCloseRequest;
+  window.ZETER_STICKY_NATIVE = Object.freeze({
+    async prepareClose() {
+      const request = stickyCloseRequest = new AbortController();
+      const roots = [...document.querySelectorAll(".sticker-library-app")];
+      for (const root of roots) {
+        if (root.prepareStickerClose && !await root.prepareStickerClose(request.signal)) {
+          roots.forEach(item => item.cancelStickerClose?.());
+          return false;
+        }
+      }
+      return !request.signal.aborted;
+    },
+    cancelClose() {
+      stickyCloseRequest?.abort();
+      document.querySelectorAll(".sticker-library-app").forEach(root => root.cancelStickerClose?.());
+      return true;
+    },
+    snapshot({ workspaceId, stickyId } = {}) {
+      const entry = window.ZETER_STICKER_LIBRARY_UTILS.stickerEntries(state).find(item => item.desktopId === workspaceId && item.note.id === stickyId);
+      if (!entry) return { ok: false, error: "Стикер удалён или рабочий стол недоступен." };
+      const visual = window.ZETER_STICKY_UTILS.normalizeStickySettings({ ...entry.sticky });
+      const appearance = Object.fromEntries(['color', 'textColor', 'fontSize', 'opacity'].map(key => [key, visual[key]]));
+      return { ok: true, snapshot: { workspaceId, stickyId, title: entry.note.name, richHtml: cleanRichHtml(entry.note.richContent || plainToRichHtml(entry.note.content || "")), color: appearance.color, appearance } };
+    },
+    async save(payload = {}) {
+      try {
+        const { workspaceId, stickyId, title, richHtml, expectedTitle, expectedRichHtml, appearance, expectedAppearance } = payload;
+        if (typeof title !== "string" || typeof richHtml !== "string" || richHtml.length > 2000000) throw new Error("Некорректный текст стикера.");
+        const current = window.ZETER_STICKY_NATIVE.snapshot(payload);
+        if (!current.ok) return current;
+        const cleaned = cleanRichHtml(richHtml);
+        const sameAppearance = !appearance || (typeof appearance === 'object'
+          && Object.keys(appearance).sort().join(',') === 'color,fontSize,opacity,textColor'
+          && ['color', 'textColor', 'fontSize', 'opacity'].every(key => appearance[key] === current.snapshot.appearance[key]));
+        if (current.snapshot.title === title && current.snapshot.richHtml === cleaned && sameAppearance) return current;
+        await createStickersController().saveEntry(workspaceId, { title, richHtml: cleaned, preserveMetadata: true, appearance }, stickyId, { title: expectedTitle, richHtml: expectedRichHtml, appearance: expectedAppearance });
+        return window.ZETER_STICKY_NATIVE.snapshot(payload);
+      } catch (error) { return { ok: false, error: error.message || "Не удалось сохранить стикер." }; }
+    },
+    async action({ workspaceId, stickyId, action } = {}) {
+      try {
+        const controller = createStickersController();
+        if (!['library', 'desktop', 'delete'].includes(action)) throw new Error("Неизвестное действие стикера.");
+        if (workspaceId !== getDesktopRoot() && !await switchVirtualDesktop(workspaceId)) throw new Error("Переход на рабочий стол отменён. Стикер оставлен в Windows.");
+        if (action === 'delete') await controller.removeEntry(workspaceId, stickyId);
+        else await controller.setDesktop(workspaceId, stickyId, action === 'desktop');
+        if (action === 'library') openApp('stickers');
+        return { ok: true };
+      } catch (error) { return { ok: false, error: error.message || "Не удалось выполнить действие со стикером." }; }
+    }
+  });
+
+  window.addEventListener("beforeunload", event => {
+    if ([...document.querySelectorAll(".sticker-library-app")].some(root => root.hasUnsavedStickerChanges?.())) {
+      event.preventDefault(); event.returnValue = "";
+    }
+  });
+
+  function renderExpensesApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const getWorkspace = () => state.desktops.find(desk => desk.id === workspaceId)?.data || null;
+    const controller = window.ZETER_EXPENSES_UTILS.createExpensesController({
+      getWorkspace, createId: uid, queueMutation: queueAutomationMutation,
+      persistTransaction: persistSearchAwareTransaction,
+      saveSnapshot: (write, expenses) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.expenses = expenses;
+        return write(snapshot);
+      }
+    });
+    return window.ZETER_EXPENSES_UI_UTILS.createExpensesApp(params, {
+      documentRef: document, controller, getWorkspace,
+      getWorkspaceName: () => state.desktops.find(desk => desk.id === workspaceId)?.name || "",
+      exportReport: rows => downloadBlob(`ZeTer-finances-${todayISO()}.csv`, new Blob(["\uFEFF", window.ZETER_EXPORT_UTILS.tablePageToCSV({ rows })], { type: "text/csv;charset=utf-8" })),
+      onChange: () => {
+        writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+        [...ui.windows.entries()].forEach(([id, record]) => {
+          if (id !== winId && record.appId === "expenses" && record.desktopId === workspaceId) record.el.querySelector(".expenses-app")?.refreshExpenses?.();
         });
       }
     });
@@ -2880,7 +3086,7 @@
     return window.ZETER_CONTACTS_UI_UTILS.createContactsApp(params, {
       documentRef: document, controller,
       copyText: text => navigator.clipboard.writeText(text),
-      confirm: text => confirm(text),
+      confirm: confirmDialog,
       onChange: () => {
         writeSmallSettingsToLocalStorage();
         scheduleExternalBackup();
@@ -2910,7 +3116,7 @@
     return window.ZETER_PROMPT_LIBRARY_UI_UTILS.createPromptLibraryApp(params, {
       documentRef: document, controller,
       copyText: text => navigator.clipboard.writeText(text),
-      confirm: text => confirm(text),
+      confirm: confirmDialog,
       onChange: () => {
         writeSmallSettingsToLocalStorage();
         scheduleExternalBackup();
@@ -2951,7 +3157,7 @@
       }
     });
     return window.ZETER_TIME_TRACKING_UI_UTILS.createTimeTrackingApp(params, {
-      documentRef: document, controller, taskCreator, getWorkspace, confirm: text => confirm(text),
+      documentRef: document, controller, taskCreator, getWorkspace, confirm: confirmDialog,
       onPlan: initialEvent => {
         if (!getWorkspace() || getDesktopRoot() !== workspaceId) throw new Error("Вернитесь на рабочий стол этого занятия и откройте планирование заново.");
         openApp("calendaredit", { timeTrackingPlan: true, initialEvent, date: initialEvent.date });
@@ -3135,7 +3341,7 @@
       ui.settingsSessions.set(desktopId, session);
     }
     session.intentWindowId = winId;
-    return settingsAppElement({
+    return bindCapabilityLinks(settingsAppElement({
       winId, activeSection: params.settingsSection, searchQuery: params.settingsQuery,
       onSectionChange: section => { (ui.windows.get(winId)?.params || params).settingsSection = section; },
       onSearchChange: query => { (ui.windows.get(winId)?.params || params).settingsQuery = query; },
@@ -3145,20 +3351,29 @@
       getDesktopOptions: startupDesktopOptions, getStorageSummary: storageSettingsSummary,
       desktopAvatarHTML: (id, active, desktop) => desktopAvatarHTMLFromList(desktop ? [desktop] : state.desktops, id, active),
       desktopName, desktopDescription, formatBytes: bytesToHuman,
-      windowsStartupAvailable: shouldUseNativeStorage(), toast, createCustomWallpaperFromFile, createDesktopIconFromFile, saveState,
+      windowsStartupAvailable: window.ZETER_RUNTIME_CAPABILITIES_UTILS.getFeature("windowsStartup").status === "available", toast, createCustomWallpaperFromFile, createDesktopIconFromFile, saveState,
+      capabilityNoticeHTML: window.ZETER_RUNTIME_CAPABILITIES_UTILS.featureNoticeHTML("windowsStartup"),
+      nativeWindowAvailable: window.ZETER_RUNTIME_CAPABILITIES_UTILS.getCapabilities().native,
       openDataFolder: () => nativeStorageCall("open_data_folder"),
       getWindowsStartupStatus: () => nativeStorageCall("get_windows_startup_status"),
       setWindowsStartupEnabled: enabled => nativeStorageCall("set_windows_startup_enabled", enabled),
+      testSystemNotification: () => systemNotificationController.test(),
+      getSystemNotificationStatus: () => systemNotificationController.getStatus(),
       openSecurity: () => openApp("security")
-    });
+    }));
   }
-  function renderAboutApp(){
+  function renderAboutApp(params = {}){
     const root = window.ZETER_ABOUT_UI_UTILS.aboutAppElement({
       openApp,
       showContext,
       copyText: copyTextToClipboard,
       openExternalLink: openExternalTarget,
-      toast
+      toast,
+      showCapabilities: params.showCapabilities,
+      getRuntimeInfo: shouldUseNativeStorage() ? async () => {
+        await waitForNativeStorage();
+        return typeof window.pywebview?.api?.get_runtime_info === "function" ? nativeStorageCall("get_runtime_info") : null;
+      } : null
     });
     updateUiController?.render(root);
     return root;
@@ -3175,7 +3390,50 @@
   function renderManualUpdateApp(){
     return window.ZETER_UPDATE_UI_UTILS.manualUpdateElement({ openExternalLink: openExternalTarget, showContext, copyText: copyTextToClipboard, toast });
   }
-  function renderHelpApp(){ return helpAppElement({ openApp, osVersion: OS_VERSION }); }
+  async function resetTrainingWorkspace() {
+    if (!window.ZETER_TRAINING_RUNTIME?.active) throw new Error("Учебный сброс доступен только внутри обучения.");
+    closeFloating();
+    await syncLiveEditorsBeforeExport();
+    for (const [winId, record] of [...ui.windows]) {
+      await closeWindow(winId);
+      if (ui.windows.has(winId)) throw new Error("Не удалось подготовить учебное окно.");
+      record.el.remove();
+    }
+    await primaryStateSaveQueue.pending();
+    const fresh = defaultState();
+    window.ZETER_TRAINING_RUNTIME.resetSeed(fresh);
+    state = migrate(fresh);
+    ui.selectedDesktop = null;
+    ui.multiSelected.clear();
+    ui.drag = null;
+    ui.selectionDrag = null;
+    ui.activeWindow = null;
+    ui.notificationFilter = "all";
+    ui.calendar = {view:"month",date:todayISO(),selected:todayISO(),editing:null};
+    ensureDesktops();
+    applySettings();
+    renderDesktop();
+    renderStart();
+    renderTaskbarPinnedApps();
+    renderNotifications();
+    await saveState({skipExternalBackup:true});
+  }
+
+  function openFirstSteps() {
+    startFirstRunTour({ exportBackup: () => exportOS({source:"first-run"}) });
+  }
+
+  function renderHelpApp(_params, winId) {
+    return helpAppElement({
+      openApp,
+      osVersion: OS_VERSION,
+      openFirstSteps: () => {
+        if ($(".first-run-screen") || !minimizeWindow(winId)) return;
+        $(`.taskbar-app[data-win-id="${cssEscape(winId)}"]`)?.focus();
+        openFirstSteps();
+      }
+    });
+  }
   const searchController = createSearchController({
     document,
     getState: () => state,
@@ -3300,7 +3558,7 @@
     const result = { kind: element.dataset.searchKind, id: element.dataset.id, desktopId: element.dataset.desktopId,
       itemId: element.dataset.itemId, projectId: element.dataset.projectId, projectType: element.dataset.projectType };
     const target = searchTargetRecord(result);
-    if (target.desktopId !== getDesktopRoot() && !switchVirtualDesktop(target.desktopId)) throw new Error("Не удалось открыть рабочий стол.");
+    if (target.desktopId !== getDesktopRoot() && !await switchVirtualDesktop(target.desktopId)) throw new Error("Не удалось открыть рабочий стол.");
     if (result.kind === "link") return openShortcutTarget(target.record.target, target.record.name);
     if (result.kind === "prompt") return openApp("prompts", { projectId: target.record.projectId || "", entryId: target.record.id });
     if (result.kind === "time") return openApp("timetracking", { entryId: target.record.id });
@@ -3354,7 +3612,7 @@
       return saved;
     }
     if (action === "reveal" && result.kind === "item") {
-      if (target.desktopId !== getDesktopRoot() && !switchVirtualDesktop(target.desktopId)) throw new Error("Не удалось открыть рабочий стол.");
+      if (target.desktopId !== getDesktopRoot() && !await switchVirtualDesktop(target.desktopId)) throw new Error("Не удалось открыть рабочий стол.");
       closeFloating();
       return openApp("folder", { folderId: target.record.parent, focusItemId: target.record.id });
     }
@@ -3374,6 +3632,13 @@
       workspaceDefaults
     });
   }
+
+  const systemNotificationController = notificationUiUtils.createSystemNotificationController({
+    getSettings: systemSettings,
+    isNative: shouldUseNativeStorage,
+    nativeSend: payload => nativeStorageCall("show_system_notification", payload),
+    onStatus: message => document.querySelectorAll("[data-system-notification-status]").forEach(node => { node.textContent = message; })
+  });
 
   const notificationCenterController = createNotificationCenterController({
     document,
@@ -3399,7 +3664,9 @@
   function shouldPopupNotification(options = {}) { return notificationDecision(options).popup; }
   function addNotification(title, text, options = {}) {
     if (!notificationDecision(options).store) return null;
-    return notificationCenterController.addNotification(title, text, options);
+    const notification = notificationCenterController.addNotification(title, text, options);
+    void systemNotificationController.send(notification, options);
+    return notification;
   }
 
   driveIncomingUiController = notificationUiUtils.createDriveIncomingController({
@@ -3960,18 +4227,18 @@
     getNotifications: deskNotifications,
     getCurrentDesktopId: getDesktopRoot,
     taskNavigator: taskTargetNavigator,
-    openCalendar: notification => {
+    openCalendar: async notification => {
       const desktopId = notification.desktopId || getDesktopRoot();
-      if (desktopId !== getDesktopRoot() && state.desktops.some(desktop => desktop.id === desktopId)) switchVirtualDesktop(desktopId);
+      if (desktopId !== getDesktopRoot() && state.desktops.some(desktop => desktop.id === desktopId) && !await switchVirtualDesktop(desktopId)) return false;
       const date = notification.calendarDate || todayISO();
       ui.calendar = { ...ui.calendar, view: "day", date, selected: date, editing: null };
       closeFloating();
       openApp("calendar", { view: "day" });
       return true;
     },
-    openLinkedObject: (endpoint, notification = {}) => {
+    openLinkedObject: async (endpoint, notification = {}) => {
       const desktopId = notification.desktopId || getDesktopRoot();
-      if (desktopId !== getDesktopRoot() && state.desktops.some(desktop => desktop.id === desktopId)) switchVirtualDesktop(desktopId);
+      if (desktopId !== getDesktopRoot() && state.desktops.some(desktop => desktop.id === desktopId) && !await switchVirtualDesktop(desktopId)) return false;
       if (endpoint.kind === "event" && endpoint.eventDate) {
         ui.calendar = { ...ui.calendar, date: endpoint.eventDate, selected: endpoint.eventDate, editing: endpoint.id };
       }
@@ -4114,12 +4381,12 @@
         taskbarApps: taskbarPinnedApps().filter(id => apps[id] && !apps[id].hidden)
       },
       save: saveFirstRunSetup,
-      exportBackup: () => exportOS({source:"first-run"}),
       getWindowsStartup: () => shouldUseNativeStorage() ? nativeStorageCall("get_windows_startup_status") : Promise.resolve({supported:false}),
       setWindowsStartup: enabled => nativeStorageCall("set_windows_startup_enabled", enabled),
       onFinish
     }),
     completeFirstRun: () => saveFirstRunSetup(),
+    startFirstRunTour: openFirstSteps,
     osVersion: OS_VERSION,
     initSteps: {
       shouldUseNativeStorage,
@@ -4246,11 +4513,11 @@
       logError: error => console.error('[ZeTer OS export]', error)
     });
   }
-  async function importOS(event){
+  async function importOS(event, { firstRun = false } = {}) {
     return runOsImportAction(event, {
       validateImportedState: validateImportedStateForImport,
       hydrateExternalAssets,
-      requestPassphrase: file => prompt(`Бэкап «${file?.name || ".zeterbak"}» зашифрован. Введи парольную фразу:`, ""),
+      requestPassphrase: file => promptDialog(`Бэкап «${file?.name || ".zeterbak"}» зашифрован. Введи парольную фразу:`, "", { title: "Пароль от бэкапа", password: true }),
       decryptBackupBlob,
       preflightImport: (incoming, context) => securityRuntimeController.previewImport(incoming, context),
       createSafetyPoint: () => securityRuntimeController.createRestorePoint(null, { name: "Перед импортом", reason: "pre-import", silent: true }),
@@ -4259,6 +4526,7 @@
       replaceState: incoming => {
         Object.keys(state).forEach(key => delete state[key]);
         Object.assign(state, migrate(incoming));
+        if (firstRun) state.firstRunCompleted = true;
       },
       rollbackState: previous => {
         Object.keys(state).forEach(key => delete state[key]);
@@ -4268,7 +4536,7 @@
       verifyAppliedState: () => securityRuntimeController.verifyAppliedImport(),
       onImported: ({ file, backupMetadata }) => securityRuntimeController.recordImportResult(true, { detail: `${file?.name || "бэкап"}${backupMetadata?.encrypted ? " · зашифрован" : ""}${backupMetadata?.verification?.verified ? " · контрольные суммы проверены" : " · legacy-формат"}` }),
       onImportFailed: (error, result) => securityRuntimeController.recordImportResult(false, { rolledBack: result?.rolledBack, detail: error?.message || String(error) }),
-      notify: toast,
+      notify: firstRun ? () => {} : toast,
       scheduleReload: () => setTimeout(() => location.reload(), 800),
       logError: error => console.error("[ZeTer OS import]", error)
     });
@@ -4347,8 +4615,8 @@
     prepareIncoming:prepareCloudStateForPublication,
     setLocked:locked=>{recoveryApplying=Boolean(locked);const os=document.querySelector("#os");if(os)os.inert=recoveryApplying||appUpdateApplying;},
     hasOpenEditors:()=>[...ui.windows.values()].some(record=>!["security","help","about","monitor"].includes(record.appId)),
-    requestPassphrase:file=>prompt(`Пароль от «${file.name}» (не сохраняется):`,""),
-    confirm,notify:toast,
+    requestPassphrase:file=>promptDialog(`Пароль от «${file.name}» (не сохраняется):`, "", { title: "Пароль от бэкапа", password: true }),
+    confirm: confirmDialog,notify:toast,
     publish:candidate=>{
       Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,candidate);
       syncLegacyWorkspaceAliases(state);renderAllFileSurfaces();renderDesktop();renderStart();renderTaskbarPinnedApps();
@@ -4398,6 +4666,7 @@
       throw error;
     }
     renderNotifications();
+    void systemNotificationController.send(added[0].record, { source });
   }
 
   updateUiController = window.ZETER_UPDATE_UI_UTILS.createUpdateController({
@@ -4461,6 +4730,8 @@
       showNativeStorageRecovery(error);
     }
   }
+
+  if (window.ZETER_TRAINING_RUNTIME?.active) window.ZETER_TRAINING_RUNTIME.registerWorkspace(resetTrainingWorkspace);
 
   if (document.readyState === "loading") document.addEventListener('DOMContentLoaded', bootZeTerOs);
   else void bootZeTerOs();

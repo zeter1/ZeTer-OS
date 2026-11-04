@@ -146,6 +146,8 @@ assert.equal(help.normalizeHelpQuery("  БЭКАП  "), "бэкап");
 assert.equal(help.normalizeHelpQuery("  УЧЁТ   ВРЕМЕНИ  "), "учет времени");
 assert.equal(help.helpTextMatches("Учёт времени и история занятий", "история учет"), true, "search must match words in any order and treat е/ё equally");
 assert.equal(help.helpTextMatches("Проверенный ZIP-бэкап", "zip несуществующий"), false, "every query word must match");
+assert.match(html, /class="help-search-panel"[\s\S]*?data-help-first-steps[^>]*>[\s\S]*?Запустить стартовое обучение[\s\S]*?<\/button>\s*<\/div>\s*<div class="help-layout"/, "training launch must stay above the changing guide content");
+assert.equal((html.match(/data-help-first-steps/g) || []).length, 1, "guide must have one dedicated launch button");
 assert.match(html, /data-help-menu-toggle/, "narrow windows must have an accessible section menu");
 assert.match(html, /data-help-topic-target=/, "sections must offer direct links to instructions");
 assert.match(html, /data-help-expand=/, "readers must be able to expand and collapse section instructions");
@@ -215,14 +217,14 @@ assert.equal(fixtureSearch.value, "", "clear button must restore a useful initia
 assert.equal(fixtureElements["[data-help-home]"].hidden, false);
 
 const firstRunHtml = firstRun.firstRunScreenHTML("3.77");
-assert.match(firstRunHtml, /Посмотреть возможности/, "first-run action must accurately describe the guide");
+assert.match(firstRunHtml, /Начать с руководства/, "first-run action must accurately describe the guide");
 assert.match(firstRunHtml, /data-first-help/, "first-run guide action must use the help hook");
 assert.doesNotMatch(firstRunHtml, /Открыть демо|data-first-demo/, "misleading demo wording must not return");
 
 const appSource = fs.readFileSync(path.join(ROOT, "app", "js", "app.js"), "utf8");
 assert.match(
   appSource,
-  /helpAppElement\(\{\s*openApp,\s*osVersion:\s*OS_VERSION\s*\}\)/,
+  /helpAppElement\(\{\s*openApp,\s*osVersion:\s*OS_VERSION,\s*openFirstSteps:\s*\(\)\s*=>/,
   "app composition must pass the real OS version and app opener to the guide"
 );
 

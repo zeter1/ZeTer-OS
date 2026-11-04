@@ -2,9 +2,9 @@
 // Exact production adapters + real primary queue on synthetic state. No startup/native/user files.
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const root = path.resolve(__dirname, ".."), clone = value => JSON.parse(JSON.stringify(value));
-const box = { console, structuredClone, TextEncoder, setTimeout, clearTimeout, crypto: require("node:crypto").webcrypto };
+const box = { console, structuredClone, URLSearchParams, TextEncoder, setTimeout, clearTimeout, crypto: require("node:crypto").webcrypto };
 box.window = box; box.ZETER_TIME_TRACKING_UTILS = {}; vm.createContext(box);
-for (const name of ["project-overview-utils", "config", "utils", "data-normalizers", "storage-utils", "fs-item-utils"]) vm.runInContext(fs.readFileSync(path.join(root, `app/js/core/${name}.js`), "utf8"), box);
+for (const name of ["project-overview-utils", "config", "utils", "runtime-capabilities-utils", "data-normalizers", "storage-utils", "fs-item-utils"]) vm.runInContext(fs.readFileSync(path.join(root, `app/js/core/${name}.js`), "utf8"), box);
 const workspaceSource = fs.readFileSync(path.join(root, "app/js/core/workspace-utils.js"), "utf8");
 vm.runInContext(workspaceSource.slice(workspaceSource.indexOf("  function normalizeWorkspaceCalendarState("), workspaceSource.indexOf("  function workspaceDefaults(")), box);
 box.ZETER_WORKSPACE_UTILS = { normalizeWorkspaceCalendarState: box.normalizeWorkspaceCalendarState };
@@ -17,6 +17,9 @@ async function main() {
   const state = { desktops: [{id:"desktop",data:first},{id:"other",data:other}], fs: {file_a:{id:"file_a",type:"text",name:"Документ.txt",parent:"desktop"},file_other:{id:"file_other",type:"text",name:"Другой.txt",parent:"other"}} };
   const originalOther = JSON.stringify(other), originalEvents = JSON.stringify(first.events);
   let refuse = false, disk, sequence = 0, copies = 0, native = true, chain = Promise.resolve();
+  const fakeMethod = () => { throw new Error("No real native API allowed"); };
+  const fakeApi = Object.fromEntries(["load_state", "begin_file_import", "append_file_chunk", "finish_file_import", "cancel_file_import"].map(name=>[name,fakeMethod]));
+  Object.defineProperty(box,"pywebview",{get:()=>native?{api:fakeApi}:undefined});
   const refreshExclusions = [];
   Object.assign(box, {
     state, uid: prefix => `${prefix}_${++sequence}`, getDesktopRoot:()=>"desktop",
@@ -84,7 +87,7 @@ async function main() {
   await tools.deleteCategory(unusedCategory.id,"",unusedCategory);
   assert.equal(first.calendarCategories.length,0);
   await assert.rejects(tools.deleteCategory("work","personal",{}),/другом окне/);
-  native=false;await assert.rejects(tools.importEventFiles([{name:"test.pdf"}]),/Windows\/Python/);assert.equal(copies,0);
+  native=false;await assert.rejects(tools.importEventFiles([{name:"test.pdf"}]),/приложение ZeTer OS для Windows/);assert.equal(copies,0);
   native=true;
   const file={name:"Вложение.pdf"};refuse=true;
   await assert.rejects(tools.importEventFiles([file]),/refusal|подтвердило/);

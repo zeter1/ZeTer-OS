@@ -6,6 +6,7 @@
 @import url("./40-app-foundation.css");
 @import url("./41-first-run.css");
 @import url("./45-form-controls.css");
+@import url("./46-dialogs.css");
 @import url("./50-explorer.css");
 @import url("./60-apps-calendar-notes-tables.css");
 @import url("./61-tasks.css");
@@ -14,6 +15,8 @@
 @import url("./67-business-calculations.css");
 @import url("./68-time-tracking.css");
 @import url("./69-contacts.css");
+@import url("./70-expenses.css");
+@import url("./71-stickers.css");
 @import url("./80-overrides.css");
 @import url("./85-explorer-plus.css");
 @import url("./90-security.css");

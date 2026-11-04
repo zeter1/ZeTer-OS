@@ -88,8 +88,8 @@
     }
     async function deleteEntry(item) {
       if (busy || pendingDeletion.has(item.id) || isTimeEntryDeleted(item)) return;
-      const confirm = options.confirm || (text => view.confirm(text));
-      if (!confirm(`Удалить запись «${item.title}» навсегда?\nВосстановить её в приложении будет невозможно. Ранее созданные резервные копии могут содержать эту запись.`)) return;
+      const confirm = options.confirm || (() => false);
+      if (!await confirm(`Удалить запись «${item.title}» навсегда?\nВосстановить её в приложении будет невозможно. Ранее созданные резервные копии могут содержать эту запись.`)) return;
       pendingDeletion.set(item.id, item); deletionFailures.delete(item.id);
       const card = [...root.querySelectorAll("[data-time-row]")].find(node => node.dataset.timeRow === item.id);
       if (card) {
@@ -224,8 +224,8 @@
       try { options.onPlan(timePlanDraft(value, workspace())); }
       catch (failure) { editor = previous; showStatus(failure.message || "Не удалось открыть планирование.", true); render(); }
     }
-    function openEditor(mode, item = null) {
-      capture(); if (editor && !options.confirm("Заменить несохранённую форму?")) return;
+    async function openEditor(mode, item = null) {
+      capture(); if (editor && !await options.confirm("Заменить несохранённую форму?")) return;
       showStatus("");
       restoreFocus = focusSnapshot();
       editor = ["project", "task"].includes(mode) ? { mode, createName: "", createProjectId: draft.projectId || workspace().activeTaskProjectId || workspace().taskProjects?.[0]?.id || "" }

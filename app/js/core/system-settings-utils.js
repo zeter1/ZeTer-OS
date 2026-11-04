@@ -46,6 +46,7 @@
     }),
     notifications: Object.freeze({
       enabled: true,
+      systemDelivery: false,
       tasks: true,
       calendar: true,
       system: true,
@@ -233,6 +234,7 @@
       notifications: {
         ...notificationSource,
         enabled: booleanSetting(notificationSource.enabled, DEFAULT_SYSTEM_SETTINGS.notifications.enabled),
+        systemDelivery: booleanSetting(notificationSource.systemDelivery, false),
         tasks: booleanSetting(notificationSource.tasks, DEFAULT_SYSTEM_SETTINGS.notifications.tasks),
         calendar: booleanSetting(notificationSource.calendar, DEFAULT_SYSTEM_SETTINGS.notifications.calendar),
         system: booleanSetting(notificationSource.system, DEFAULT_SYSTEM_SETTINGS.notifications.system),

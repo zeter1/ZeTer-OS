@@ -346,7 +346,7 @@
 
 .desktop-sticky-head {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 7px 8px 7px 11px;
@@ -387,6 +387,32 @@
   color: white;
 }
 
+.desktop-sticky-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--stroke);
+}
+
+.desktop-sticky-settings .desktop-sticky-actions button {
+  flex: 0 1 auto;
+  min-height: 26px;
+  padding: 4px 6px;
+  border: 1px solid var(--stroke);
+  border-radius: 7px;
+  background: rgba(255,255,255,.10);
+  color: inherit;
+  font-size: 11px;
+}
+
+.desktop-sticky-actions button:hover { background: rgba(255,255,255,.22); }
+.desktop-sticky-actions [data-sticky-delete]:hover { background: var(--danger); color: white; }
+.desktop-sticky-actions button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+.desktop-sticky-action-status { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.desktop-sticky[aria-busy="true"] .desktop-sticky-head,
+.desktop-sticky[aria-busy="true"] .desktop-sticky-resize { pointer-events: none; }
+
 .desktop-sticky [data-sticky-text] {
   width: 100%;
   height: 100%;
@@ -414,6 +440,8 @@
   right: 10px;
   z-index: 3;
   width: min(250px, calc(100% - 20px));
+  max-height: calc(100% - 56px);
+  overflow: auto;
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -431,20 +459,22 @@
 
 .desktop-sticky-settings label {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 8px 10px;
+  gap: 6px;
+  overflow-wrap: anywhere;
   font-size: 12px;
   font-weight: 800;
 }
 
 .desktop-sticky-settings select,
 .desktop-sticky-settings input {
-  min-width: 112px;
+  min-width: 0;
+  width: 100%;
 }
 
 .desktop-sticky-settings input[type="range"] {
-  width: 118px;
+  width: 100%;
 }
 
 .desktop-sticky-settings span {

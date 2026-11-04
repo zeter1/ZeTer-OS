@@ -585,7 +585,9 @@
       };
 
       if (desktopId && desktopId !== getCurrentDesktopId() && desktopExists(desktopId)) {
-        switchDesktop(desktopId);
+        const switched = switchDesktop(desktopId);
+        if (switched?.then) return switched.then(allowed => { if (allowed !== false) schedule(openTarget); return allowed !== false; });
+        if (switched === false) return false;
         schedule(openTarget);
         return true;
       }
@@ -649,7 +651,7 @@
       return projects().find(project => project.id === store.activeProjectId()) || projects()[0];
     };
     const projectTasks = () => allTasks().filter(task => task.projectId === activeProject().id);
-    const saveTasks = async (snapshot, onSaved = () => {}) => {
+    const saveTasks = async (snapshot, onSaved = () => {}, immediate = false) => {
       const saveTarget = taskStoreSaveTarget(store, currentWorkspace);
       if (saveTarget && taskStoreSaveLocks.has(saveTarget)) {
         restoreTaskStoreSnapshot(store, snapshot, currentWorkspace);
@@ -663,7 +665,8 @@
       if (saveTarget) taskStoreSaveLocks.add(saveTarget);
       store.touch();
       try {
-        await Promise.resolve(saveState());
+        if (immediate) draw();
+        await Promise.resolve(saveState(immediate ? { requirePrimary: true } : undefined));
         renderAllFileSurfaces();
         renderStart($("#start-search-input")?.value || "");
         if (isTaskList) refreshWindowTitle(winId, taskWindowTitleFromParams({ itemId: store.item.id }));
@@ -740,7 +743,7 @@
           $("[data-priority-button]", card)?.classList.remove("hidden");
         }, 0);
       });
-      card.addEventListener("click", event => {
+      card.addEventListener("click", async event => {
         const action = taskCardClickAction(event.target);
         if (!action) return;
         if (action.type === "show-priority-select") {
@@ -750,10 +753,10 @@
           return;
         }
         if (action.type === "delete") {
-          if (confirmUser("Удалить задачу?")) {
+          if (await confirmUser(`«${task.title}»`, { title: "Удалить задачу?", action: "Удалить", danger: true }) && root.isConnected && allTasks().includes(task)) {
             const snapshot = taskStoreSnapshot(store, currentWorkspace);
             store.setTasks(allTasks().filter(item => item.id !== task.id));
-            void saveTasks(snapshot);
+            void saveTasks(snapshot, undefined, true);
           }
           return;
         }
@@ -768,14 +771,18 @@
           return;
         }
         if (action.type === "toggle-indefinite") {
-          const snapshot = taskStoreSnapshot(store, currentWorkspace);
           if (task.indefinite) {
-            const due = promptUser("Дата выполнения задачи:", task.due || todayISO());
-            if (due === null) return;
+            const due = await promptUser("Дата выполнения задачи:", task.due || todayISO());
+            if (due === null || !root.isConnected || !allTasks().includes(task) || !task.indefinite) return;
             const normalizedDue = String(due).trim();
             if (!window.ZETER_PROJECT_OVERVIEW_UTILS.validProjectDue(normalizedDue)) return toast("Срок не сохранён", "Введите существующую дату в формате ГГГГ-ММ-ДД.");
+            const snapshot = taskStoreSnapshot(store, currentWorkspace);
             setTaskIndefinite(task, false, normalizedDue);
-          } else setTaskIndefinite(task, true);
+            void saveTasks(snapshot, () => toast("Срок задачи возвращён", task.title));
+            return;
+          }
+          const snapshot = taskStoreSnapshot(store, currentWorkspace);
+          setTaskIndefinite(task, true);
           void saveTasks(snapshot, () => toast(task.indefinite ? "Задача стала бессрочной" : "Срок задачи возвращён", task.title));
           return;
         }
@@ -923,7 +930,7 @@
     const creation = persistence && createTaskCreationController({ ...persistence, getWorkspace: persistence.getStore });
     const settingsController = persistence && createTaskProjectSettingsController(persistence);
 
-    root.addEventListener("click", event => {
+    root.addEventListener("click", async event => {
       const projectSettings = $(".task-project-settings", root);
       if (projectSettings && !projectSettings.contains(event.target)) projectSettings.open = false;
       const viewButton = event.target.closest?.("[data-project-view]");
@@ -970,8 +977,8 @@
       }
       if (action.type === "rename-project") {
         const project = activeProject();
-        const name = promptUser("Новое название проекта:", project.name);
-        if (name === null) return;
+        const name = await promptUser("Новое название проекта:", project.name);
+        if (name === null || !root.isConnected || !projects().includes(project)) return;
         const snapshot = taskStoreSnapshot(store, currentWorkspace);
         project.name = name.trim() || project.name;
         project.updatedAt = Date.now();
@@ -980,14 +987,16 @@
       }
       if (action.type === "delete-project") {
         const project = activeProject();
+        const preview = taskProjectDeletionPlan(projects(), allTasks(), project.id);
+        if (!preview) return toast("Нельзя удалить", "В списке должен остаться хотя бы один проект.");
+        if (!await confirmUser(`Удалить проект «${project.name}» и ${preview.count} задач?`, { title: "Удалить проект?" }) || !root.isConnected) return;
         const plan = taskProjectDeletionPlan(projects(), allTasks(), project.id);
-        if (!plan) return toast("Нельзя удалить", "В списке должен остаться хотя бы один проект.");
-        if (!confirmUser(`Удалить проект «${project.name}» и ${plan.count} задач?`)) return;
+        if (!plan || plan.count !== preview.count || !projects().includes(project)) return toast("Проект изменился", "Повторите удаление.");
         const snapshot = taskStoreSnapshot(store, currentWorkspace);
         if (store.item) { store.item.taskProjects = plan.nextProjects; store.item.activeTaskProjectId = plan.nextActive.id; }
         else { currentWorkspace().taskProjects = plan.nextProjects; currentWorkspace().activeTaskProjectId = plan.nextActive.id; }
         store.setTasks(plan.nextTasks);
-        void saveTasks(snapshot);
+        void saveTasks(snapshot, undefined, true);
         return;
       }
       if (action.type === "export-tasks") {

@@ -273,6 +273,8 @@ async function smokeConfirmedExplorerDelete() {
   });
   assert.deepEqual(cleanupCalls, [], "Explorer must wait for persisted deletion before cleanup");
   assert.equal(navigationCalls, 0, "Explorer must not navigate before persisted deletion");
+  await Promise.resolve();
+  assert.equal(typeof finishDelete, "function");
   finishDelete(true);
   assert.equal(await pendingDelete, true);
   assert.deepEqual(JSON.parse(JSON.stringify(cleanupCalls)), [["project", "nested", "leaf"]]);

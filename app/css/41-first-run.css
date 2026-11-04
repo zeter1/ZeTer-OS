@@ -131,20 +131,59 @@
 .first-run-desktop-preview[data-density="comfortable"] { gap: 24px; }
 .first-run-native-startup { border: 1px solid #ffffff1a; border-radius: 12px; padding: 0 18px 18px; }
 .first-run-native-startup .first-run-toggle { border: 0; }
-.first-run-backup-status { margin: 24px 0 0; padding: 17px; border: 1px solid #8caaff40; background: #8caaff0a; border-radius: 12px; color: #ccd9f3; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
-.first-run-screen.first-run-touring { background: transparent; overflow: hidden; }
-.first-run-tour-ring { position: fixed; border: 2px solid #b5cbff; border-radius: 15px; box-shadow: 0 0 0 9999px #050915c9, 0 0 28px #789fff5c; pointer-events: none; }
-.first-run-tour-ring[hidden] { display: none; }
-.first-run-tour-card { position: fixed; right: 32px; bottom: 110px; width: min(420px, calc(100% - 32px)); max-height: calc(100% - 40px); overflow: auto; border: 1px solid #a3baff4a; border-radius: 20px; background: #152039; padding: 25px; box-shadow: 0 24px 80px #0006; }
-.first-run-tour-top { display: flex; align-items: center; gap: 15px; justify-content: space-between; }
-.first-run-tour-top > span { color: #9cafda; font-size: 9px; letter-spacing: .08em; }
-.first-run-tour-top button { font-size: 11px; color: #bac9e6; background: transparent; padding: 0; }
-.first-run-progress { height: 3px; margin: 14px 0 23px; background: #ffffff18; border-radius: 5px; overflow: hidden; }
-.first-run-progress span { display: block; height: 100%; background: #b9caff; }
-.first-run-tour-card h1 { font-size: 24px; letter-spacing: -.03em; line-height: 1.25; margin: 0 0 15px; }
-.first-run-tour-card p { color: #bfcee8; line-height: 1.8; font-size: 14px; }
-.first-run-tour-card .first-run-setup-actions { padding: 15px 0 0; margin-top: 24px; }
-.first-run-tour-card .first-run-setup-actions { position: sticky; bottom: -1px; background: #152039; padding-bottom: 1px; }
+.first-run-access { margin-top: 12px; color: #d7e2f7; }
+.first-run-access > summary { padding: 12px 0; cursor: pointer; }
+.first-run-access .first-run-field { max-width: 280px; }
+.first-run-screen.first-run-touring { background: transparent; overflow: hidden; padding: 0; }
+.first-run-screen.first-run-touring::backdrop { background: rgba(7, 13, 27, .34); }
+.first-run-screen [hidden] { display: none; }
+.first-run-tour-card {
+  --tour-accent: #a7f3d9;
+  position: fixed; z-index: 2; right: 16px; bottom: 16px;
+  width: min(430px, calc(100% - 32px)); max-height: calc(100% - 32px);
+  display: flex; flex-direction: column; overflow: hidden; border: 1px solid #a7bafa59; border-radius: 24px;
+  background: radial-gradient(ellipse at 5% 0%, #40406b, transparent 56%), #19253d;
+  color: #f3f6ff; padding: clamp(16px, 3vw, 24px);
+  box-shadow: 0 24px 72px #050b20a8;
+}
+.first-run-tour-step { max-height: min(calc(100% - 32px), max(144px, 53%)); }
+.first-run-tour-step .first-run-tour-top { margin-bottom: 8px; }
+.first-run-tour-step .first-run-tour-top button:not([hidden]) { min-height: 36px; }
+.first-run-tour-step h1 { margin-top: 8px; }
+.first-run-tour-content { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.first-run-tour-content :focus-visible { outline-offset: -1px; }
+.first-run-tour-centered { inset: 50% auto auto 50%; transform: translate(-50%, -50%); }
+.first-run-tour-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 13px; }
+.first-run-tour-top > span { color: var(--tour-accent); font-size: .72rem; font-weight: 700; letter-spacing: .09em; }
+.first-run-tour-top button { padding: 8px 0; color: #d9e3f7; background: none; font-size: .8rem; text-align: left; }
+.first-run-tour-progress { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; margin-bottom: 16px; }
+.first-run-tour-progress span { height: 4px; border-radius: 4px; background: #556582; }
+.first-run-tour-progress .is-past { background: #a2a5df; }
+.first-run-tour-progress .is-current { background: var(--tour-accent); box-shadow: 0 0 11px #a7f3d97a; }
+.first-run-tour-card h1 { margin: 17px 0 9px; font-size: clamp(1.5rem, 4vw, 2rem); letter-spacing: -.035em; line-height: 1.12; overflow-wrap: anywhere; }
+.first-run-tour-card p { margin: 0; color: #d5def1; line-height: 1.5; font-size: .94rem; }
+.first-run-tour-card .first-run-setup-actions { flex: none; padding: 14px 0 0; margin-top: 17px; gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
+.first-run-tour-card button:not([hidden]) { min-height: 44px; }
+.first-run-tour-card .first-run-primary { margin-left: auto; color: #102e2e; background: var(--tour-accent); }
+.first-run-tour-art {
+  display: flex; align-items: center; gap: 13px; padding: 12px;
+  border-radius: 13px; border: 1px solid #9dd3d34a;
+  background: radial-gradient(ellipse at 0% 0%, #366b66, transparent 80%), #20354a;
+}
+.first-run-tour-art > span { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border: 1px solid #a7f3d977; border-radius: 12px; color: var(--tour-accent); background: #21404c; }
+.first-run-tour-art small { display: block; margin-top: 3px; color: #d6e4ef; }
+.first-run-lesson-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px; }
+.first-run-lesson-picker button { display: inline-flex; align-items: center; gap: 6px; background: #2b3958; border: 1px solid #829ac260; border-radius: 9px; padding: 7px 10px; }
+.first-run-lesson-picker svg { width: 23px; height: 23px; color: #c4c6ff; }
+.first-run-tour-card [data-tour-status]:not(:empty) { margin-top: 12px; }
+.first-run-desktop-preview[data-wallpaper="mint"] { background: linear-gradient(125deg, #205c56, #284356); }
+.first-run-desktop-preview[data-wallpaper="silk"] { background: linear-gradient(125deg, #52385c, #41354f); }
+.first-run-desktop-preview[data-wallpaper="graphite"] { background: linear-gradient(125deg, #222a3c, #374050); }
+.first-run-preview-name { flex: 1 0 100%; text-align: center; overflow-wrap: anywhere; }
+.first-run-desktop-preview { flex-wrap: wrap; }
+.first-run-desktop-preview.has-contrast { border-color: #fff; color: #fff; background: #111; }
+.first-run-tour-example h2:focus { outline: none; }
+.zeter-high-contrast .first-run-tour-card { background: #111827; border-color: #e0e7ff; }
 @media (max-width: 860px) {
   .first-run-screen { padding: 20px; }
   .first-run-header { padding: 20px 26px; }
@@ -184,7 +223,7 @@
   .first-run-setup-actions button { padding: 12px; font-size: 12px; }
   .first-run-summary > div { flex-direction: column; gap: 8px; }
   .first-run-summary dd { text-align: left; }
-  .first-run-tour-card { right: 16px; bottom: 24px; padding: 22px; }
+  .first-run-tour-card { padding: 16px; }
   .first-run-app-head, .first-run-app-row { grid-template-columns: minmax(0, 1fr) 50px 50px; gap: 5px; padding-left: 0; padding-right: 0; }
   .first-run-app-head { font-size: 10px; }
   .first-run-app-row > span { gap: 7px; }
@@ -193,4 +232,34 @@
   .first-run-stepper { gap: 4px; padding: 18px; }
   .first-run-stepper li > span:first-child { width: 21px; height: 21px; }
 }
+@media (max-height: 500px) {
+  .first-run-tour-card.first-run-tour-step { padding: 12px; }
+  .first-run-tour-step .first-run-tour-top { margin-bottom: 6px; }
+  .first-run-tour-step .first-run-tour-top button:not([hidden]) { min-height: 30px; padding: 4px 0; }
+  .first-run-tour-step .first-run-tour-progress { margin-bottom: 7px; }
+  .first-run-tour-step h1 { font-size: 1.25rem; margin: 5px 0; }
+  .first-run-tour-step p { font-size: .84rem; line-height: 1.35; }
+  .first-run-tour-step .first-run-setup-actions { margin-top: 8px; padding-top: 8px; }
+}
 @media (prefers-reduced-motion: reduce) { .first-run-screen button { transition: none; } }
+
+.first-run-live-desktop { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; z-index: 0; pointer-events: none; }
+.first-run-tour-card.first-run-tour-live { z-index: 2; width: min(370px, calc(100% - 24px)); max-height: min(430px, calc(100% - 24px)); padding: 16px; right: 12px; bottom: 72px; }
+.first-run-tour-live h1 { font-size: 1.4rem; margin-block: 8px; }
+.first-run-tour-live #first-run-description { font-size: .85rem; line-height: 1.4; }
+.first-run-tour-live .first-run-setup-actions { margin-top: 8px; padding-top: 8px; }
+.first-run-live-status { border-top: 1px solid #a7f3d940; padding-top: 9px; margin-top: 10px !important; color: #a7f3d9 !important; }
+.first-run-live-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.first-run-live-controls button { padding: 6px 9px; background: #263c51; border: 1px solid #809dbd60; border-radius: 8px; font-size: .8rem; }
+.training-human-cursor { position: fixed; z-index: 2147483647; left: 50%; top: 50%; width: 25px; height: 31px; pointer-events: none; background: #eefaff; filter: drop-shadow(1px 2px 2px #06172e); clip-path: polygon(0 0, 100% 62%, 58% 65%, 76% 95%, 55% 100%, 36% 70%, 10% 91%); transition: left .45s ease, top .45s ease; }
+.training-human-cursor.is-clicking { animation: training-cursor-click .4s ease; }
+@keyframes training-cursor-click { 50% { transform: scale(.75); background: #a7f3d9; } }
+@media (max-height: 500px), (max-width: 640px) {
+  .first-run-tour-card.first-run-tour-live { bottom: 68px; padding: 10px; width: min(290px, calc(100% - 24px)); max-height: 46%; }
+  .first-run-tour-live h1 { font-size: 1.1rem; }
+  .first-run-tour-live #first-run-description { display: none; }
+  .first-run-live-status { font-size: .8rem !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .training-human-cursor { transition: none; animation: none; }
+}

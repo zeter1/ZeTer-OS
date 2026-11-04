@@ -29,6 +29,7 @@ ZeTer OS — локальное Windows-приложение с HTML/CSS/JavaScr
 
 - `app/index.html` задаёт DOM-оболочку и порядок JS-зависимостей.
 - `app/js/web-bootstrap.js` последовательно запускает этот список после проверки веб-комплекта; native/file и изолированные UI fixtures имеют отдельный путь. `app/service-worker.js` держит полный snapshot и durable-привязку вкладки. Generated `app/web-release.json` принадлежит `tools/prepare_web.py`; контракт публикации и первого legacy-перехода — [UCOZ.md](UCOZ.md).
+- `app/js/core/runtime-capabilities-utils.js` владеет проверками возможностей окружения и их объяснениями: наличие native-методов, браузерных API/разрешений, отдельные требования к Word и обновлениям EXE. Это предварительная доступность; результат и права проверяет само действие. `get_runtime_info` уточняет EXE/Python без доступа к данным.
 - `app/js/core/*.js` содержит предметные, чистые и UI-модули.
 - `app/js/app.js` связывает модули с текущими `state`, DOM, окнами, сохранением и верхнеуровневыми событиями.
 - `app/css/style.css` остаётся единственной CSS-точкой входа и импортирует смысловые CSS-модули.

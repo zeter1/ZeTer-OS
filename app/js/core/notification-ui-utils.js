@@ -15,6 +15,58 @@
     taskIdFromNotification
   } = notificationUtils;
 
+  // Only new records are delivered; rendering/reloading the center never replays history.
+  function createSystemNotificationController(options = {}) {
+    const host = options.host || window;
+    let queue = Promise.resolve(), pending = 0, lastStatus = "";
+    function status(message) {
+      lastStatus = message;
+      options.onStatus?.(message);
+    }
+    async function deliver(title, text) {
+      const payload = { title: Array.from(String(title || "ZeTer OS")).slice(0, 160).join(""), text: Array.from(String(text || "")).slice(0, 2000).join("") };
+      if (options.isNative?.()) {
+        const result = await options.nativeSend(payload);
+        if (result?.submitted !== true) throw new Error("Windows не подтвердила приём уведомления.");
+      } else {
+        const API = host.Notification;
+        if (!host.isSecureContext || typeof API !== "function") throw new Error("Уведомления сайта недоступны. Открой ZeTer OS по HTTPS в поддерживаемом браузере или через Windows-приложение.");
+        if (API.permission !== "granted") throw new Error("Разреши уведомления для сайта ZeTer OS в настройках браузера, затем повтори проверку.");
+        try { new API(payload.title, { body: payload.text, icon: "assets/icons/zeter-icon-192.png" }); }
+        catch (_) { throw new Error("Браузер не смог отправить уведомление. Проверь разрешения сайта."); }
+      }
+      status("Уведомление передано системе. Показ баннера зависит от настроек Windows.");
+      return true;
+    }
+    function enqueue(operation) {
+      if (pending >= 32) return Promise.reject(new Error("Слишком много уведомлений ожидают отправки. Сообщения сохранены в центре ZeTer OS."));
+      pending++;
+      const result = queue.then(operation).finally(() => { pending--; });
+      queue = result.catch(() => {}); // Keep subsequent records deliverable after a failed send.
+      return result;
+    }
+    function send(notification, metadata = {}) {
+      const allowed = () => {
+        const settings = options.getSettings?.() || {};
+        return Boolean(settings.notifications?.systemDelivery && window.ZETER_SYSTEM_SETTINGS_UTILS.notificationDeliveryDecision(settings, notificationUtils.notificationFilterKind(metadata)).popup);
+      };
+      if (!allowed()) return Promise.resolve(false);
+      return enqueue(() => {
+        if (!allowed()) return false;
+        return deliver(notification.title, notification.text);
+      }).catch(error => { status(error.message || "Системное уведомление не отправлено. Повтори проверку в Настройках."); return false; });
+    }
+    async function test() {
+      if (!options.isNative?.() && host.Notification?.permission === "default") {
+        // Request synchronously from the explicit button gesture, never from a timer.
+        try { await host.Notification.requestPermission(); }
+        catch (_) { throw new Error("Браузер не разрешил запрос уведомлений. Проверь разрешения сайта."); }
+      }
+      return enqueue(() => deliver("ZeTer OS", "Уведомления Windows работают. Ты увидишь новые сообщения и при свёрнутой ZeTer OS."));
+    }
+    return Object.freeze({ send, test, getStatus: () => lastStatus });
+  }
+
   function notificationCardHTML(notification = {}, options = {}) {
     const openable = Boolean(options.openable);
     const time = new Date(notification.time || Date.now()).toLocaleTimeString("ru-RU");
@@ -362,6 +414,7 @@
   }
 
   window.ZETER_NOTIFICATION_UI_UTILS = Object.freeze({
+    createSystemNotificationController,
     notificationCardHTML,
     driveIncomingHTML,
     createDriveIncomingController,

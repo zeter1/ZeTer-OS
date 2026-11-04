@@ -32,7 +32,7 @@ async function main() {
     createCalendarApp: value => value, createCalendarEventEditorApp: (_params, _id, value) => value,
     writeSmallSettingsToLocalStorage() {}, scheduleExternalBackup() {}, securityRuntimeController: { scheduleProtectionCheck() {} },
     refreshProjectOverviews() {}, renderNotifications() {}, refreshOpenCalendars() {}, closeWindow() {}, toast() {}, objectLinksPanelFor() {},
-    todayISO: () => today, confirm: () => true, openApp() {}, downloadFile() {}, formatDate: value => value,
+    todayISO: () => today, confirmDialog: () => true, openApp() {}, downloadFile() {}, formatDate: value => value,
     createAutomationRuntimeController: sandbox.ZETER_AUTOMATION_UTILS.createAutomationRuntimeController,
     syncLegacyWorkspaceAliases: value => { value.events = value.desktops[0].data.events; },
     queueAutomationMutation: operation => { const run = chain.catch(() => {}).then(operation); chain = run.catch(() => {}); return run; }

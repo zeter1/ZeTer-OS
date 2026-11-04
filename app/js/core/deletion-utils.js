@@ -49,6 +49,7 @@
     const confirm = options.confirm || (() => false);
     const transaction = options.persistTransaction || (operation => operation(snapshot => options.saveState?.({ snapshot })));
     let queue = Promise.resolve();
+    const pendingIds = new Map();
 
     const remove = (target, ids, extra = {}) => permanentlyRemoveItemsFromTarget(target, ids, {
       ...extra,
@@ -64,9 +65,16 @@
     }
 
     function commit(ids) {
+      const owner = getState();
+      const roots = activeItemIdsForPermanentDelete(owner, ids).filter(id => !pendingIds.has(id));
+      if (!roots.length) return Promise.resolve(0);
+      const records = roots.map(id => owner.fs[id]);
+      const preview = new Set(expand(owner, roots));
+      preview.forEach(id => pendingIds.set(id, (pendingIds.get(id) || 0) + 1));
+      options.showPending?.(new Set(pendingIds.keys()));
       const pending = queue.catch(() => {}).then(() => transaction(async write => {
-        const owner = getState();
-        const selected = activeItemIdsForPermanentDelete(owner, ids);
+        if (getState() !== owner || roots.some((id, index) => owner.fs[id] !== records[index])) return 0;
+        const selected = activeItemIdsForPermanentDelete(owner, roots);
         if (!selected.length) return 0;
         const candidate = clone(owner);
         const result = remove(candidate, selected, { dropActionHistory: false });
@@ -79,16 +87,25 @@
         options.clearSelection?.();
         render();
         return result.count;
-      }));
+      })).finally(() => {
+        preview.forEach(id => {
+          const remaining = pendingIds.get(id) - 1;
+          if (remaining) pendingIds.set(id, remaining);
+          else pendingIds.delete(id);
+        });
+        options.showPending?.(new Set(pendingIds.keys()));
+      });
       queue = pending;
       return pending;
     }
 
     async function deleteItem(id, extra = {}) {
       const item = getState().fs[id];
+      if (extra.expectedItem && item !== extra.expectedItem) return false;
       if (!activeItemIdsForPermanentDelete(getState(), [id]).length) return false;
       const name = item.name || "Элемент";
-      if (!extra.skipConfirm && !confirm(`Удалить «${name}»? Объект исчезнет из текущего состояния ZeTer OS. Физическая копия в data может временно сохраняться для точек восстановления и JSON-автокопий.`)) return false;
+      if (!extra.skipConfirm && !await confirm(`Удалить «${name}»? Объект исчезнет из текущего состояния ZeTer OS. Физическая копия в data может временно сохраняться для точек восстановления и JSON-автокопий.`)) return false;
+      if (getState().fs[id] !== item) return false;
       try {
         const count = await commit([id]);
         if (!count) return false;
@@ -103,8 +120,10 @@
     async function deleteItems(ids = []) {
       const selected = activeItemIdsForPermanentDelete(getState(), ids);
       if (!selected.length) return false;
+      const records = selected.map(id => getState().fs[id]);
       const label = selected.length === 1 ? `Удалить «${getState().fs[selected[0]].name}»?` : `Удалить выбранные элементы (${selected.length})?`;
-      if (!confirm(`${label} Объекты исчезнут из текущего состояния ZeTer OS. Физические копии в data могут временно сохраняться для точек восстановления и JSON-автокопий.`)) return false;
+      if (!await confirm(`${label} Объекты исчезнут из текущего состояния ZeTer OS. Физические копии в data могут временно сохраняться для точек восстановления и JSON-автокопий.`)) return false;
+      if (selected.some((id, index) => getState().fs[id] !== records[index])) return false;
       try {
         const count = await commit(selected);
         if (!count) return false;

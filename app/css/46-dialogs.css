@@ -1,0 +1,39 @@
+.zeter-dialog {
+  box-sizing: border-box;
+  color-scheme: dark;
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 20px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--stroke, #555978);
+  border-radius: 18px;
+  background: var(--glass, #202442);
+  color: var(--text, #f3f4ff);
+  box-shadow: 0 20px 65px #0008;
+}
+.zeter-dialog::backdrop { background: #090a1bc7; }
+.zeter-dialog form { display: grid; gap: 14px; margin: 0; padding: clamp(14px, 4vw, 24px); }
+.zeter-dialog-heading { display: flex; align-items: center; gap: 12px; }
+.zeter-dialog-heading span { flex: 0 0 4px; align-self: stretch; min-height: 22px; border-radius: 8px; background: var(--accent, #a2adff); }
+.zeter-dialog[data-danger] .zeter-dialog-heading span { background: #ff91a4; }
+.zeter-dialog h2 { margin: 0; font-size: 1.2rem; line-height: 1.25; overflow-wrap: anywhere; }
+.zeter-dialog p { margin: 0; color: var(--muted, #c6c9dc); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.zeter-dialog input, .zeter-dialog button {
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 8px 13px;
+  border: 1px solid var(--stroke, #555978);
+  border-radius: 11px;
+  background: var(--glass-2, #303654);
+  color: inherit;
+  font: inherit;
+}
+.zeter-dialog input { width: 100%; min-width: 0; }
+.zeter-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.zeter-dialog button { cursor: pointer; }
+.zeter-dialog button:hover { filter: brightness(1.18); }
+.zeter-dialog [data-dialog-submit] { background: var(--button-primary, #484ee7); color: var(--button-primary-text, #fff); }
+.zeter-dialog[data-danger] [data-dialog-submit] { background: #9d304d; color: #fff; }
+.zeter-dialog :focus-visible { outline: 2px solid var(--accent, #a2adff); outline-offset: 2px; }
+.zeter-dialog [hidden] { display: none; }

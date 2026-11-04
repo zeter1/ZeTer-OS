@@ -14,6 +14,8 @@
     arrow: icon('<path d="M5 12h14m-5-5 5 5-5 5"/>'),
     upload: icon('<path d="M12 16V3m-5 5 5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>'),
     book: icon('<path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1zm0 0v15"/>'),
+    bell: icon('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0"/>'),
+    search: icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>'),
     shield: icon('<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/>')
   });
 
@@ -40,19 +42,25 @@
             <span class="first-run-step">ТВОЙ ПЕРВЫЙ ШАГ</span>
             <h2 id="first-run-start-title">С чего начнём?</h2>
             <p class="first-run-start-lead">Начни с чистого стола или верни свои данные.</p>
-            <button type="button" class="first-run-create" data-first-create autofocus>
+            <button type="button" class="first-run-create" data-first-quick autofocus>
               <span class="first-run-action-icon">${icons.grid}</span>
-              <span class="first-run-action-copy"><span class="first-run-recommended">НОВЫЙ СТАРТ</span><strong>Создать рабочее пространство</strong><span>Чистый рабочий стол с основными приложениями</span></span>
+              <span class="first-run-action-copy"><span class="first-run-recommended">ГОТОВЫЙ РАБОЧИЙ СТОЛ</span><strong>Начать быстро</strong><span>Открой рабочий стол с основными приложениями</span></span>
               <span class="first-run-arrow">${icons.arrow}</span>
             </button>
+            <button type="button" class="first-run-secondary" data-first-create>
+              <span class="first-run-action-icon">${icons.grid}</span>
+              <span class="first-run-action-copy"><strong>Настроить под себя</strong><span>Выбери оформление и ярлыки с предпросмотром</span></span>
+              <span class="first-run-arrow">${icons.arrow}</span>
+            </button>
+            <input type="file" data-first-import-file accept=".zip,.json,.zeterbak,application/zip,application/json" hidden>
             <button type="button" class="first-run-secondary" data-first-import>
               <span class="first-run-action-icon">${icons.upload}</span>
-              <span class="first-run-action-copy"><strong>Импортировать бэкап</strong><span>Продолжи работу с сохранёнными данными</span></span>
+              <span class="first-run-action-copy"><strong>Восстановить из бэкапа</strong><span>Продолжи работу с сохранёнными данными</span></span>
               <span class="first-run-arrow">${icons.arrow}</span>
             </button>
             <div class="first-run-guide">
               <span class="first-run-action-icon">${icons.book}</span>
-              <div><strong>Хочешь сначала разобраться?</strong><p>Открой руководство с примерами и подсказками.</p><button type="button" data-first-help>Посмотреть возможности <span aria-hidden="true">↗</span></button></div>
+              <div><strong>Хочешь сначала разобраться?</strong><p>Открой руководство с примерами и подсказками.</p><button type="button" data-first-help>Начать с руководства <span aria-hidden="true">↗</span></button></div>
             </div>
             <p class="first-run-later">Настройки и руководство всегда доступны из рабочего пространства.</p>
             <p class="first-run-error" data-first-error role="alert" hidden></p>
@@ -68,23 +76,23 @@
 
   const wallpapers = Object.freeze({ aurora: "Аврора", silk: "Шёлк", mint: "Мята", graphite: "Графит" });
   const setupSteps = ["Твой стол", "Приложения", "Удобство", "Уведомления", "Запуск", "Проверка"];
-  const tourSteps = [
-    { target: "#start-button", title: "Всё начинается с Пуска", text: "Здесь находятся приложения и рабочие столы. Создай отдельный стол для учёбы, работы или личных дел и переключайся между ними." },
-    { target: "#desktop", title: "Создай первый материал", text: "Щёлкни правой кнопкой по свободному месту рабочего стола. Выбери «Создать файл», «Новая заметка», папку или таблицу. Начни с одного нужного материала — остальные добавишь позже." },
-    { target: "#desktop", title: "Открывай и выбирай", text: "Один щелчок выбирает значок, двойной — открывает материал. Клавиша Enter тоже открывает выбранный объект. Щелчок по свободному месту снимает выделение." },
-    { target: "#desktop", title: "Перемещай несколько значков", text: "Удерживай Ctrl и щёлкай по нужным значкам либо протяни рамку по свободному месту. Затем потяни за любой выбранный значок: вся группа переместится вместе. Правый клик по объекту откроет его действия." },
-    { target: "#start-button", title: "Раздели разные дела", text: "В Пуске можно создать рабочие столы для работы, учёбы и личного. Файлы, задачи и календарь каждого стола независимы. Переключай столы в Пуске, а название и оформление меняй в Настройках." },
-    { target: '[data-top-action="appcenter"]', title: "Выбери свои приложения", text: "Каталог «Приложения» объясняет назначение каждого инструмента. «Установить» добавляет ярлык на текущий стол. Удаление ярлыка через каталог сохраняет твои файлы и данные приложения." },
-    { target: "#taskbar", title: "Держи окна под рукой", text: "Нижняя панель показывает закреплённые и открытые приложения. Нажми значок, чтобы свернуть окно или вернуть его. Правый клик поможет выбрать окно и закрепить приложение. Кнопки в заголовке управляют размером и закрытием окна." },
-    { target: '.desktop-icon[title="Задачи"], [data-top-action="appcenter"]', title: "Превращай планы в задачи", text: "Открой «Задачи» из Пуска или с рабочего стола. Создай задачу, укажи срок и при необходимости напоминание. Для большого дела создай проект и добавляй задачи в него." },
-    { target: '[data-top-action="calendar"]', title: "Планируй время в календаре", text: "Добавляй встречи и занятия в Календарь, выбирай дату, время и напоминание. Нажатие на часы нижней панели открывает календарь текущего месяца. Напоминания работают, пока ZeTer OS открыта." },
-    { target: ".taskbar-search", title: "Найди нужное за секунды", text: "Поиск на нижней панели помогает находить приложения, файлы, задачи и настройки. Введи часть названия и выбери результат." },
-    { target: "#notifications-button", title: "Проверяй уведомления", text: "Значок колокольчика открывает центр уведомлений: здесь собраны напоминания и системные сообщения. Категории уведомлений и тихие часы можно изменить в Настройках." },
-    { target: '[data-top-action="security"]', title: "Защити свою работу", text: "В Центре безопасности данных создай проверенный ZIP-бэкап. Сохрани его отдельно от программы: он пригодится для переноса и восстановления." },
-    { target: '[data-top-action="settings"]', title: "Меняй настройки в любое время", text: "В Настройках можно изменить имя и фон стола, размер значков и текста, показ расширений, уведомления и запуск. Выбор при первом знакомстве не ограничивает тебя — возвращайся сюда, когда захочешь." },
-    { target: '[data-top-action="help"]', title: "Ответы всегда рядом", text: "Нажми «Руководство пользователя» в верхнем меню. Руководство также доступно из Пуска, каталога или окна «О ZeTer OS». Ищи инструкции обычными словами, читай выбранный раздел и переходи в нужное приложение прямо из темы. Теперь можно начать работу!" }
-  ];
-
+  const tourSteps = Object.freeze([
+    {id:"start",icon:"grid",name:"Меню",title:"Открой меню",text:"Курсор открывает меню «Пуск» и создаёт заметку."},
+    {id:"search",icon:"search",name:"Поиск",title:"Найди свою заметку",text:"Курсор вводит запрос, выбирает результат и открывает найденную заметку."},
+    {id:"notifications",icon:"bell",name:"Уведомления",title:"Проверь уведомления",text:"Курсор открывает центр уведомлений и отмечает напоминание прочитанным."},
+    {id:"note",icon:"files",name:"Заметка",title:"Создай первую заметку",text:"Курсор печатает несколько абзацев, выделяет текст и показывает жирный шрифт, курсив, подчёркивание и размер заголовка."},
+    {id:"desktops",icon:"grid",name:"Рабочие столы",title:"Переключи рабочий стол",text:"На другом рабочем столе появляются материалы выбранного проекта."},
+    {id:"catalog",icon:"grid",name:"Приложения",title:"Установи приложение",text:"Курсор находит калькулятор в каталоге, устанавливает его ярлык и открывает приложение."},
+    {id:"folders",icon:"files",name:"Папки",title:"Открой папку в Проводнике",text:"Курсор открывает папку с рабочего стола и выбирает материал внутри."},
+    {id:"context",icon:"files",name:"Действия",title:"Открой меню действий",text:"Правый клик по значку открывает его меню. Команда «Открыть» запускает редактор."},
+    {id:"selection",icon:"check",name:"Выделение",title:"Выбери группу значков",text:"Курсор выделяет два значка с Ctrl и открывает меню действий. На широком экране показывает перенос группы."},
+    {id:"taskbar",icon:"grid",name:"Панель задач",title:"Переключи приложение",text:"Курсор открывает календарь, затем возвращается к заметке через панель задач."},
+    {id:"windows",icon:"grid",name:"Окна",title:"Сверни и верни окно",text:"Окно заметки сворачивается, а нажатие на его значок внизу возвращает редактор."},
+    {id:"tasks",icon:"check",name:"Задачи",title:"Добавь первую задачу",text:"Курсор заполняет форму, сохраняет задачу и открывает список с результатом."},
+    {id:"calendar",icon:"check",name:"Календарь",title:"Запланируй событие",text:"Курсор добавляет встречу и сохраняет её в настоящем календаре учебной среды."},
+    {id:"settings",icon:"grid",name:"Настройки",title:"Измени оформление",text:"Курсор выбирает фон «Мята». После закрытия настроек виден новый фон стола."},
+    {id:"backup",icon:"shield",name:"Бэкап",title:"Подготовь резервную копию",text:"Курсор открывает Центр безопасности данных и собирает проверенный учебный ZIP."}
+  ]);
   function applyFirstRunDraft(snapshot, draft, options) {
     const { desktopId, apps, createId, normalizeSystemSettings, normalizeDesktopAppearance, normalizeTaskbarPinnedApps } = options;
     const desktop = snapshot.desktops.find(record => record.id === desktopId);
@@ -125,21 +133,23 @@
     const field = (key, title, description, value) => `<label class="first-run-toggle"><span><strong>${title}</strong><small>${description}</small></span><input type="checkbox" name="${key}"${check(value)}></label>`;
     const accessibility = draft.systemSettings.accessibility;
     const notifications = draft.systemSettings.notifications;
+    const textSize = `<label class="first-run-field">Размер текста<select name="textScale">${[90,100,110,120].map(size => `<option value="${size}"${select(size, accessibility.textScale)}>${size}%${size === 100 ? " · стандартный" : ""}</option>`).join("")}</select></label>`;
+    const contrast = field("highContrast", "Повышенный контраст", "Более заметные границы и подписи", accessibility.highContrast);
     if (step === 0) return `<h1 id="first-run-title">Начнём с твоего стола</h1><p class="first-run-setup-lead">Дай ему имя и выбери настроение. Всё можно изменить позже.</p>
       <label class="first-run-field">Название рабочего стола<input name="desktopName" maxlength="80" required autocomplete="off" value="${escapeHtml(draft.desktopName)}" placeholder="Например, Моя мастерская"></label>
       <fieldset class="first-run-wallpapers"><legend>Фон рабочего стола</legend>${Object.entries(wallpapers).map(([id, label]) => `<label><input type="radio" name="wallpaper" value="${id}"${check(draft.wallpaper === id)}><span class="first-run-wall first-run-wall-${id}"><span>${label}</span></span></label>`).join("")}</fieldset>
       <div class="first-run-fields"><label class="first-run-field">Размер значков<select name="iconSize">${[["small","Маленькие"],["medium","Обычные"],["large","Крупные"]].map(([id,label]) => `<option value="${id}"${select(id,draft.desktopAppearance.iconSize)}>${label}</option>`).join("")}</select></label><label class="first-run-field">Расстояние между значками<select name="density"><option value="compact"${select("compact",draft.desktopAppearance.density)}>Компактно</option><option value="comfortable"${select("comfortable",draft.desktopAppearance.density)}>Свободнее</option></select></label></div>
-      ${field("extensions", "Показывать расширения файлов", "Например, отчёт.docx вместо отчёт. Имена файлов сохраняются.", draft.desktopAppearance.extensions)}
-      <div class="first-run-desktop-preview" data-first-desktop-preview aria-label="Предпросмотр значков"><span>${icons.files}<small>Документ.docx</small></span><span>${icons.check}<small>Задачи</small></span><span>${icons.grid}<small>Приложения</small></span></div>`;
+            ${field("extensions", "Показывать расширения файлов", "Например, отчёт.docx вместо отчёт. Имена файлов сохраняются.", draft.desktopAppearance.extensions)}
+      <details class="first-run-access"><summary>Размер текста и контраст</summary>${textSize}${contrast}</details>
+      <div class="first-run-desktop-preview" data-first-desktop-preview aria-label="Предпросмотр стола"><strong class="first-run-preview-name" data-first-preview-name></strong><span>${icons.files}<small>Документ.docx</small></span><span>${icons.check}<small>Задачи</small></span><span>${icons.grid}<small>Приложения</small></span></div>`;
     if (step === 1) return `<h1 id="first-run-title">Приложения под рукой</h1><p class="first-run-setup-lead">Отметь, что разместить на столе и на панели задач. Остальные приложения останутся в каталоге. Снятие галочки убирает только ярлык, сохраняя материалы.</p>
       <div class="first-run-app-head"><span>Приложение</span><span>На столе</span><span>На панели</span></div>
       <div class="first-run-app-list">${initial.apps.map(app => `<div class="first-run-app-row"><span><b aria-hidden="true">${escapeHtml(app.icon)}</b><strong>${escapeHtml(app.name)}</strong></span><label><span class="first-run-sr-only">На столе: ${escapeHtml(app.name)}</span><input type="checkbox" name="desktopApps" value="${escapeHtml(app.id)}"${check(draft.desktopApps.includes(app.id))}></label><label><span class="first-run-sr-only">На панели задач: ${escapeHtml(app.name)}</span><input type="checkbox" name="taskbarApps" value="${escapeHtml(app.id)}"${check(draft.taskbarApps.includes(app.id))}></label></div>`).join("")}</div><p class="first-run-setup-lead first-run-small-note">Пуск и поиск всегда остаются на панели задач.</p>`;
     if (step === 2) return `<h1 id="first-run-title">Сделай работу удобной</h1><p class="first-run-setup-lead">Выбери размер текста и поведение интерфейса.</p>
-      <div class="first-run-fields"><label class="first-run-field">Размер текста<select name="textScale">${[90,100,110,120].map(size => `<option value="${size}"${select(size, accessibility.textScale)}>${size}%${size === 100 ? " · стандартный" : ""}</option>`).join("")}</select></label>
-      <label class="first-run-field">Размер новых окон<select name="openingSize">${[["full","Вся рабочая область"],["large","Большой"],["medium","Средний"],["compact","Компактный"]].map(([id,label]) => `<option value="${id}"${select(id,draft.systemSettings.windows.openingSize)}>${label}</option>`).join("")}</select></label></div>
+      <div class="first-run-fields">${textSize}<label class="first-run-field">Размер новых окон<select name="openingSize">${[["full","Вся рабочая область"],["large","Большой"],["medium","Средний"],["compact","Компактный"]].map(([id,label]) => `<option value="${id}"${select(id,draft.systemSettings.windows.openingSize)}>${label}</option>`).join("")}</select></label></div>
       <div class="first-run-preview" data-first-preview><strong>Вот так будет выглядеть текст</strong><p>Важные идеи начинаются с удобного места для работы.</p></div>
       ${field("largeControls", "Крупные кнопки", "Легче выбирать элементы мышью и касанием", accessibility.largeControls)}
-      ${field("highContrast", "Повышенный контраст", "Более заметные границы и подписи", accessibility.highContrast)}
+      ${contrast}
       ${field("reducedMotion", "Меньше анимации", "Спокойные переходы без лишнего движения", accessibility.reducedMotion)}`;
     if (step === 3) return `<h1 id="first-run-title">Нужное — вовремя</h1><p class="first-run-setup-lead">Настрой напоминания внутри ZeTer OS. Они работают, пока приложение открыто.</p>
       ${field("notificationsEnabled", "Показывать уведомления", "Общий переключатель уведомлений системы", notifications.enabled)}
@@ -153,18 +163,17 @@
       <div class="first-run-fields"><label class="first-run-field">Стартовый рабочий стол<select name="startupDesktop"><option value="last"${select("last",draft.systemSettings.startup.desktop)}>Последний открытый</option>${initial.desktops.map(desktop => `<option value="${escapeHtml(desktop.id)}"${select(desktop.id,draft.systemSettings.startup.desktop)}>${escapeHtml(desktop.id === initial.desktopId ? draft.desktopName : desktop.name)}</option>`).join("")}</select></label>
       <label class="first-run-field">Окно ZeTer OS<select name="windowMode"><option value="maximized"${select("maximized",draft.systemSettings.startup.windowMode)}>Развёрнутое</option><option value="windowed"${select("windowed",draft.systemSettings.startup.windowMode)}>Обычное окно</option></select></label></div>
       <section class="first-run-native-startup"><label class="first-run-toggle"><span><strong>Запускать вместе с Windows</strong><small data-first-startup-status>Проверяем доступность…</small></span><input type="checkbox" data-first-windows-startup disabled></label><p class="first-run-small-note">Автозапуск меняется сразу при переключении. Остальные параметры — после «Сохранить и начать».</p></section>`;
-    return `<h1 id="first-run-title">Всё готово к началу</h1><p class="first-run-setup-lead">Проверь свой выбор. Следующим шагом предложим создать первый бэкап.</p>
+    return `<h1 id="first-run-title">Всё готово к началу</h1><p class="first-run-setup-lead">Проверь свой выбор. После сохранения можно пройти короткое обучение.</p>
       <dl class="first-run-summary"><div><dt>Рабочий стол</dt><dd>${escapeHtml(draft.desktopName)}</dd></div><div><dt>Оформление</dt><dd>${wallpapers[draft.wallpaper]} · текст ${accessibility.textScale}%</dd></div><div><dt>Приложения</dt><dd>На столе: ${draft.desktopApps.length} · на панели: ${draft.taskbarApps.length}</dd></div><div><dt>Уведомления</dt><dd>${notifications.enabled ? "Включены" : "Выключены"}${notifications.quietHoursEnabled ? " · с тихими часами" : ""}</dd></div><div><dt>При запуске</dt><dd>${draft.systemSettings.startup.restoreWindows ? "Возвращать окна" : "Чистый стол"} · ${draft.systemSettings.startup.windowMode === "windowed" ? "обычное окно" : "развёрнутое окно"}</dd></div></dl>
       <div class="first-run-data-note">${icons.shield}<div><strong>Сохраняется на этом устройстве</strong><p>В Windows-приложении — в папке data рядом с программой. В браузере — в хранилище этого сайта: очистка хранилища может удалить данные.</p><p>Создавай ZIP-бэкапы через Центр безопасности данных и храни их отдельно от папки программы. Бэкап можно импортировать на другом устройстве.</p></div></div>
-      ${field("showTour", "Показать подсказки на рабочем столе", `${tourSteps.length} полезных шагов: материалы, приложения, планы, окна и безопасность`, draft.showTour)}`;
+      ${field("showTour", "Предложить обучение на рабочем столе", `${tourSteps.length} коротких уроков с учебными примерами`, draft.showTour)}`;
   }
 
-  function startFirstRunSetup({ dialog, initial, save, onFinish, exportBackup = async () => null, getWindowsStartup = async () => ({supported:false}), setWindowsStartup = async () => ({supported:false}), osVersion = "", windowRef = window }) {
+  function startFirstRunSetup({ dialog, initial, save, onFinish, getWindowsStartup = async () => ({supported:false}), setWindowsStartup = async () => ({supported:false}), osVersion = "" }) {
     // A local draft keeps Back/Cancel and failed saves from changing live settings.
     const draft = JSON.parse(JSON.stringify(initial));
     draft.showTour = true;
-    let step = 0, tourIndex = 0, pending = false, phase = "setup", generation = 0;
-    const doc = dialog.ownerDocument;
+    let step = 0, reviewFrom = 4, pending = false, generation = 0;
     const read = (validate = true) => {
       const form = dialog.querySelector("form");
       if (!form) return true;
@@ -176,6 +185,8 @@
         if (validate && !input.value.trim()) { input.setCustomValidity("Введи название рабочего стола."); input.reportValidity(); return false; }
         draft.desktopName = input.value.trim();
         draft.wallpaper = value("wallpaper");
+        draft.systemSettings.accessibility.textScale = Number(value("textScale"));
+        draft.systemSettings.accessibility.highContrast = checked("highContrast");
         draft.desktopAppearance = {iconSize:value("iconSize"),density:value("density"),extensions:checked("extensions")};
       }
       if (step === 1) {
@@ -191,56 +202,21 @@
       if (step === setupSteps.length - 1) draft.showTour = checked("showTour");
       return true;
     };
-    function positionTour() {
-      const ring = dialog.querySelector(".first-run-tour-ring");
-      const targets = tourSteps[tourIndex].target.split(", ").map(selector => doc.querySelector(selector)).filter(Boolean);
-      const card = dialog.querySelector(".first-run-tour-card");
-      const cardHeight = card?.getBoundingClientRect().height || 0;
-      // Prefer a visible route to the app when its desktop icon sits behind the card.
-      const fitsBesideCard = target => {
-        const rect = target.getBoundingClientRect();
-        return rect.top >= 0 && rect.bottom <= windowRef.innerHeight && Math.max(rect.top, windowRef.innerHeight - rect.bottom) >= cardHeight + 40;
-      };
-      const target = (windowRef.innerWidth <= 640 && targets.find(fitsBesideCard)) || targets[0];
-      if (!ring) return;
-      ring.hidden = !target;
-      if (!target) return;
-      let rect = target.getBoundingClientRect();
-      if (rect.left < 0 || rect.right > windowRef.innerWidth || rect.top < 0 || rect.bottom > windowRef.innerHeight) {
-        target.scrollIntoView?.({block:"nearest",inline:"center"});
-        rect = target.getBoundingClientRect();
-      }
-      const left = Math.max(4, rect.left - 6), top = Math.max(4, rect.top - 6);
-      Object.assign(ring.style, { left: `${left}px`, top: `${top}px`, width: `${Math.min(rect.width + 12, windowRef.innerWidth - left - 4)}px`, height: `${Math.min(rect.height + 12, windowRef.innerHeight - top - 4)}px` });
-      if (windowRef.innerWidth <= 640) {
-        const aboveTarget = rect.top > windowRef.innerHeight - rect.bottom;
-        card.style.top = aboveTarget ? "24px" : "auto";
-        card.style.bottom = aboveTarget ? "auto" : "24px";
-        const freeHeight = (aboveTarget ? rect.top : windowRef.innerHeight - rect.bottom) - 40;
-        card.style.maxHeight = freeHeight > 160 ? `${freeHeight}px` : "";
-      } else { card.style.top = ""; card.style.bottom = ""; card.style.maxHeight = ""; }
-    }
-    function finish() {
-      windowRef.removeEventListener("resize", positionTour);
+    function detach() {
       dialog.removeEventListener("click", onClick);
       dialog.removeEventListener("submit", onSubmit);
       dialog.removeEventListener("input", onInput);
       dialog.removeEventListener("change", onChange);
       generation++;
-      onFinish();
-    }
-    function renderTour() {
-      dialog.classList.add("first-run-touring");
-      const current = tourSteps[tourIndex];
-      dialog.innerHTML = `<div class="first-run-tour-ring" aria-hidden="true"></div><section class="first-run-tour-card"><div class="first-run-tour-top"><span>ЗНАКОМСТВО С СИСТЕМОЙ · ${tourIndex + 1} / ${tourSteps.length}</span><button type="button" data-setup-skip>Пропустить</button></div><div class="first-run-progress"><span style="width:${(tourIndex + 1) / tourSteps.length * 100}%"></span></div><h1 id="first-run-title" tabindex="-1">${current.title}</h1><p id="first-run-description">${current.text}</p><div class="first-run-setup-actions"><button type="button" data-tour-back${tourIndex === 0 ? " disabled" : ""}>Назад</button><button type="button" class="first-run-primary" data-tour-next>${tourIndex === tourSteps.length - 1 ? "Начать работу" : "Дальше"} ${icons.arrow}</button></div></section>`;
-      positionTour();
-      dialog.querySelector("h1").focus();
     }
     function render() {
       generation++;
       dialog.innerHTML = `<article class="first-run-card first-run-setup-card"><header class="first-run-header"><div class="first-run-brand"><img src="assets/icons/zeter-logo.svg" alt=""><span>ZeTer OS</span></div><span class="first-run-version">Первая настройка · ${escapeHtml(osVersion)}</span></header>
-        <ol class="first-run-stepper" aria-label="Этапы настройки">${setupSteps.map((title,index) => `<li${index === step ? ' aria-current="step"' : ""} class="${index < step ? "is-complete" : ""}"><span>${index < step ? "✓" : index + 1}</span><span>${title}</span></li>`).join("")}</ol>
-        <form class="first-run-setup-form"><div class="first-run-setup-content">${setupStepHTML(step,draft,initial)}<p class="first-run-error" data-first-error role="alert" hidden></p></div><footer class="first-run-setup-actions"><button type="button" data-setup-back>${step === 0 ? "К приветствию" : "Назад"}</button><span>Шаг ${step + 1} из ${setupSteps.length}</span><button class="first-run-primary" type="submit">${step === setupSteps.length - 1 ? "Сохранить и начать" : "Продолжить"} ${icons.arrow}</button></footer></form></article>`;
+        <ol class="first-run-stepper" aria-label="Этапы настройки">${setupSteps.map((title,index) => {
+          const complete = index < step && (step !== setupSteps.length - 1 || index <= reviewFrom);
+          return `<li${index === step ? ' aria-current="step"' : ""} class="${complete ? "is-complete" : ""}"><span>${complete ? "✓" : index + 1}</span><span>${title}</span></li>`;
+        }).join("")}</ol>
+        <form class="first-run-setup-form"><div class="first-run-setup-content">${setupStepHTML(step,draft,initial)}<p class="first-run-error" data-first-error role="alert" hidden></p></div><footer class="first-run-setup-actions"><button type="button" data-setup-back>${step === 0 ? "К приветствию" : "Назад"}</button>${step === 1 ? `<button type="submit" data-setup-review>К проверке</button>` : `<span>Шаг ${step + 1} из ${setupSteps.length}</span>`}<button class="first-run-primary" type="submit">${step === setupSteps.length - 1 ? "Сохранить и начать" : step === 1 ? "Доп. настройки" : "Продолжить"} ${icons.arrow}</button></footer></form></article>`;
       dialog.querySelector(".first-run-setup-lead").id = "first-run-description";
       const title = dialog.querySelector("h1");
       title.tabIndex = -1;
@@ -254,6 +230,10 @@
       if (preview) preview.style.fontSize = `${14 * Number(dialog.querySelector('[name="textScale"]').value) / 100}px`;
       const desktopPreview = dialog.querySelector("[data-first-desktop-preview]");
       if (desktopPreview) {
+        desktopPreview.style.fontSize = `${Number(dialog.querySelector('[name="textScale"]').value) * .14}px`;
+        desktopPreview.classList.toggle("has-contrast", dialog.querySelector('[name="highContrast"]').checked);
+        desktopPreview.dataset.wallpaper = dialog.querySelector('[name="wallpaper"]:checked')?.value || "aurora";
+        desktopPreview.querySelector("[data-first-preview-name]").textContent = dialog.querySelector('[name="desktopName"]').value;
         desktopPreview.dataset.iconSize = dialog.querySelector('[name="iconSize"]').value;
         desktopPreview.dataset.density = dialog.querySelector('[name="density"]').value;
         desktopPreview.querySelector("small").textContent = dialog.querySelector('[name="extensions"]').checked ? "Документ.docx" : "Документ";
@@ -300,36 +280,15 @@
         }
       }
     }
-    function continueAfterBackup() {
-      if (draft.showTour) { phase = "tour"; windowRef.addEventListener("resize", positionTour); renderTour(); }
-      else finish();
-    }
-    function renderBackup() {
-      phase = "backup";
-      dialog.innerHTML = `<article class="first-run-card first-run-setup-card"><header class="first-run-header"><div class="first-run-brand"><img src="assets/icons/zeter-logo.svg" alt=""><span>ZeTer OS</span></div><span class="first-run-version">Настройки сохранены</span></header><section class="first-run-setup-content"><span class="first-run-eyebrow">СОХРАНИ ПЕРВЫЙ РЕЗУЛЬТАТ</span><h1 id="first-run-title" tabindex="-1">Твой первый бэкап</h1><p class="first-run-setup-lead" id="first-run-description">Сохрани настроенное пространство в ZIP. Он поможет перенести данные или восстановить их позже.</p><div class="first-run-data-note">${icons.shield}<div><strong>Проверка перед сохранением</strong><p>ZeTer OS проверит содержимое и контрольные суммы ZIP. Храни копию отдельно от папки программы, например на другом диске.</p><p>В Windows выбери место в диалоге сохранения. В браузере проверь файл в загрузках.</p></div></div><p data-first-backup-status class="first-run-backup-status" role="status" aria-live="polite">Настройки уже сохранены. Бэкап можно создать сейчас или позже в Центре безопасности данных.</p></section><footer class="first-run-setup-actions"><button type="button" data-first-backup-later>Позже</button><button type="button" class="first-run-primary" data-first-backup-create>Создать ZIP-бэкап ${icons.arrow}</button></footer></article>`;
-      dialog.querySelector("h1").focus();
-      dialog.scrollTop = 0;
-    }
-    async function createBackup() {
-      setPending(true);
-      const status = dialog.querySelector("[data-first-backup-status]");
-      status.textContent = "Создаём и проверяем ZIP…";
-      try {
-        const result = await exportBackup();
-        if (!result?.verification?.verified || !result?.downloadResult || result.downloadResult.cancelled || result.downloadResult.ok === false) throw new Error("Бэкап не сохранён или сохранение отменено. Повтори попытку либо выбери «Позже».");
-        status.textContent = result.downloadResult.directoryName === "Загрузки браузера" ? `ZIP «${result.name}» создан и проверен. Скачивание передано браузеру — проверь файл в загрузках.` : `ZIP «${result.name}» создан, проверен и сохранён.`;
-        const button = dialog.querySelector("[data-first-backup-create]");
-        button.textContent = "Продолжить";
-        button.removeAttribute("data-first-backup-create");
-        button.setAttribute("data-first-backup-done", "");
-        dialog.querySelector("[data-first-backup-later]").hidden = true;
-      } catch (error) { status.textContent = error?.message || "Не удалось создать бэкап. Повтори попытку."; }
-      setPending(false);
-    }
     async function onSubmit(event) {
       event.preventDefault();
-      if (phase !== "setup" || pending || !read()) return;
-      if (step < setupSteps.length - 1) { step++; render(); return; }
+      if (pending || !read()) return;
+      if (step < setupSteps.length - 1) {
+        reviewFrom = step;
+        step = event.submitter?.matches("[data-setup-review]") ? setupSteps.length - 1 : step + 1;
+        render();
+        return;
+      }
       setPending(true);
       const errorBox = dialog.querySelector("[data-first-error]");
       errorBox.hidden = true;
@@ -342,29 +301,18 @@
         return;
       }
       pending = false;
-      renderBackup();
+      detach();
+      onFinish(draft.showTour);
     }
     function onClick(event) {
       if (pending) return;
       if (event.target.closest("[data-setup-back]")) {
-        // Back never traps the user on an invalid field; keep the unfinished text.
+        // Back keeps the unfinished text and does not validate it.
         if (step === 0) {
-          dialog.removeEventListener("click", onClick);
-          dialog.removeEventListener("submit", onSubmit);
-          dialog.removeEventListener("input", onInput);
-          dialog.removeEventListener("change", onChange);
-          generation++;
+          detach();
           dialog.innerHTML = firstRunScreenHTML(osVersion);
-          dialog.querySelector("[data-first-create]").focus();
-        } else { read(false); step--; render(); }
-      }
-      if (event.target.closest("[data-first-backup-create]")) createBackup();
-      if (event.target.closest("[data-first-backup-later], [data-first-backup-done]")) continueAfterBackup();
-      if (event.target.closest("[data-setup-skip]")) finish();
-      if (event.target.closest("[data-tour-back]") && tourIndex > 0) { tourIndex--; renderTour(); }
-      if (event.target.closest("[data-tour-next]")) {
-        if (tourIndex === tourSteps.length - 1) finish();
-        else { tourIndex++; renderTour(); }
+          dialog.querySelector("[data-first-quick]").focus();
+        } else { read(false); step = step === setupSteps.length - 1 ? reviewFrom : step - 1; render(); }
       }
     }
     dialog.addEventListener("click", onClick);
@@ -374,9 +322,195 @@
     render();
   }
 
+  let lastLesson;
+  const lessonKey = "zeter-first-steps-v1";
+
+  function startFirstRunTour({ documentRef = document, windowRef = window, exportBackup }) {
+    if (documentRef.querySelector(".first-run-screen")) return;
+    const opener = documentRef.activeElement;
+    const dialog = documentRef.createElement("dialog");
+    dialog.className = "first-run-screen first-run-touring";
+    dialog.setAttribute("aria-labelledby", "first-run-title");
+    dialog.setAttribute("aria-describedby", "first-run-description");
+    let remembered = lastLesson;
+    try { remembered ??= windowRef.localStorage.getItem(lessonKey); } catch {}
+    let index = -1, pending = false, frame = null, token = "", timer = null, ready = false, runId = 0, bootFailed = false;
+    const manual = documentRef.body.classList.contains("zeter-reduced-motion")
+      || Boolean(windowRef.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+
+    function remember(id) {
+      lastLesson = id || "";
+      try {
+        if (id) windowRef.localStorage.setItem(lessonKey, id);
+        else windowRef.localStorage.removeItem(lessonKey);
+      } catch {}
+    }
+    function disposeFrame() {
+      windowRef.clearTimeout(timer);
+      frame?.remove();
+      frame = null;
+      token = "";
+      ready = false;
+      bootFailed = false;
+    }
+    function close() {
+      disposeFrame();
+      windowRef.removeEventListener("message", onMessage);
+      dialog.close();
+      dialog.remove();
+      const target = opener?.isConnected && opener !== documentRef.body
+        ? opener : documentRef.querySelector("#start-button");
+      target?.focus();
+    }
+    function send(type) {
+      frame?.contentWindow?.postMessage({channel:"zeter-training", token, runId, type, lesson:tourSteps[index]?.id, manual}, "*");
+    }
+    function onMessage(event) {
+      const data = event.data;
+      if (!frame || event.source !== frame.contentWindow || data?.channel !== "zeter-training" || data.token !== token) return;
+      if (data.type === "ready") {
+        ready = true;
+        windowRef.clearTimeout(timer);
+        if (tourSteps[index]) send("play");
+        return;
+      }
+      if (data.type === "failed" && !ready && data.runId == null) {
+        windowRef.clearTimeout(timer);
+        bootFailed = true;
+        const status = dialog.querySelector("[data-live-status]");
+        if (status) { status.textContent = data.text; status.dataset.liveResult = "failed"; }
+        return;
+      }
+      if (data.type !== "focus" && data.runId !== runId) return;
+      const status = dialog.querySelector("[data-live-status]");
+      if (!status) return;
+      const next = dialog.querySelector("[data-live-next]");
+      if (data.type === "pointer" && Number.isFinite(data.x) && Number.isFinite(data.y)) {
+        const card = dialog.querySelector(".first-run-tour-card");
+        if (windowRef.innerWidth > 700) {
+          card.style.left = data.x > windowRef.innerWidth / 2 ? "12px" : "auto";
+          card.style.right = data.x > windowRef.innerWidth / 2 ? "auto" : "12px";
+        } else {
+          card.style.top = data.y > windowRef.innerHeight / 2 ? "8px" : "auto";
+          card.style.bottom = data.y > windowRef.innerHeight / 2 ? "auto" : "68px";
+        }
+      } else if (data.type === "focus") {
+        if (!data.keepSelection && documentRef.activeElement === frame) dialog.querySelector("h1").focus({preventScroll:true});
+      } else if (data.type === "action") {
+        status.textContent = String(data.text || "").slice(0, 200);
+        status.dataset.liveAction = String(data.step);
+        status.setAttribute("aria-label", `Действие ${data.step} из ${data.total}`);
+        next.hidden = !manual;
+        next.disabled = false;
+      } else if (data.type === "complete" || data.type === "failed") {
+        windowRef.clearTimeout(timer);
+        status.textContent = String(data.text || "").slice(0, 200);
+        status.dataset.liveResult = data.type;
+        next.hidden = true;
+      }
+    }
+    function prepareFrame() {
+      token = windowRef.crypto.randomUUID();
+      frame = windowRef.ZETER_TRAINING_RUNTIME.createFrame(token);
+      dialog.prepend(frame);
+      timer = windowRef.setTimeout(() => {
+        if (frame && !ready) {
+          bootFailed = true;
+          const status = dialog.querySelector("[data-live-status]");
+          if (status) {
+            status.textContent = "Учебная среда не ответила. Нажми «Повторить».";
+            status.dataset.liveResult = "failed";
+          }
+        }
+      }, 20000);
+    }
+    function render() {
+      if (frame && !ready && bootFailed) disposeFrame();
+      runId++;
+      if (frame) send("stop");
+      dialog.querySelector(".first-run-tour-card")?.remove();
+      const lesson = tourSteps[index];
+      const resume = tourSteps.findIndex(step => step.id === remembered);
+      const finished = index === tourSteps.length;
+      const title = lesson?.title || (finished ? "Стол готов к работе" : "Первые шаги в ZeTer OS");
+      const text = lesson?.text || (finished
+        ? "Можно сохранить резервную копию своего пространства или вернуться к работе."
+        : "15 уроков: курсор открывает настоящие меню и окна ZeTer OS и показывает действия на учебных материалах.");
+      const picker = `<div class="first-run-lesson-picker">${tourSteps.map((step, i) => `<button type="button" data-tour-select="${i}">${icons[step.icon]} ${step.name}</button>`).join("")}</div>`;
+      const progress = lesson ? `<div class="first-run-tour-progress" aria-label="Шаг ${index+1} из ${tourSteps.length}">${tourSteps.map((_, i) => `<span class="${i < index ? "is-past" : i === index ? "is-current" : ""}"></span>`).join("")}</div>` : "";
+      const body = lesson ? `<p class="first-run-live-status" data-live-status role="status">${ready ? "Подготавливаем следующий показ…" : "Открываем учебный рабочий стол…"}</p>
+        <div class="first-run-live-controls"><button type="button" data-live-replay>Повторить</button><button type="button" data-live-next hidden>Показать действие</button></div>`
+        : finished ? '<p data-tour-status role="status"></p>' : picker;
+      const actions = lesson
+        ? `<button type="button" data-tour-back>Назад</button><button type="button" class="first-run-primary" data-tour-next>${index === 14 ? "Завершить" : "Далее"} ${icons.arrow}</button>`
+        : finished ? '<button type="button" data-tour-exit>К рабочему столу</button><button type="button" class="first-run-primary" data-first-backup-create>Создать ZIP-бэкап</button>'
+          : `<button type="button" data-tour-exit>К рабочему столу</button><button type="button" class="first-run-primary" data-tour-select="${resume < 0 ? 0 : resume}">${resume < 0 ? "Начать обучение" : "Продолжить обучение"}</button>`;
+      dialog.insertAdjacentHTML("beforeend", `<section class="first-run-tour-card${lesson ? " first-run-tour-live" : " first-run-tour-centered"}">
+        <div class="first-run-tour-content"><div class="first-run-tour-top"><span>${lesson ? `УЧЕБНЫЙ СТОЛ · ${index + 1} ИЗ 15` : "ZETER OS · ПЕРВЫЕ ШАГИ"}</span>${lesson ? '<button type="button" data-tour-exit>Позже</button>' : ""}</div>
+        ${progress}<h1 id="first-run-title" tabindex="-1">${title}</h1><p id="first-run-description">${text}</p>${body}</div>
+        <div class="first-run-setup-actions">${actions}</div></section>`);
+      if (frame) frame.hidden = !lesson;
+      if (lesson) {
+        if (!frame) prepareFrame();
+        else if (ready) send("play");
+      }
+      dialog.querySelector("h1").focus({preventScroll:true});
+    }
+    function advance(next) {
+      index = next;
+      if (next >= 0) remember(tourSteps[next]?.id);
+      remembered = lastLesson;
+      render();
+    }
+      async function saveBackup(button) {
+      pending = true;
+      button.disabled = true;
+      const exit = dialog.querySelector("[data-tour-exit]");
+      exit.disabled = true;
+      const status = dialog.querySelector("[data-tour-status]");
+      status.textContent = "Создаём и проверяем ZIP…";
+
+      try {
+        const result = await exportBackup();
+        if (!result?.verification?.verified || !result.downloadResult || result.downloadResult.cancelled || result.downloadResult.ok === false) {
+          status.textContent = "Сохранение не подтверждено. Можно повторить или вернуться к рабочему столу.";
+        } else {
+          status.textContent = result.downloadResult.directoryName === "Загрузки браузера"
+            ? "ZIP проверен. Файл передан браузеру, посмотри его в загрузках."
+            : "ZIP проверен и сохранён.";
+          button.hidden = true;
+        }
+      } catch {
+        status.textContent = "Не удалось создать ZIP. Попробуй ещё раз или вернись к рабочему столу.";
+      } finally {
+        pending = false;
+        button.disabled = false;
+        exit.disabled = false;
+        (button.hidden ? exit : button).focus();
+      }
+    }
+
+    dialog.addEventListener("click", event => {
+      const button = event.target.closest("button");
+      if (!button || pending) return;
+      if (button.matches("[data-tour-exit]")) close();
+      else if (button.matches("[data-tour-select]")) advance(Number(button.dataset.tourSelect));
+      else if (button.matches("[data-tour-back]")) advance(index - 1);
+      else if (button.matches("[data-tour-next]")) advance(index + 1);
+      else if (button.matches("[data-live-replay]")) render();
+      else if (button.matches("[data-live-next]")) { button.disabled = true; send("next"); }
+      else if (button.matches("[data-first-backup-create]")) saveBackup(button);
+    });
+    dialog.addEventListener("cancel", event => { event.preventDefault(); if (!pending) close(); });
+    documentRef.body.append(dialog);
+    dialog.showModal();
+    windowRef.addEventListener("message", onMessage);
+    render();
+  }
   window.ZETER_FIRST_RUN_UI_UTILS = Object.freeze({
     firstRunScreenHTML,
     startFirstRunSetup,
+    startFirstRunTour,
     applyFirstRunDraft
   });
 })();

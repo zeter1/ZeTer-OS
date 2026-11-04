@@ -29,6 +29,7 @@
     "clock.showDate",
     "calendar.weekStart",
     "notifications.enabled",
+    "notifications.systemDelivery",
     "notifications.tasks",
     "notifications.calendar",
     "notifications.system",
@@ -144,7 +145,7 @@
       hasCustomWallpaper: Boolean(wallpaper?.dataURL),
       wallpaperName: wallpaper?.name,
       wallpaperSizeText: wallpaper?.size ? formatBytes(wallpaper.size) : "",
-      windowsStartupAvailable: Boolean(options.windowsStartupAvailable),
+      windowsStartupAvailable: Boolean(options.windowsStartupAvailable), capabilityNoticeHTML: options.capabilityNoticeHTML || "", nativeWindowAvailable: Boolean(options.nativeWindowAvailable),
       systemSettings,
       desktopOptions: Array.isArray(options.desktopOptions) ? options.desktopOptions : [],
       hotkeyDefinitions: Array.isArray(options.hotkeyDefinitions) ? options.hotkeyDefinitions : HOTKEY_DEFINITIONS,
@@ -382,6 +383,10 @@
         <h3>Уведомления</h3>
         <label class="settings-field"><span>Длительность всплывающих сообщений</span><select data-system-setting="notifications.popupDuration">${systemSettingsUtils.POPUP_DURATION_VALUES.map(value => `<option value="${value}"${selected(notifications.popupDuration, value)}>${value === 3500 ? "3,5 секунды — стандартно" : value / 1000 + " секунд"}</option>`).join("")}</select></label>
         ${settingsToggleHTML("notifications.enabled", "Разрешить уведомления", "Главный выключатель новых уведомлений", notifications.enabled)}
+        ${settingsToggleHTML("notifications.systemDelivery", "Показывать уведомления Windows", "Новые уведомления видны и при свёрнутой ZeTer OS", notifications.systemDelivery, notificationDisabled)}
+        <p class="muted">ZeTer OS должна оставаться запущенной. В браузере разреши уведомления сайта кнопкой проверки. Баннеры и звук зависят от настроек Windows и режима «Не беспокоить». Текст может быть виден на экране блокировки Windows.</p>
+        <div class="settings-actions"><button type="button" data-system-notification-test>Проверить уведомление</button></div>
+        <p class="muted" data-system-notification-status role="status" aria-live="polite"></p>
         <div class="settings-toggle-group">
           ${settingsToggleHTML("notifications.tasks", "Задачи", "Сроки и настроенные напоминания", notifications.tasks, notificationDisabled)}
           ${settingsToggleHTML("notifications.calendar", "Календарь", "Напоминания перед событиями", notifications.calendar, notificationDisabled)}
@@ -393,11 +398,12 @@
 
       <section class="setting-card" data-settings-panel="startup">
         <h3>Запуск и восстановление окон</h3>
+        ${options.capabilityNoticeHTML || ""}
         ${windowsStartupToggleHTML(options.windowsStartupAvailable)}
         ${settingsToggleHTML("startup.restoreWindows", "Восстанавливать открытые окна", "При следующем запуске вернуть приложения текущего рабочего стола", startup.restoreWindows)}
         <label class="settings-field"><span>Рабочий стол после запуска</span><select data-system-setting="startup.desktop">${desktopOptions}</select></label>
-        <label class="settings-field"><span>Окно ZeTer OS после запуска</span><select data-system-setting="startup.windowMode"><option value="maximized"${selected(startup.windowMode, "maximized")}>Развёрнуто на весь экран</option><option value="windowed"${selected(startup.windowMode, "windowed")}>Обычное окно 1320 × 840</option></select></label>
-        <small class="settings-help-note">Стартовый рабочий стол и размер внешнего окна применяются при следующем запуске ZeTer OS.</small>
+        <label class="settings-field"><span>Окно ZeTer OS после запуска</span><select data-system-setting="startup.windowMode"${options.nativeWindowAvailable ? "" : " disabled"}><option value="maximized"${selected(startup.windowMode, "maximized")}>Развёрнуто на весь экран</option><option value="windowed"${selected(startup.windowMode, "windowed")}>Обычное окно 1320 × 840</option></select></label>
+        <small class="settings-help-note">Стартовый рабочий стол применяется при следующем запуске. Размер внешнего окна настраивается только в приложении для Windows.</small>
       </section>
 
       <section class="setting-card" data-settings-panel="accessibility">
@@ -458,9 +464,10 @@
       desktopAvatarHTML: renderedAvatarHTML, desktopTitle: initial.desktop.name || desktopName(getDesktopRoot()),
       desktopDescription: initial.desktop.description || desktopDescription(getDesktopRoot()), desktopNameValue: initial.desktop.name,
       desktopIcon: initial.desktop.icon, desktopAppearance: initial.settings.desktopAppearance, accent: initial.settings.accent,
-      wallpaper: initial.settings.customWallpaper, systemSettings: initial.systemSettings, windowsStartupAvailable,
+      wallpaper: initial.settings.customWallpaper, systemSettings: initial.systemSettings, windowsStartupAvailable, capabilityNoticeHTML: options.capabilityNoticeHTML, nativeWindowAvailable: options.nativeWindowAvailable,
       desktopOptions: getDesktopOptions(), hotkeyDefinitions: HOTKEY_DEFINITIONS, storage: getStorageSummary(), formatBytes
     }));
+    $("[data-system-notification-status]", root).textContent = options.getSystemNotificationStatus?.() || "";
     const controlKey = control => control.dataset.systemSetting ? "system." + control.dataset.systemSetting
       : control.dataset.desktopAppearance ? "desktop.desktopAppearance." + control.dataset.desktopAppearance
       : control.matches("[data-desktop-name]") ? "profile.name" : control.matches("[data-desktop-description]") ? "profile.description"
@@ -583,6 +590,20 @@
     });
     root.addEventListener("click", async event => {
       const target = event.target;
+      const notificationTest = target.closest("[data-system-notification-test]");
+      if (notificationTest) {
+        if (notificationTest.disabled) return;
+        notificationTest.disabled = true;
+        const status = $("[data-system-notification-status]", root);
+        status.textContent = "Отправка проверочного уведомления…";
+        try {
+          if (!options.testSystemNotification) throw new Error("Системные уведомления недоступны в этом режиме запуска.");
+          await options.testSystemNotification();
+          status.textContent = "Проверочное уведомление передано системе. Если баннера нет, проверь разрешения уведомлений и режим «Не беспокоить» в Windows. Проверка работает и при выключенном переключателе.";
+        } catch (error) { status.textContent = error?.message || "Не удалось отправить уведомление. Повтори проверку."; }
+        finally { notificationTest.disabled = false; }
+        return;
+      }
       const navigation = target.closest("[data-settings-section]");
       if (navigation) { pendingHotkeyAction = ""; showSection(navigation.dataset.settingsSection); setQuery(""); drawSearch(); render(); return; }
       const result = target.closest("[data-settings-search-result]"); if (result) { goToResult(result.dataset.settingsSearchResult); render(); return; }

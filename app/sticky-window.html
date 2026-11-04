@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Стикер — ZeTer OS</title>
+  <link rel="stylesheet" href="css/sticky-window.css">
+  <link rel="stylesheet" href="css/46-dialogs.css">
+  <script defer src="js/core/config.js"></script>
+  <script defer src="js/core/utils.js"></script>
+  <script defer src="js/core/asset-utils.js"></script>
+  <script defer src="js/core/shortcut-utils.js"></script>
+  <script defer src="js/core/rich-text-utils.js"></script>
+  <script defer src="js/core/system-settings-utils.js"></script>
+  <script defer src="js/core/window-metrics-utils.js"></script>
+  <script defer src="js/core/sticky-utils.js"></script>
+  <script defer src="js/core/dialog-utils.js"></script>
+  <script defer src="js/sticky-window.js"></script>
+</head>
+<body>
+  <main class="sticky-window">
+    <header class="sticky-window-head">
+      <label class="sticky-title-label" for="sticky-title">Название стикера</label>
+      <button id="sticky-settings" type="button" aria-label="Настройки стикера" title="Настройки стикера" aria-expanded="false" aria-controls="sticky-settings-panel" disabled>⚙</button>
+    </header>
+    <input id="sticky-title" maxlength="240" autocomplete="off" disabled>
+    <div id="sticky-editor" contenteditable="false" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Текст стикера"></div>
+    <footer>
+      <span id="sticky-status" role="status" aria-live="polite">Подключение к главному окну…</span>
+      <button id="sticky-retry" type="button" hidden>Повторить</button>
+    </footer>
+    <section id="sticky-settings-panel" aria-label="Настройки стикера" hidden>
+      <nav class="sticky-actions" aria-label="Действия со стикером">
+        <button data-sticky-action="library" type="button">В приложение</button>
+        <button data-sticky-action="desktop" type="button">На стол ZeTer OS</button>
+        <button data-sticky-action="delete" type="button">Удалить</button>
+      </nav>
+      <p id="sticky-settings-status" role="status" aria-live="polite" hidden></p>
+      <button id="sticky-settings-retry" type="button" hidden>Повторить</button>
+      <label>Цвет стикера<select id="sticky-color"></select></label>
+      <label>Цвет текста<select id="sticky-text-color"></select></label>
+      <label>Размер текста<input id="sticky-font-size" type="range" min="12" max="22" step="1"><output id="sticky-font-size-value"></output></label>
+      <label>Непрозрачность содержимого<input id="sticky-opacity" type="range" min="70" max="100" step="5"><output id="sticky-opacity-value"></output></label>
+      <div class="sticky-actions">
+        <button id="sticky-reset" type="button">Сбросить</button>
+        <button id="sticky-settings-close" type="button">Закрыть</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

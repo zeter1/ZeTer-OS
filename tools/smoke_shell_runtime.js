@@ -171,15 +171,17 @@ console.log("desktop deletion modal keyboard isolation smoke: ok");
 
 // First launch must be a real modal, and each route must finish exactly once.
 (async () => {
-for (const route of ["create", "import", "help"]) {
+for (const route of ["create", "quick", "import", "help"]) {
   const listeners = {};
   const firstState = { firstRunCompleted: false };
-  let saves = 0, shown = 0, removed = 0, imports = 0;
-  const firstOpened = [];
+  let saves = 0, shown = 0, removed = 0, imports = 0, tours = 0;
+  const firstOpened = [], status = { focus() {} };
   const dialog = {
     setAttribute() {},
     addEventListener(type, handler) { listeners[type] = handler; },
-    showModal() { shown++; }, close() {}, remove() { removed++; }
+    showModal() { shown++; }, close() {}, remove() { removed++; },
+    querySelector(selector) { return selector === "[data-first-import-file]" ? elements["#import-file"] : status; },
+    querySelectorAll() { return []; }
   };
   elements["#import-file"] = { click() { imports++; } };
   const firstController = sandbox.window.ZETER_SHELL_UI_UTILS.createShellRuntimeController({
@@ -192,6 +194,11 @@ for (const route of ["create", "import", "help"]) {
     getState: () => firstState,
     firstRunScreenHTML: () => "<button data-first-create>Start</button>",
     saveState() { saves++; },
+    startFirstRunTour() { tours++; },
+    async importData(event, options) {
+      assert.equal(options.firstRun, true);
+      return { ok: false, cancelled: true };
+    },
     openApp(app) { firstOpened.push(app); }
   });
   firstController.showFirstRunScreen();
@@ -201,7 +208,17 @@ for (const route of ["create", "import", "help"]) {
   listeners.cancel({ preventDefault() { cancelPrevented = true; } });
   assert.equal(cancelPrevented, true, "Escape must not silently skip the first-launch choice");
   await listeners.click({ target: { closest: selector => selector.split(", ").includes(`[data-first-${route}]`) } });
+  if (route === "import") {
+    assert.equal(imports, 1);
+    await listeners.change({ target: { matches: () => true, files: [{}] } });
+    assert.match(status.textContent, /отменено/);
+    assert.equal(firstState.firstRunCompleted, false);
+    assert.equal(saves, 0);
+    assert.equal(removed, 0);
+    continue;
+  }
   assert.equal(firstState.firstRunCompleted, true);
+  assert.equal(tours, route === "quick" ? 1 : 0);
   assert.equal(saves, 1);
   assert.equal(removed, 1);
   assert.equal(imports, route === "import" ? 1 : 0);

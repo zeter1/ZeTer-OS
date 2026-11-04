@@ -106,6 +106,7 @@
   }
 
   async function readIndexedDbRecord(dbName, storeName, key, options = {}) {
+    if (window.ZETER_TRAINING_RUNTIME?.active) return window.ZETER_TRAINING_RUNTIME.readRecord(dbName, storeName, key);
     const db = await openIndexedDb(dbName, storeName, options);
     return new Promise((resolve, reject) => {
       let result = null;
@@ -120,6 +121,7 @@
   }
 
   async function putIndexedDbRecord(dbName, storeName, value, options = {}) {
+    if (window.ZETER_TRAINING_RUNTIME?.active) return window.ZETER_TRAINING_RUNTIME.writeRecord(dbName, storeName, value, options.key ?? value.id);
     const db = await openIndexedDb(dbName, storeName, options);
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, "readwrite");
@@ -476,6 +478,7 @@
   }
 
   async function getAllIndexedDbRecords(dbName, storeName, options = {}) {
+    if (window.ZETER_TRAINING_RUNTIME?.active) return window.ZETER_TRAINING_RUNTIME.readRecords(dbName, storeName);
     const db = await openIndexedDb(dbName, storeName, options);
     return new Promise((resolve, reject) => {
       let result = [];

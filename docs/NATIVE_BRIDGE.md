@@ -1,5 +1,7 @@
 # JavaScript ↔ Python bridge
 
+Окна стикеров: `open_sticky_window({workspaceId,stickyId})` создаёт или активирует отдельное окно Windows. `stickyId` равен `noteId`; дочернему окну не передаётся `NativeStorageApi`. Его ограниченный `StickyWindowApi` предоставляет `get_snapshot()`, `save_sticky({title,richHtml,expectedTitle,expectedRichHtml,appearance?,expectedAppearance?})`, `perform_action({action})`, `close_window()`. Оформление передаётся парой четырёхполейных объектов `{color,textColor,fontSize,opacity}`: Python проверяет типы/диапазоны, главный JS-контроллер проверяет старый снимок; текст и оформление сохраняются одной транзакцией с primary ACK. Повтор уже подтверждённых значений допускается после потерянного ACK. `perform_action` принимает только `library`, `desktop`, `delete`; ID зафиксированы bridge конкретного окна. Перед действием дочерний UI блокирует ввод и ожидает сохранения; отказ перехода на другой стол/primary write сохраняет окно, закрытие следует только после успеха. Удаление затрагивает лишь реестр стикеров. Python передаёт строки как JSON, ожидает Promise callback с timeout. Ошибка сохраняет черновик. Закрытие окон использует асинхронную проверку, не блокируя GUI-поток; штатное закрытие главного окна ожидает дочерние черновики. Вложения в дочернем окне представлены неизменяемыми маркерами; открываются в главной заметке. Ползунок непрозрачности Windows меняет содержимое стикера, не прозрачность системного окна. Реестр/права удаления — [DATA_MODEL.md](DATA_MODEL.md#библиотека-стикеров).
+
 Этот документ фиксирует публичный контракт между веб-интерфейсом и `run_zeter_os.py`.
 
 ## Запуск native-режима
@@ -15,6 +17,8 @@
 
 | Метод | Вход | Успешный результат |
 |---|---|---|
+| `get_runtime_info()` | нет | Только `{ok,kind:exe/python,platform}` без путей, настроек и чтения данных; старый bridge без метода отображается как EXE / Python без догадки |
+| `open_sticky_window(payload)` | `{workspaceId,stickyId}` выбранного стикера | Создаёт/активирует отдельное окно с ограниченным bridge, общим текстом заметки и primary ACK |
 | `get_storage_info()` | нет | Свежие пути и размеры state, restore, backup, log и Windows-копии за один обход data, без кэша |
 | `get_windows_startup_status()` | нет | Реальное состояние пользовательской записи автозапуска Windows: `supported`, `enabled`, `stale` |
 | `set_windows_startup_enabled(enabled)` | логическое значение | Создаёт, обновляет или удаляет запись ZeTer OS в `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` и возвращает проверенное состояние |
@@ -62,6 +66,7 @@
 | `open_logs_folder()` | нет | Открывает `data/logs/`, возвращает `logDir` и `logFile` |
 | `open_problem_logs_folder()` | нет | Открывает отдельную папку `Логи проблем` рядом с программой |
 | `close_app()` | нет | Безопасно закрывает текущее окно ZeTer OS |
+| `show_system_notification(payload)` | Только `{title: string, text: string}`, до 160/2000 Unicode-символов | Передаёт текстовое уведомление WinRT через фиксированный скрытый Windows PowerShell, timeout 8 с; `{submitted:true}` означает приём API, а не видимый баннер. Собственный отправитель `ZeTer.OS` регистрируется в HKCU AppUserModelId; глобальные разрешения Windows не меняются. Коды invalid_payload/unsupported/busy/blocked/access_denied/timeout/delivery_failed; тексты, argv и stderr в диагностику не попадают. Данные приложения не читает и не пишет |
 | `open_readable_folder()` | нет | Открывает `data/Рабочие столы/`, возвращает `readableDir` |
 | `load_state()` | нет | `record` с полным состоянием; `null` возвращается только при физическом отсутствии state-файла |
 | `save_state(record)` | объект или JSON-строка | Время, размер, путь и статистика экспорта/очистки |

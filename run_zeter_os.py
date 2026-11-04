@@ -44,6 +44,7 @@ import document_converter
 from security_backup import SecurityBackupStore
 from google_drive_backup import DriveError, GoogleDriveBackup
 from google_drive_sync import GoogleDriveSync
+from sticky_windows import StickyWindows
 from problem_logs import ENUM_FIELDS as DIAGNOSTIC_ENUM_FIELDS, NUMBER_FIELDS as DIAGNOSTIC_NUMBER_FIELDS, BOOL_FIELDS as DIAGNOSTIC_BOOL_FIELDS
 
 
@@ -1903,6 +1904,80 @@ class DefaultPlatformOpener:
         return "folder" if path.is_dir() else "file"
 
 
+_WINDOWS_NOTIFICATION_LOCK = threading.Lock()
+# Constant code only. User content travels as ASCII JSON on stdin, never as PowerShell source.
+_WINDOWS_NOTIFICATION_SCRIPT = r'''
+$ErrorActionPreference = 'Stop'
+try {
+    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    $appId = 'ZeTer.OS'
+    $key = 'HKCU:\Software\Classes\AppUserModelId\ZeTer.OS'
+    New-Item -Path $key -Force | Out-Null
+    New-ItemProperty -Path $key -Name DisplayName -Value 'ZeTer OS' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $key -Name IconUri -Value $payload.icon -PropertyType String -Force | Out-Null
+    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+    [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
+    if ([int]$notifier.Setting -ne 0) { [Console]::Out.Write('BLOCKED'); exit 2 }
+    $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $xml.LoadXml('<toast><visual><binding template="ToastGeneric"><text/><text/></binding></visual></toast>')
+    $nodes = $xml.GetElementsByTagName('text')
+    $nodes.Item(0).InnerText = [string]$payload.title
+    $nodes.Item(1).InnerText = [string]$payload.text
+    $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+    $toast.ExpirationTime = [DateTimeOffset]::Now.AddMinutes(5)
+    $notifier.Show($toast)
+    [Console]::Out.Write('SUBMITTED')
+} catch { [Console]::Out.Write('FAILED'); exit 1 }
+'''
+
+
+def show_windows_notification(payload: Any) -> Dict[str, Any]:
+    """Submit one bounded, text-only toast without reading or modifying application data."""
+    def failure(code: str, message: str) -> Dict[str, Any]:
+        return {"ok": False, "code": code, "error": message}
+
+    if not isinstance(payload, dict) or set(payload) != {"title", "text"}:
+        return failure("invalid_payload", "Некорректное уведомление.")
+    for key, limit in (("title", 160), ("text", 2000)):
+        value = payload[key]
+        if (not isinstance(value, str) or len(value) > limit
+                or any(ord(char) < 32 and char not in "\t\n\r" or 0xD800 <= ord(char) <= 0xDFFF
+                       or ord(char) in (0xFFFE, 0xFFFF) for char in value)):
+            return failure("invalid_payload", "Текст уведомления имеет неподдерживаемый формат.")
+    if not payload["title"].strip():
+        return failure("invalid_payload", "У уведомления должен быть заголовок.")
+    if os.name != "nt":
+        return failure("unsupported", "Системные уведомления приложения доступны только в Windows.")
+    if not _WINDOWS_NOTIFICATION_LOCK.acquire(blocking=False):
+        return failure("busy", "Предыдущее уведомление ещё отправляется. Повтори проверку.")
+    try:
+        executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        encoded = base64.b64encode(_WINDOWS_NOTIFICATION_SCRIPT.encode("utf-16-le")).decode("ascii")
+        body = {**payload, "icon": str(APP_DIR / "assets/icons/zeter-icon.ico")}
+        result = subprocess.run(
+            [str(executable), "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", encoded],
+            input=json.dumps(body, ensure_ascii=True).encode("ascii"),
+            capture_output=True, timeout=8, creationflags=subprocess.CREATE_NO_WINDOW,
+            cwd=str(APP_DIR),
+        )
+        marker = result.stdout.strip()
+        if result.returncode == 0 and marker == b"SUBMITTED":
+            return {"ok": True, "submitted": True}
+        if result.returncode == 2 and marker == b"BLOCKED":
+            return failure("blocked", "Windows отключила уведомления ZeTer OS. Разреши их в Параметрах Windows → Система → Уведомления.")
+        return failure("delivery_failed", "Windows не приняла уведомление. Проверь разрешения уведомлений и доступность Windows PowerShell.")
+    except subprocess.TimeoutExpired:
+        return failure("timeout", "Windows не ответила вовремя. Повтори проверку уведомления.")
+    except PermissionError:
+        return failure("access_denied", "Windows запретила запуск Windows PowerShell для уведомлений. Проверь ограничения запуска программ или обратись к администратору.")
+    except Exception:
+        # Never expose subprocess arguments, captured output or private notification contents.
+        return failure("delivery_failed", "Не удалось отправить уведомление Windows. Повтори проверку.")
+    finally:
+        _WINDOWS_NOTIFICATION_LOCK.release()
+
+
 class WindowsStartupManager:
     """Manage the current user's ZeTer OS entry in the Windows Run key."""
 
@@ -2038,6 +2113,7 @@ class NativeStorageApi:
         self._platform_opener = platform_opener or DefaultPlatformOpener()
         self._windows_startup_manager = windows_startup_manager or WindowsStartupManager()
         self._window: Any = None
+        self._sticky_windows: Optional[StickyWindows] = None
         self._last_previous_backup_at = 0.0
         self._state_save_lock = threading.RLock()
         self._restore_points_lock = threading.RLock()
@@ -2059,6 +2135,15 @@ class NativeStorageApi:
             self._system_cpu_sample = None
             log(f"SYSTEM_METRICS initial CPU sample unavailable: {exc}")
         self._process_cpu_sample = (time.perf_counter(), time.process_time())
+
+    def get_runtime_info(self) -> Dict[str, Any]:
+        """Public runtime identity only; no paths, settings or state access."""
+        return {"ok": True, "kind": "exe" if getattr(sys, "frozen", False) else "python", "platform": sys.platform}
+
+    def open_sticky_window(self, payload: Any) -> Dict[str, Any]:
+        if self._closing or self._sticky_windows is None:
+            return {"ok": False, "error": "Отдельные стикеры доступны в запущенном Windows-приложении."}
+        return self._sticky_windows.open(payload)
 
     def _diagnostic_operation(self, stage: str):
         return self._problem_logs.operation(stage) if self._problem_logs else contextlib.nullcontext()
@@ -2347,7 +2432,10 @@ class NativeStorageApi:
     def cancel_app_update(self) -> Dict[str, Any]:
         return self._app_updater.cancel()
 
-    def _cancel_update_on_close(self) -> None:
+    def _cancel_update_on_close(self) -> Optional[bool]:
+        sticky_windows = getattr(self, "_sticky_windows", None)
+        if sticky_windows is not None and not sticky_windows.can_close_main():
+            return False
         self._closing = True
         if self._app_updater.get_status()["phase"] != "awaiting_exit":
             self._app_updater.cancel()
@@ -2797,6 +2885,11 @@ class NativeStorageApi:
             return self._ok(**self._windows_startup_manager.status())
         except Exception as exc:
             return self._error(exc)
+
+    @guard_native_operation
+    def show_system_notification(self, payload: Any) -> Dict[str, Any]:
+        """Notification text deliberately bypasses exception/logging sinks."""
+        return show_windows_notification(payload)
 
     @diagnosed("set_windows_startup_enabled")
     @guard_native_operation
@@ -3461,7 +3554,8 @@ class NativeStorageApi:
             if self._window is None or not callable(getattr(self._window, "destroy", None)):
                 raise RuntimeError("Окно ZeTer OS недоступно для безопасного закрытия.")
             log("CLOSE requested from recovery screen")
-            self._cancel_update_on_close()
+            if self._cancel_update_on_close() is False:
+                return self._ok(closing=False, pending=True)
             self._window.destroy()
             return self._ok(closing=True)
         except Exception as exc:
@@ -4020,7 +4114,9 @@ def _run_normal_app() -> int:
                 text_select=True,
             )
         api._window = window
+        api._sticky_windows = StickyWindows(window, webview, f"http://127.0.0.1:{port}")
         window.events.closing += api._cancel_update_on_close
+        window.events.closed += api._sticky_windows.close_all
         webview.start(debug=False, icon=str(APP_DIR / "assets" / "icons" / "zeter-icon.ico"))
         outcome = "success"
         return 0

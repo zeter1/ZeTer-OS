@@ -191,8 +191,8 @@ async function runStartMenuSmoke({ chromium, startPreview, outputDir } = {}) {
     await page.locator('.window[data-app-id="folder"]').waitFor();
     await open();
     await page.locator('[data-desktop-menu="test-other"]').click();
-    page.once('dialog', dialog => dialog.accept('Тестовое пространство'));
     await page.locator('#context-menu button').filter({ hasText:'Переименовать' }).click();
+    await page.locator('dialog.zeter-dialog[open]').locator('input').fill('Тестовое пространство'); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
     await page.waitForFunction(() => window.__startSaved?.desktops.find(desktop => desktop.id === 'test-other')?.name === 'Тестовое пространство');
     assert.ok((await page.locator('[data-switch-desktop="test-other"]').innerText()).includes('Тестовое пространство'));
     await page.locator('[data-desktop-menu="test-other"]').click();

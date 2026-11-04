@@ -18,6 +18,7 @@
   let nativeStorageReadyPromise = null;
 
   function shouldUseNativeStorage() {
+    if (window.ZETER_TRAINING_RUNTIME?.active) return false;
     return Boolean(nativeStorageQuery || window.ZETER_PYTHON_STORAGE || window.pywebview?.api?.load_state);
   }
 
@@ -26,6 +27,7 @@
   }
 
   function waitForNativeStorage(timeoutMs = 3000) {
+    if (window.ZETER_TRAINING_RUNTIME?.active) return Promise.resolve(false);
     if (window.pywebview?.api) return Promise.resolve(true);
     if (!shouldUseNativeStorage()) return Promise.resolve(false);
     if (!nativeStorageReadyPromise) {
@@ -44,10 +46,11 @@
   }
 
   async function nativeStorageCall(method, ...args) {
+    if (window.ZETER_TRAINING_RUNTIME?.active) throw new Error("Системные действия недоступны в учебной среде.");
     const ready = await waitForNativeStorage();
     const api = ready ? window.pywebview?.api : null;
     if (!api || typeof api[method] !== "function") {
-      throw new Error("Python-хранилище недоступно. Запусти ZeTer OS через run_zeter_os.py и установи pywebview.");
+      throw new Error("Связь с настольным приложением недоступна или оно не поддерживает это действие. Перезапустите ZeTer OS; в браузере используйте готовую Windows-сборку или Python-версию с pywebview.");
     }
     const result = await api[method](...args);
     if (result && result.ok === false) {

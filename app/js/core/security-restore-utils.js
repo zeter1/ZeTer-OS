@@ -188,6 +188,7 @@
 
   const REFERENCE_FIELDS = new Set(["projectId", "taskId", "categoryId", "eventId", "itemId", "fileId", "folderId", "sourceFolderId", "targetFolderId", "noteFolderId", "parentId", "targetId", "automationId", "originAutomationId", "actionId", "triggerId", "objectId", "queueId", "activeTaskProjectId", "explorerRootId", "originalParent"]);
   const REFERENCE_ARRAYS = new Set(["dependencies", "dependsOn", "taskIds", "fileIds", "knownFileIds", "expandedExplorerFolders", "chainAutomationIds", "completedActionIds"]);
+  REFERENCE_FIELDS.add("originalEntryId");
 
   function remapCopy(selection, sourceDesktopId, targetDesktopId, allocate) {
     const map = new Map([[sourceDesktopId, targetDesktopId]]), records = new Map();
@@ -233,7 +234,7 @@
     }
     function rewrite(value, history = false, role = "") {
       if (!value || typeof value !== "object") return value;
-      const isHistory = history || Array.isArray(value.segments) || role === "calendar-event";
+      const isHistory = history || Array.isArray(value.segments) || role === "calendar-event" || role === "finance-entry";
       Object.keys(value).forEach(key => {
         const entry = value[key];
         if (key === "id" && role === "event-attachment" && (value.kind || value.type) === "fs" && !selectedFiles.has(entry)) {
@@ -258,7 +259,8 @@
         else if (REFERENCE_ARRAYS.has(key) && Array.isArray(entry)) value[key] = entry.map(id => typeof id === "string" ? reference(id, key, isHistory) : rewrite(id, isHistory));
         else if (entry && typeof entry === "object") {
           const nextRole = key === "events" ? "calendar-event-list" : role === "calendar-event-list" ? "calendar-event" : role === "calendar-event" && key === "attachments" ? "event-attachment-list" : role === "event-attachment-list" ? "event-attachment" : key === "automations" ? "automation-list" : role === "automation-list" ? "automation" : role === "automation" && key === "conditions" ? "condition-list" : role === "condition-list" ? "condition" : "";
-          rewrite(entry, isHistory, nextRole);
+          const financeRole = key === "expenses" ? "finance" : role === "finance" && key === "entries" ? "finance-entry-list" : role === "finance-entry-list" ? "finance-entry" : nextRole;
+          rewrite(entry, isHistory, financeRole);
         }
       });
       return value;
@@ -402,12 +404,15 @@
         ["tasks", "taskProjects", "events", "notifications", "objectLinks", "automations"].forEach(key => array(oldData[key]).forEach(row => {
           if (!array(selection.data[key]).some(restored => restored.id === row.id)) changes.push({ kind: key, label: row.name || row.title || row.id, action: "remove" });
         }));
-        for (const [group, key] of [["timeTracking", "entries"], ["library", "entries"], ["library", "categories"], ["promptLibrary", "entries"], ["promptLibrary", "projects"], ["promptLibrary", "categories"], ["contacts", "entries"], ["contacts", "projects"], ["contacts", "categories"]]) {
+        for (const [group, key] of [["timeTracking", "entries"], ["library", "entries"], ["library", "categories"], ["promptLibrary", "entries"], ["promptLibrary", "projects"], ["promptLibrary", "categories"], ["contacts", "entries"], ["contacts", "projects"], ["contacts", "categories"], ["expenses", "entries"], ["expenses", "categories"]]) {
           array(oldData[group]?.[key]).forEach(row => {
             if (!array(selection.data[group]?.[key]).some(restored => restored.id === row.id)) changes.push({ kind: group, label: row.name || row.title || row.id, action: "remove" });
           });
         }
         if (oldData.timeTracking?.active) changes.push({ kind: "time", label: oldData.timeTracking.active.title || "Текущий таймер", action: "remove" });
+        array(oldData.expenses?.budgets).forEach(row => {
+          if (!array(selection.data.expenses?.budgets).some(restored => restored.month === row.month && restored.currency === row.currency && restored.categoryId === row.categoryId)) changes.push({ kind: "expenses", label: `Лимит ${row.month} ${row.currency}`, action: "remove" });
+        });
         changes.push({ kind: "settings", label: "Настройки выбранного рабочего стола", action: "update" });
         state.desktops[state.desktops.findIndex(desk => desk.id === targetDesktopId)] = sourceDesk;
         changes.push({ kind: "desktop", label: sourceDesk.name, action: "update" });

@@ -408,20 +408,16 @@
       if (!item || item.type !== "note") return;
       const runtimeUi = getRuntimeUi();
       const result = upsertNoteSticky(deskNoteStickies(), noteId, { z: ++runtimeUi.stickyZ });
+      result.sticky.desktop = true;
       toast(result.created ? "Стикер добавлен" : "Стикер уже открыт", item.name);
       saveState();
       renderDesktop();
-    }
-
-    function closeDesktopSticky(noteId) {
-      const workspace = currentWorkspace();
-      workspace.noteStickies = removeNoteSticky(deskNoteStickies(), noteId);
-      saveState();
-      renderDesktop();
+      refreshNotesWindows();
     }
 
     function renderRuntimeDesktopStickies(root = documentRef.querySelector("#desktop-items")) {
       const runtimeUi = getRuntimeUi();
+      const desktopId = getDesktopRoot();
       return renderDesktopStickies({
         root,
         stickies: deskNoteStickies(),
@@ -435,7 +431,10 @@
         refreshNotesWindows,
         refreshOpenEditors,
         openExternalLink,
-        closeDesktopSticky
+        openStickyWindows: noteId => options.openStickyWindows?.(noteId, desktopId),
+        nativeStickyAvailable: options.nativeStickyAvailable?.(),
+        closeDesktopSticky: noteId => options.closeDesktopSticky?.(noteId, desktopId),
+        deleteDesktopSticky: noteId => options.deleteDesktopSticky?.(noteId, desktopId)
       });
     }
 
@@ -732,13 +731,18 @@
     return `
         <header class="desktop-sticky-head">
           <span>🗒️</span>
-          <input data-sticky-title value="${escapeHtml(name)}" aria-label="Название заметки">
-          <button data-sticky-settings title="Настройки стикера" aria-label="Настройки стикера">⚙</button>
-          <button data-close-sticky title="Закрыть стикер">×</button>
+          <input data-sticky-title value="${escapeHtml(name)}" aria-label="Название стикера">
+          <button data-sticky-settings type="button" title="Настройки стикера" aria-label="Настройки стикера" aria-expanded="false">⚙</button>
         </header>
-        <div data-sticky-text contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Текст заметки">${contentHtml}</div>
+        <div data-sticky-text contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Текст стикера">${contentHtml}</div>
         <div class="desktop-sticky-settings" data-sticky-settings-panel hidden>
-          <label>Цвет заметки
+          <nav class="desktop-sticky-actions" aria-label="Действия со стикером">
+            <button data-sticky-library type="button" title="Убрать со стола и открыть в приложении «Стикеры»">В приложение</button>
+            <button data-sticky-windows type="button" title="Переместить в отдельное окно Windows" hidden>В Windows</button>
+            <button data-sticky-delete type="button" title="Удалить стикер, сохранив исходную заметку">Удалить</button>
+          </nav>
+          <p class="desktop-sticky-action-status" data-sticky-action-status role="status" aria-live="polite" hidden></p>
+          <label>Цвет стикера
             <select data-sticky-color>${colorOptionsHTML}</select>
           </label>
           <label>Цвет текста
@@ -784,9 +788,11 @@
     });
     head.addEventListener("pointerup", event => {
       if (!drag) return;
+      const moved = Math.hypot(event.clientX - drag.sx, event.clientY - drag.sy) > 7;
       drag = null;
       try { head.releasePointerCapture(event.pointerId); } catch {}
       saveState();
+      if (moved && (event.clientX <= 1 || event.clientY <= 1 || event.clientX >= window.innerWidth - 1 || event.clientY >= window.innerHeight - 1)) options.onDragOutside?.();
     });
     head.addEventListener("pointercancel", () => {
       drag = null;
@@ -860,9 +866,13 @@
       event.preventDefault();
       event.stopPropagation();
       $$("[data-sticky-settings-panel]").forEach(openPanel => {
-        if (openPanel !== panel) openPanel.hidden = true;
+        if (openPanel !== panel) {
+          openPanel.hidden = true;
+          openPanel.closest(".desktop-sticky")?.querySelector("[data-sticky-settings]")?.setAttribute("aria-expanded", "false");
+        }
       });
       panel.hidden = !panel.hidden;
+      button.setAttribute("aria-expanded", String(!panel.hidden));
     });
 
     panel.addEventListener("pointerdown", event => event.stopPropagation());
@@ -886,6 +896,16 @@
       event.preventDefault();
       event.stopPropagation();
       panel.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+      button.focus({ preventScroll: true });
+    });
+    panel.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      panel.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+      button.focus({ preventScroll: true });
     });
   }
 
@@ -905,7 +925,7 @@
     const cleanRichHtml = typeof options.cleanRichHtml === "function" ? options.cleanRichHtml : value => String(value || "");
     let rendered = 0;
 
-    (Array.isArray(options.stickies) ? options.stickies : []).forEach(sticky => {
+    (Array.isArray(options.stickies) ? options.stickies : []).filter(sticky => sticky.desktop !== false).forEach(sticky => {
       const note = getNote(sticky.noteId);
       if (!note) return;
       clampStickyPosition(sticky);
@@ -931,6 +951,7 @@
 
       const title = $("[data-sticky-title]", card);
       const text = $("[data-sticky-text]", card);
+      let actionPending = false;
       const migratedFiles = ensureManagedFileInlineMarkers(text, note.managedFiles);
       if (migratedFiles) {
         note.richContent = cleanRichHtml(text.innerHTML);
@@ -939,6 +960,8 @@
         saveState({ skipExternalBackup: true });
       }
       const saveStickyData = ({ refreshSurfaces = false } = {}) => {
+        // A trailing input/blur callback must not rewrite a transaction's snapshot.
+        if (actionPending || !card.isConnected) return;
         const current = getNote(note.id);
         if (!current) return;
         const nextName = title.value.trim();
@@ -990,12 +1013,38 @@
         card.style.zIndex = sticky.z;
         saveState({ skipExternalBackup: true });
       });
-      $("[data-close-sticky]", card).addEventListener("click", event => {
-        event.preventDefault();
-        event.stopPropagation();
-        closeDesktopSticky(note.id);
-      });
-      bindDesktopStickyDrag(card, sticky, { nextZ, saveState });
+      const actionStatus = $("[data-sticky-action-status]", card);
+      const runAction = async operation => {
+        if (actionPending) return;
+        const opener = card.contains(document.activeElement) ? document.activeElement : null;
+        saveStickyLive();
+        actionPending = true;
+        title.disabled = true;
+        text.contentEditable = "false";
+        card.setAttribute("aria-busy", "true");
+        $$("button,select,input", card).forEach(control => { control.disabled = true; });
+        actionStatus.hidden = true;
+        try { await operation(); }
+        catch (error) {
+          actionStatus.textContent = error.message || "Не удалось выполнить действие. Попробуйте ещё раз.";
+          actionStatus.hidden = false;
+        } finally {
+          actionPending = false;
+          card.removeAttribute("aria-busy");
+          text.contentEditable = "true";
+          $$("button,select,input", card).forEach(control => { control.disabled = false; });
+          if (opener?.isConnected && document.activeElement === document.body) opener.focus({ preventScroll: true });
+        }
+      };
+      $("[data-sticky-library]", card).addEventListener("click", () => runAction(() => closeDesktopSticky(note.id)));
+      $("[data-sticky-delete]", card).addEventListener("click", () => runAction(() => options.deleteDesktopSticky?.(note.id)));
+      const openWindows = () => runAction(() => options.openStickyWindows?.(note.id));
+      const windowsButton = $("[data-sticky-windows]", card);
+      if (windowsButton && options.nativeStickyAvailable) {
+        windowsButton.hidden = false;
+        windowsButton.addEventListener("click", openWindows);
+      }
+      bindDesktopStickyDrag(card, sticky, { nextZ, saveState, onDragOutside: options.nativeStickyAvailable ? openWindows : null });
       bindDesktopStickyResize(card, sticky, { nextZ, saveState });
       bindDesktopStickySettings(card, sticky, { saveState });
       root.appendChild(card);

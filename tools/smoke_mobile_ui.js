@@ -298,8 +298,8 @@ async function runMobileSmoke({ chromium, startPreview, outputDir, baseline = fa
       assert.ok(await page.locator('.mobile-header').evaluate(el => el.scrollWidth <= el.clientWidth), 'long desktop name never pushes header actions outside viewport');
     }
     await create.tap();
-    page.once('dialog', dialog => dialog.accept('Папка второго стола'));
     await page.locator('#context-menu button').filter({hasText:'Новая папка'}).tap();
+    await page.locator('dialog.zeter-dialog[open]').locator('input').fill('Папка второго стола'); await page.locator('dialog.zeter-dialog[open]').locator('[data-dialog-submit]').click();
     await page.waitForFunction(async () => {
       const c = window.ZETER_OS_CONFIG;
       const record = await window.ZETER_STORAGE_UTILS.readPrimaryStateRecord({dbName:c.PRIMARY_STATE_DB, storeName:c.PRIMARY_STATE_STORE, id:c.PRIMARY_STATE_ID});

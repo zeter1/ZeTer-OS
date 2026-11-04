@@ -17,7 +17,14 @@ async function runTasksEdgesSmoke({ chromium, startPreview, outputDir } = {}) {
     window.ZETER_STORAGE_UTILS = {...originalStorage, createPrimaryStateSaveQueue: options => {
       const queue = originalStorage.createPrimaryStateSaveQueue(options);
       window.__qaQueue = queue;
-      return {...queue, queue: async opts => {
+      return {...queue, transaction: operation => queue.transaction(write => operation(async (...args) => {
+        if (window.__qaHoldFileDeletion) {
+          window.__qaHoldFileDeletion = false;
+          await new Promise(resolve => window.__qaReleaseFile = resolve);
+          throw new Error('Тест: удаление файла отклонено');
+        }
+        return write(...args);
+      })), queue: async opts => {
         const mode = window.__qaNextSave; window.__qaNextSave = null;
         if (mode === 'hold-refuse') await new Promise(resolve => window.__qaRelease = resolve);
         if (mode === 'refuse' || mode === 'hold-refuse') throw new Error('Тест: запись недоступна');
@@ -29,12 +36,18 @@ async function runTasksEdgesSmoke({ chromium, startPreview, outputDir } = {}) {
       const base = {projectId:'p', status:'todo', priority:'medium', indefinite:true, description:'Описание', categoryId:'c', checklist:[{id:'check',text:'Проверить результат',done:false}]};
       const a = {...ZETER_WORKSPACE_UTILS.workspaceDefaults(), tasks:[{...base,id:'t',title:'Первая задача'},{...base,id:'neighbor',title:'Соседняя задача'}], taskProjects:[{id:'p',name:'Проект А',categories:[{id:'c',name:'Категория'}]}], activeTaskProjectId:'p'};
       const b = {...ZETER_WORKSPACE_UTILS.workspaceDefaults(), tasks:[{...base,id:'b',projectId:'pb',title:'Задача стола Б',categoryId:''}], taskProjects:[{id:'pb',name:'Проект Б'}], activeTaskProjectId:'pb'};
+      s.fs['qa-delete-note'] = {id:'qa-delete-note',type:'note',name:'Заметка для удаления',parent:'desktop',x:400,y:110,content:'Тест'};
       s.desktops[0].data = a; s.desktops.push({id:'second',name:'Второй стол',data:b});
       Object.assign(s,{tasks:a.tasks,taskProjects:a.taskProjects,activeTaskProjectId:'p'});
       localStorage.setItem('zeter_os_state_v3', JSON.stringify(s)); localStorage.setItem('tasks-edges-fixture','1');
     }
   `;
   const stateTask = (page, id = "t", desktop = "desktop") => page.evaluate(({id, desktop}) => window.__tasksQA.state.desktops.find(d => d.id === desktop).data.tasks.find(t => t.id === id), {id, desktop});
+  const dialog = page => page.locator("dialog.zeter-dialog[open]");
+  const enterValue = async (page, value) => {
+    await dialog(page).locator("input").fill(value);
+    await dialog(page).locator("input").press("Enter");
+  };
   const settle = page => page.evaluate(async () => { await window.__qaQueue.pending().catch(() => {}); });
   const cases = [
     ["board rollback stays on original desktop", async (page, app) => {
@@ -68,11 +81,9 @@ async function runTasksEdgesSmoke({ chromium, startPreview, outputDir } = {}) {
     }],
     ["impossible deadline is rejected then valid leap day survives reload", async (page, app) => {
       const before = await stateTask(page);
-      const invalid = page.waitForEvent('dialog').then(dialog => dialog.accept('2027-02-31'));
-      await app.locator('[data-task-id="t"] [data-toggle-indefinite]').click(); await invalid;
+      await app.locator('[data-task-id="t"] [data-toggle-indefinite]').click(); await enterValue(page, '2027-02-31');
       assert.deepEqual(await stateTask(page), before, 'impossible date changed the task');
-      const valid = page.waitForEvent('dialog').then(dialog => dialog.accept('2028-02-29'));
-      await app.locator('[data-task-id="t"] [data-toggle-indefinite]').click(); await valid;
+      await app.locator('[data-task-id="t"] [data-toggle-indefinite]').click(); await enterValue(page, '2028-02-29');
       await page.waitForFunction(() => window.__tasksQA.state.desktops[0].data.tasks[0].due === '2028-02-29');
       await settle(page); await page.reload(); await page.waitForSelector('#boot', {state:'hidden'});
       assert.equal((await stateTask(page)).due, '2028-02-29'); assert.equal((await stateTask(page)).indefinite, false);
@@ -101,19 +112,68 @@ async function runTasksEdgesSmoke({ chromium, startPreview, outputDir } = {}) {
     }],
     ["delete cancel refusal retry only removes selected task", async (page, app) => {
       const before = await stateTask(page), neighbor = await stateTask(page, 'neighbor');
-      let dialog = page.waitForEvent('dialog').then(d => d.dismiss());
-      await app.locator('[data-task-id="t"] [data-delete]').click(); await dialog;
+      const remove = app.locator('[data-task-id="t"] [data-delete]');
+      await remove.click();
+      await dialog(page).waitFor();
+      assert.equal(await dialog(page).getByRole('heading').textContent(), 'Удалить задачу?');
+      assert.equal(await dialog(page).locator('[data-dialog-cancel]').evaluate(el => el === document.activeElement), true);
+      await page.screenshot({path:path.join(out,'task-delete-dialog.png')});
+      await page.keyboard.press('Escape');
+      assert.equal(await remove.evaluate(el => el === document.activeElement), true);
       assert.deepEqual(await stateTask(page), before);
-      await page.evaluate(() => { window.__qaNextSave = 'refuse'; });
-      dialog = page.waitForEvent('dialog').then(d => d.accept());
-      await app.locator('[data-task-id="t"] [data-delete]').click(); await dialog;
+      await page.evaluate(() => { window.__qaNextSave = 'hold-refuse'; });
+      await remove.click(); await dialog(page).locator('[data-dialog-submit]').click();
+      await page.waitForFunction(() => !!window.__qaRelease);
+      assert.equal(await remove.count(), 0, 'card must disappear before storage responds');
+      await page.evaluate(() => window.__qaRelease());
       await page.getByText('Изменения не сохранены', {exact:true}).waitFor();
       assert.deepEqual(await stateTask(page), before);
-      dialog = page.waitForEvent('dialog').then(d => d.accept());
-      await app.locator('[data-task-id="t"] [data-delete]').click(); await dialog;
+      await remove.click(); await dialog(page).locator('[data-dialog-submit]').click();
       await app.locator('[data-task-id="t"]').waitFor({state:'detached'}); await settle(page);
       assert.equal(await stateTask(page), undefined); assert.deepEqual(await stateTask(page, 'neighbor'), neighbor);
       await page.reload(); await page.waitForSelector('#boot', {state:'hidden'}); assert.equal(await stateTask(page), undefined);
+    }],
+    ["desktop table creation is themed and keyboard accessible", async (page) => {
+      const menu = page.locator("#context-menu");
+      const openTableDialog = async () => {
+        await page.locator("#desktop").evaluate(el => el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 600, clientY: 160 })));
+        await menu.getByRole("button", { name: /Новая таблица/ }).click();
+        await dialog(page).waitFor();
+      };
+      const count = () => page.evaluate(() => Object.values(window.__tasksQA.state.fs).filter(item => item.type === "table").length);
+      const before = await count();
+      await openTableDialog();
+      assert.equal(await dialog(page).getByRole("heading").textContent(), "Новая таблица");
+      await page.keyboard.press("Escape");
+      assert.equal(await count(), before);
+      await openTableDialog();
+      await page.setViewportSize({width:320,height:568});
+      const rect = await dialog(page).boundingBox();
+      assert.ok(rect.x >= 0 && rect.x + rect.width <= 320);
+      await page.screenshot({path:path.join(out,'table-create-dialog-320.png')});
+      await enterValue(page, "Таблица для проверки");
+      await page.waitForFunction(() => Object.values(window.__tasksQA.state.fs).some(item => item.name === "Таблица для проверки.table"));
+      assert.equal(await count(), before + 1);
+    }],
+    ["desktop item hides before primary ACK and reappears on refusal", async (page) => {
+      const icon = page.locator('#desktop-items [data-item-id="qa-delete-note"]');
+      await icon.waitFor();
+      await page.evaluate(() => { window.__qaHoldFileDeletion = true; });
+      const deletion = page.evaluate(() => window.__tasksQA.deleteItem("qa-delete-note"));
+      await dialog(page).locator("[data-dialog-submit]").click();
+      await page.waitForFunction(() => typeof window.__qaReleaseFile === "function");
+      assert.equal(await icon.isVisible(), false);
+      assert.equal(await page.evaluate(() => window.__tasksQA.state.fs["qa-delete-note"].content), "Тест");
+      await page.evaluate(() => window.__qaReleaseFile());
+      assert.equal(await deletion, false);
+      await icon.waitFor();
+      const retry = page.evaluate(() => window.__tasksQA.deleteItem("qa-delete-note"));
+      await dialog(page).locator("[data-dialog-submit]").click();
+      assert.equal(await retry, true);
+      await icon.waitFor({state:"detached"});
+      await page.reload();
+      await page.waitForSelector("#boot", {state:"hidden"});
+      assert.equal(await page.evaluate(() => !!window.__tasksQA.state.fs["qa-delete-note"]), false);
     }],
     ["reminder save refusal retry repeat and remove", async (page, app) => {
       const card = app.locator('[data-task-id="t"]');
@@ -174,7 +234,7 @@ async function runTasksEdgesSmoke({ chromium, startPreview, outputDir } = {}) {
           const source = fs.readFileSync(path.join(root,'app/js/app.js'),'utf8');
           const marker = '  if (document.readyState === "loading")';
           assert.ok(source.includes(marker));
-          return route.fulfill({contentType:'application/javascript',body:seed + source.replace(marker, '  window.__tasksQA = {get state() { return state; }, openApp, switchDesktop: switchVirtualDesktop};\n' + marker)});
+          return route.fulfill({contentType:'application/javascript',body:seed + source.replace(marker, '  window.__tasksQA = {get state() { return state; }, openApp, deleteItem, switchDesktop: switchVirtualDesktop};\n' + marker)});
         }
         return route.continue();
       });

@@ -7,6 +7,7 @@
   const { escapeHtml } = core;
   const developer = config.DEVELOPER;
   const CONTACT_LINKS = Object.freeze([
+    ["Официальный сайт разработчика", "https://dkoles.com/"],
     ["Telegram", "https://t.me/zeter1"],
     ["LinkedIn", "https://www.linkedin.com/in/zeter/"],
     ["Facebook", "https://www.facebook.com/zeter1"],
@@ -23,13 +24,21 @@
     return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" data-about-link><b>${escapeHtml(label)}</b><span>${escapeHtml(href)}</span></a>`;
   }
 
-  function aboutAppHTML() {
+  function aboutAppHTML({ capabilities = window.ZETER_RUNTIME_CAPABILITIES_UTILS.getCapabilities() } = {}) {
     return `
       <section class="setting-card about-intro">
         <span class="about-eyebrow">Личное рабочее пространство</span>
         <div class="about-brand"><img src="assets/icons/zeter-logo.svg" alt="" width="64" height="64" /><h2>ZeTer <span>OS</span></h2></div>
         <p>ZeTer OS — рабочая среда для ваших повседневных дел, проектов и материалов. На отдельных рабочих столах можно собирать документы, заметки, задачи, события календаря, ссылки, промпты и подсчёты — и работать с ними в привычных окнах.</p>
         <p><button type="button" class="about-guide-link" data-about-guide>${escapeHtml(window.ZETER_APP_CATALOG.APP_CATALOG_DEFINITIONS.help.name)}</button> — пошаговые инструкции по работе с файлами, рабочими столами, задачами и другими возможностями системы.</p>
+      </section>
+      <section class="setting-card about-capabilities" data-about-capabilities>
+        <h3 tabindex="-1" data-capabilities-heading>Возможности этой версии</h3>
+        <button type="button" data-capabilities-refresh>Обновить список</button>
+        <div class="about-links">${linkHTML("Скачать для Windows", window.ZETER_RUNTIME_CAPABILITIES_UTILS.WINDOWS_DOWNLOAD_URL)}</div>
+        <p class="muted">В Releases откройте Assets и скачайте полный архив Windows-сборки, а не отдельный EXE. Перед переходом сохраните ZIP-бэкап; данные браузера не появятся в приложении автоматически.</p>
+        <button type="button" data-about-security>Открыть Центр безопасности данных</button>
+        <div data-capabilities-content>${window.ZETER_RUNTIME_CAPABILITIES_UTILS.capabilitiesHTML(capabilities)}</div>
       </section>
       <section class="setting-card about-release">
         <div class="about-release-heading"><h3>Версия и обновления</h3><strong class="about-version">${escapeHtml(config.OS_VERSION)}</strong></div>
@@ -53,7 +62,7 @@
               <li>Работайте в одном и том же профиле браузера: здесь сохраняются ваши материалы.</li>
             </ol>
             <p class="muted">Некоторые функции Windows и операции с локальными документами доступны только в настольной версии.</p>
-            <div class="about-links">${linkHTML("Открыть веб-версию", "https://dkoles.com/zeteros/index.html")}</div>
+            <div class="about-links">${linkHTML("Открыть веб-версию", "https://dkl.do.am/zeteros/index.html")}</div>
           </article>
           <article class="about-launch-card">
             <h4>Приложение .exe</h4>
@@ -93,11 +102,36 @@ py -3 run_zeter_os.py</code></pre>
       </section>`;
   }
 
-  function aboutAppElement({ documentRef = document, getSelection = () => window.getSelection(), showContext = () => {}, copyText = async () => false, openExternalLink = async () => false, openApp = () => {}, toast = () => {} } = {}) {
+  function aboutAppElement({ documentRef = document, getSelection = () => window.getSelection(), showContext = () => {}, copyText = async () => false, openExternalLink = async () => false, openApp = () => {}, toast = () => {}, getRuntimeInfo = null, showCapabilities = false } = {}) {
     const root = documentRef.createElement("div");
     root.className = "about-app";
     root.innerHTML = aboutAppHTML();
+    let refreshGeneration = 0;
+    const refreshCapabilities = () => {
+      const generation = ++refreshGeneration;
+      const content = root.querySelector("[data-capabilities-content]");
+      if (content) content.innerHTML = window.ZETER_RUNTIME_CAPABILITIES_UTILS.capabilitiesHTML();
+      if (!getRuntimeInfo) return;
+      Promise.resolve().then(getRuntimeInfo).then(info => {
+        if (generation !== refreshGeneration) return;
+        const content = root.querySelector("[data-capabilities-content]");
+        if (content) content.innerHTML = window.ZETER_RUNTIME_CAPABILITIES_UTILS.capabilitiesHTML(window.ZETER_RUNTIME_CAPABILITIES_UTILS.getCapabilities({ runtimeInfo: info }));
+      }).catch(() => {
+        if (generation !== refreshGeneration) return;
+        const mode = root.querySelector("[data-runtime-mode]");
+        if (mode) mode.textContent += " · не удалось уточнить режим запуска";
+      });
+    };
+    if (getRuntimeInfo) refreshCapabilities();
+    if (showCapabilities) window.requestAnimationFrame(() => {
+      const heading = root.querySelector("[data-capabilities-heading]");
+      if (root.isConnected && heading) { heading.scrollIntoView({ block: "start" }); heading.focus({ preventScroll: true }); }
+    });
     root.addEventListener("click", event => {
+      const refresh = event.target.closest?.("[data-capabilities-refresh]");
+      if (refresh && root.contains(refresh)) { event.preventDefault(); refreshCapabilities(); return; }
+      const security = event.target.closest?.("[data-about-security]");
+      if (security && root.contains(security)) { event.preventDefault(); openApp("security"); return; }
       const guide = event.target.closest?.("[data-about-guide]");
       if (guide && root.contains(guide)) {
         event.preventDefault();

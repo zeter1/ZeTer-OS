@@ -263,19 +263,19 @@
       return id;
     }
 
-    function createFolder(parent = getDesktopRoot(), createOptions = {}) {
+    async function createFolder(parent = getDesktopRoot(), createOptions = {}) {
       const defaultName = createOptions.defaultName || "Новая папка";
-      let name = createOptions.prompt === false ? defaultName : requestText("Название папки:", defaultName);
+      let name = createOptions.prompt === false ? defaultName : await requestText("Название папки:", defaultName, { title: "Новая папка", action: "Создать" });
       if (name === null) return null;
       name = String(name || "").trim() || defaultName;
       return createItem("folder", name, parent, createOptions.x ?? 40, createOptions.y ?? 40, createOptions.extra || {});
     }
 
-    function renameItem(itemId) {
+    async function renameItem(itemId) {
       const item = getState().fs[itemId];
       if (!item) return false;
-      const name = requestText("Новое имя:", item.name);
-      if (!name || !name.trim()) return false;
+      const name = await requestText("Новое имя:", item.name, { title: "Переименовать" });
+      if (!name || !name.trim() || getState().fs[itemId] !== item) return false;
       const clean = name.trim();
       if (item.type === "folder" && folderExists(item.parent, clean, item.id)) {
         notify("Папка уже существует", `В этом месте уже есть папка «${clean}». Адреса папок должны быть уникальными.`);
@@ -329,11 +329,11 @@
       return true;
     }
 
-    function createFile(parent = "desktop", createOptions = {}) {
+    async function createFile(parent = "desktop", createOptions = {}) {
       const defaultName = createOptions.defaultName || "Новый файл.txt";
-      let name = requestText(
+      let name = await requestText(
         "Имя файла. Можно указать расширение: .txt, .md, .json, .html, .css, .js",
-        defaultName
+        defaultName, { title: "Новый файл", action: "Создать" }
       );
       if (name === null) return null;
       name = name.trim();
@@ -352,8 +352,8 @@
       return id;
     }
 
-    function createTable(parent = getDesktopRoot(), createOptions = {}) {
-      let name = requestText("Название таблицы:", createOptions.defaultName || "Новая таблица.table");
+    async function createTable(parent = getDesktopRoot(), createOptions = {}) {
+      let name = await requestText("Название таблицы:", createOptions.defaultName || "Новая таблица.table", { title: "Новая таблица", action: "Создать" });
       if (name === null) return null;
       name = ensureTableFileName(name);
       const id = createItem("table", name, parent, createOptions.x ?? 40, createOptions.y ?? 40, {
@@ -367,8 +367,8 @@
       return id;
     }
 
-    function createTaskList(parent = getDesktopRoot(), createOptions = {}) {
-      let name = requestText("Название списка задач:", createOptions.defaultName || "Новый список задач");
+    async function createTaskList(parent = getDesktopRoot(), createOptions = {}) {
+      let name = await requestText("Название списка задач:", createOptions.defaultName || "Новый список задач", { title: "Новый список задач", action: "Создать" });
       if (name === null) return null;
       name = String(name || "").trim() || "Новый список задач";
       const project = makeTaskProject(defaultTaskProjectName);

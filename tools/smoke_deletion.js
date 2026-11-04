@@ -34,8 +34,8 @@ async function run() {
   let release, started;
   const began = new Promise(resolve => { started = resolve; });
   const live = { fs: { a: { id: "a", type: "app", appId: "calculator", parent: "desktop" }, b: { id: "b", name: "before", parent: "desktop" } }, taskbarPinnedApps: ["calculator"] };
-  let closed = 0, rejectWrite = true, written;
-  const staged = utils.createDeletionController({ getState: () => live, confirm: () => true,
+  let closed = 0, rejectWrite = true, written, pendingIds;
+  const staged = utils.createDeletionController({ getState: () => live, confirm: () => true, showPending: ids => { pendingIds = [...ids]; },
     pruneTargetReferencesForRemovedItems: maintenance.pruneTargetReferencesForRemovedItems,
     cleanupRemovedItemReferences: () => { assert.ok(live.fs.a, "runtime cleanup still has source metadata"); closed++; },
     persistTransaction: async operation => operation(async snapshot => {
@@ -44,9 +44,10 @@ async function run() {
       return { saved: true };
     }) });
   const pending = staged.deleteItem("a"); await began;
+  assert.deepEqual(pendingIds, ["a"], "preview is hidden while the write is pending");
   assert.ok(live.fs.a, "live deletion waits for ACK"); assert.equal(closed, 0);
   live.fs.b.name = "new concurrent text"; live.sentinel = "keep";
-  release(); assert.equal(await pending, false);
+  release(); assert.equal(await pending, false); assert.deepEqual(pendingIds, []);
   assert.equal(live.fs.b.name, "new concurrent text"); assert.equal(live.sentinel, "keep");
   assert.ok(live.fs.a); assert.equal(closed, 0);
   rejectWrite = false;

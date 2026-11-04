@@ -127,6 +127,7 @@
   }
 
   function sendNativeReport(payload) {
+    if (window.ZETER_TRAINING_RUNTIME?.active) return false;
     pendingNativeReport = payload;
     const api = window.pywebview?.api;
     const reporter = window.pywebview?.api?.report_client_error;

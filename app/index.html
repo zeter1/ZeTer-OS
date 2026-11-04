@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'self'; manifest-src 'self'" />
   <meta name="referrer" content="no-referrer" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>ZeTer OS</title>
@@ -181,16 +181,21 @@
     </template>
   </main>
 
+  <script type="application/zeter-script" src="js/core/training-runtime-utils.js"></script>
   <script type="application/zeter-script" src="js/core/boot-guard.js"></script>
   <script type="application/zeter-script" src="js/core/version.js"></script>
   <script type="application/zeter-script" src="js/core/config.js"></script>
   <script type="application/zeter-script" src="js/core/utils.js"></script>
+  <script type="application/zeter-script" src="js/core/dialog-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/runtime-capabilities-utils.js"></script>
   <script type="application/zeter-script" src="js/core/system-settings-utils.js"></script>
   <script type="application/zeter-script" src="js/core/shortcut-utils.js"></script>
   <script type="application/zeter-script" src="js/core/link-library-utils.js"></script>
   <script type="application/zeter-script" src="js/core/link-library-ui-utils.js"></script>
   <script type="application/zeter-script" src="js/core/prompt-library-utils.js"></script>
   <script type="application/zeter-script" src="js/core/contacts-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/expenses-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/expenses-ui-utils.js"></script>
   <script type="application/zeter-script" src="js/core/contacts-ui-utils.js"></script>
   <script type="application/zeter-script" src="js/core/prompt-library-ui-utils.js"></script>
   <script type="application/zeter-script" src="js/core/business-calculations-utils.js"></script>
@@ -210,6 +215,8 @@
   <script type="application/zeter-script" src="js/core/window-session-utils.js"></script>
   <script type="application/zeter-script" src="js/core/window-ui-utils.js"></script>
   <script type="application/zeter-script" src="js/core/sticky-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/sticker-library-utils.js"></script>
+  <script type="application/zeter-script" src="js/core/sticker-library-ui-utils.js"></script>
   <script type="application/zeter-script" src="js/core/native-storage.js"></script>
   <script type="application/zeter-script" src="js/core/managed-file-utils.js"></script>
   <script type="application/zeter-script" src="js/core/storage-utils.js"></script>
