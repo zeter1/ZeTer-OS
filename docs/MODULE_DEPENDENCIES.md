@@ -11,7 +11,7 @@
 
 | № | Модуль | Публичный глобал | Зависимости | Строк |
 |---:|---|---|---|---:|
-| 1 | `app/js/core/training-runtime-utils.js` | `ZETER_TRAINING_RUNTIME` | — | 537 |
+| 1 | `app/js/core/training-runtime-utils.js` | `ZETER_TRAINING_RUNTIME` | — | 536 |
 | 2 | `app/js/core/boot-guard.js` | `ZETER_BOOT_GUARD` | `ZETER_TRAINING_RUNTIME` | 207 |
 | 3 | `app/js/core/version.js` | `ZETER_OS_VERSION` | — | 1 |
 | 4 | `app/js/core/config.js` | `ZETER_OS_CONFIG` | `ZETER_OS_VERSION` | 65 |
