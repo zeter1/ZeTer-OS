@@ -40,4 +40,13 @@ assert.ok(!app.includes('googleDriveBackupController.refresh()'),'no background 
 assert.ok(!app.includes('securityRecoveryController.start()'),'no hidden ZIP history scheduler');
 assert.match(app,/openImport:\s*\(\)\s*=>\s*\$\("#import-file"\)/);
 assert.match(app,/buildZip:\s*\(\)\s*=>\s*buildFullSecurityBackup\(\)/);
+const index=fs.readFileSync(path.join(root,'app/index.html'),'utf8');
+const worker=fs.readFileSync(path.join(root,'app/service-worker.js'),'utf8');
+for(const text of ['google-drive-backup-utils.js','google-drive-config.json']){
+ assert.ok(!index.includes(text),'inactive Google adapter/config must not be loaded');
+ assert.ok(!worker.includes(text),'inactive Google adapter/config must not enter the cache');
+ assert.ok(!fs.existsSync(path.join(root,'app',text.endsWith('.js')?'js/core/'+text:text)),'inactive Google files must stay outside public app');
+}
+assert.ok(!app.includes('loadGoogleDriveConfig'),'unused identity loader must be absent');
+assert.ok(!app.includes('accounts.google.com/gsi/client'),'removed integration must not load Google Identity');
 console.log('SIMPLE_BACKUP_UI_PASS: two offline ZIP actions; no cloud, manual points or automatic background copy');

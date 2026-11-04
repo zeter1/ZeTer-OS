@@ -4625,19 +4625,6 @@
     rememberFolder:rememberSecurityVaultFolder
   });
 
-  let googleDriveConfigPromise = null;
-  function loadGoogleDriveConfig() {
-    if(!googleDriveConfigPromise)googleDriveConfigPromise=fetch(new URL('google-drive-config.json',document.baseURI),{cache:'no-store'}).then(async response=>{
-      if(!response.ok)return {};
-      const value=await response.json();
-      const config={webClientId:typeof value.webClientId==='string'?value.webClientId:'',brokerUrl:typeof value.brokerUrl==='string'?value.brokerUrl:''};
-      if(config.webClientId&&!window.google?.accounts?.oauth2&&!document.querySelector('[data-google-drive-identity]')){
-        const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';script.async=true;script.dataset.googleDriveIdentity='1';document.head.append(script);
-      }
-      return config;
-    }).catch(()=>({}));
-    return googleDriveConfigPromise;
-  }
   // Cloud backup panel removed. ZIP backups are local import/export only.
 
   function nextWallpaper(){

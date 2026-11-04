@@ -2,6 +2,8 @@
 
 **Текущий интерфейс ZeTer OS:** в разделе «Копии и восстановление» находятся только две кнопки: «Скачать резервную копию данных» и «Загрузить резервную копию данных». Работа идёт с локальными ZIP, без обращения к Google Drive. Из интерфейса удалены облачное подключение, расписание, списки облачных архивов и ручное создание точек восстановления. Автоматические точки по таймеру отключены; аварийная страховка перед восстановлением сохранена. Ни старые облачные, ни локальные данные не удалены.
 
+Адаптер подключения и публичная конфигурация перенесены в `legacy/google-drive/` для архивных регрессионных проверок. Они не входят в `app/`, веб-комплект или Windows-поставку интерфейса и не подключаются при запуске. Локальные ZIP-копии используют собственные владельцы резервного копирования.
+
 ## Историческая информация о ранее доступных режимах
 
 Дальнейшие сведения описывают предыдущие варианты, оставленные только для сопровождения кода и старых данных; это **не действующие пользовательские возможности**.
@@ -14,7 +16,7 @@
 
 Native расписание хранится в `%LOCALAPPDATA%/ZeTer OS/google-drive/installation-<hash>/zip-preferences.dpapi`; браузер использует отдельную IndexedDB `zip-backups-v1`. Настройки не смешиваются со старой синхронизацией. Архивы не удаляются автоматически, а таймер работает только при запущенной ZeTer OS и подтверждённом Google-подключении; без сети данные продолжают жить локально. Один архив — до 120 МиБ, полный ZIP не содержит внешние файлы, на которые указывают ярлыки. У ZIP нет собственного пароля, поэтому защищай Google-аккаунт.
 
-Ключевой код: `security_backup.py` (проверенный архив), `google_drive_backup.py` (`zip_preferences`, `upload`, `list`, `download`), `app/js/core/google-drive-backup-utils.js` (`createController`), `app/js/core/security-recovery-utils.js` (проверка и восстановление), `app/js/app.js` (только ZIP-контроллер). Проверки: `python tools/smoke_google_drive_zip_mode.py`, `python tools/smoke_google_drive_backup.py`, `node tools/smoke_google_drive_runtime.js`, `node tools/smoke_security_restore.js`.
+Ключевой код: `security_backup.py` (проверенный архив), `google_drive_backup.py` (`zip_preferences`, `upload`, `list`, `download`), `legacy/google-drive/google-drive-backup-utils.js` (`createController`), `app/js/core/security-recovery-utils.js` (проверка и восстановление), `app/js/app.js` (только ZIP-контроллер). Проверки: `python tools/smoke_google_drive_zip_mode.py`, `python tools/smoke_google_drive_backup.py`, `node tools/smoke_google_drive_runtime.js`, `node tools/smoke_security_restore.js`.
 
 ## Архивная спецификация: прежняя файловая синхронизация (не используется при обычном запуске)
 
@@ -38,7 +40,7 @@ Native расписание хранится в `%LOCALAPPDATA%/ZeTer OS/google-
 
 - `google_drive_backup.py`: Desktop PKCE, системный браузер и временный loopback callback, обновление Google-разрешения. Токены CurrentUser DPAPI вне `data` и экспортов: `%LOCALAPPDATA%/ZeTer OS/google-drive/`.
 - `google_drive_sync.py`: только собственные обычные Drive-файлы/папки, контрольные суммы, уникальные operation ID, metadata-only перемещение; запросы к координатору.
-- `app/js/core/google-drive-backup-utils.js`: OAuth web/native adapters, broker session и панель подключения.
+- `legacy/google-drive/google-drive-backup-utils.js`: OAuth web/native adapters, broker session и панель подключения.
 - `app/js/core/google-drive-sync-utils.js`: единый Windows/browser алгоритм, baseline, incremental snapshot, CAS, конфликт и согласование видимой папки.
 - `app/js/core/cloud-payload-utils.js`: проверенные browser Blob, пути и сохранённые ветки в отдельной IndexedDB.
 - `app/js/app.js`: сбор сохранённого состояния, безопасное применение и подключение контроллеров.

@@ -5,9 +5,9 @@
 <!-- BEGIN GENERATED CORE SUMMARY -->
 > Этот блок обновляется командой `python tools/update_docs.py --write`.
 
-- Core-модулей: 102.
-- Публичных глобалов: 102.
-- Статических зависимостей: 233.
+- Core-модулей: 101.
+- Публичных глобалов: 101.
+- Статических зависимостей: 232.
 - Подробный порядок: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
 <!-- END GENERATED CORE SUMMARY -->
 
@@ -155,7 +155,6 @@
 | `app/js/core/security-vault-utils.js` | `ZETER_SECURITY_VAULT_UTILS` | Browser-история полных ZIP, Web Locks, pin и безопасное ограничение истории |
 | `app/js/core/cloud-payload-utils.js` | `ZETER_CLOUD_PAYLOAD_UTILS` | Неизменяемые browser Blob, проверка путей/hash, collision remap, сохранение локальных веток и локальная сборка проверяемого архива |
 | `app/js/core/google-drive-sync-utils.js` | `ZETER_GOOGLE_DRIVE_SYNC_UTILS` | Общий incremental sync engine: baseline, новые обычные файлы, D1 CAS, конфликты устройств и согласование видимой папки data |
-| `app/js/core/google-drive-backup-utils.js` | `ZETER_GOOGLE_DRIVE_BACKUP_UTILS` | Google native/web/broker adapters и панель подключения/правил синхронизации; прежний ZIP transport остаётся внутренним |
 | `app/js/core/security-recovery-utils.js` | `ZETER_SECURITY_RECOVERY_UTILS` | Проверка выбранного архива, preview/apply и расписание полных копий |
 | `app/js/core/security-ui-utils.js` | `ZETER_SECURITY_UI_UTILS` | Data-safety runtime-controller: четыре раздела Центра безопасности, независимая загрузка статусов/истории/очистки, read deadline и operation busy guard, snapshot/integrity/fix, storage pressure/cleanup/reset, restore points с native payload-preflight и откатом state при отказе сохранения, внешний browser folder handle |
 | `app/js/core/table-utils.js` | `ZETER_TABLE_UTILS` | Табличные данные, стили и импорт CSV с автоопределением разделителей `;`/`,` |

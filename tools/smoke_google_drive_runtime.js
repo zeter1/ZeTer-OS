@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const {webcrypto}=require('node:crypto');
 const sandbox={window:{ZETER_CORE_UTILS:{escapeHtml:v=>String(v),bytesToHuman:v=>String(v)}},crypto:webcrypto,Blob,File,FormData,URL,URLSearchParams,Uint8Array,AbortController,setTimeout,clearTimeout,setInterval,clearInterval,btoa,atob,console};
-vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../app/js/core/google-drive-backup-utils.js'),'utf8'),sandbox);
+vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../legacy/google-drive/google-drive-backup-utils.js'),'utf8'),sandbox);
 const utils=sandbox.window.ZETER_GOOGLE_DRIVE_BACKUP_UTILS;
 function json(value,status=200){return new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});}
 async function main(){

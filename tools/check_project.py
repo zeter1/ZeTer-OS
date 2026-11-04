@@ -174,7 +174,6 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/cloud-payload-utils.js",
     "js/core/google-drive-sync-utils.js",
     "js/core/security-recovery-utils.js",
-    "js/core/google-drive-backup-utils.js",
     "js/core/security-ui-utils.js",
     "js/core/readable-export-utils.js",
     "js/core/table-utils.js",
@@ -1051,7 +1050,7 @@ def check_native_bridge_contract() -> list[CheckResult]:
     # This adapter receives nativeStorageCall and dispatches through local wrappers.
     # Scope wrapper matching to its source and Drive API prefix; unrelated call()/invoke()
     # functions elsewhere must not conceal an unused native method.
-    drive_adapter = APP_DIR / "js" / "core" / "google-drive-backup-utils.js"
+    drive_adapter = APP_DIR.parent / "legacy" / "google-drive" / "google-drive-backup-utils.js"
     if drive_adapter.exists():
         js_calls.update(re.findall(r"\b(?:invoke|call)\(\s*['\"](google_drive_[a-z0-9_]+)['\"]", read_text(drive_adapter)))
     failures: list[str] = []

@@ -109,7 +109,9 @@ class DocumentationSmoke(unittest.TestCase):
             app = root / "app"
             core = app / "js/core"
             core.mkdir(parents=True)
-            (core / "google-drive-backup-utils.js").write_text(adapter_source, encoding="utf-8")
+            legacy = root / "legacy" / "google-drive"
+            legacy.mkdir(parents=True)
+            (legacy / "google-drive-backup-utils.js").write_text(adapter_source, encoding="utf-8")
             (core / "unrelated.js").write_text(unrelated_source, encoding="utf-8")
             entry = root / "native.py"
             entry.write_text(

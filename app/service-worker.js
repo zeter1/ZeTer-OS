@@ -1,5 +1,5 @@
 const ZETER_CACHE_REVISION = "web-snapshots-1";
-const ZETER_CACHE = "zeter-os-4.0.125-web-snapshots-1";
+const ZETER_CACHE = "zeter-os-4.0.126-web-snapshots-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -108,8 +108,6 @@ const ZETER_ASSETS = [
   "./js/core/security-recovery-utils.js",
   "./js/core/cloud-payload-utils.js",
   "./js/core/google-drive-sync-utils.js",
-  "./js/core/google-drive-backup-utils.js",
-  "./google-drive-config.json",
   "./js/core/security-ui-utils.js",
   "./js/core/readable-export-utils.js",
   "./js/core/table-utils.js",

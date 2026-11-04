@@ -4,13 +4,13 @@
     {
       "id": "python-google-drive", "title": "Авторизация личного Google Drive", "path": "google_drive_backup.py",
       "anchors": ["GoogleDriveBackup"], "keywords": ["google", "drive", "oauth", "cloud", "облако", "бэкап"],
-      "js": ["app/js/core/google-drive-backup-utils.js", "app/js/app.js"],
+      "js": ["app/js/app.js"],
       "docs": ["docs/GOOGLE_DRIVE.md", "docs/NATIVE_BRIDGE.md", "docs/TESTING.md"], "smokes": ["tools/smoke_google_drive_backup.py"]
     },
     {
       "id": "python-google-drive-sync", "title": "Обычные файлы Drive и указатель синхронизации", "path": "google_drive_sync.py",
       "anchors": ["GoogleDriveSync"], "keywords": ["google", "drive", "sync", "cloud", "синхронизация"],
-      "js": ["app/js/core/google-drive-sync-utils.js", "app/js/core/google-drive-backup-utils.js", "app/js/app.js"],
+      "js": ["app/js/core/google-drive-sync-utils.js", "app/js/app.js"],
       "docs": ["docs/GOOGLE_DRIVE.md", "docs/NATIVE_BRIDGE.md", "docs/TESTING.md"], "smokes": ["tools/smoke_google_drive_backup.py"]
     },
     {
@@ -92,7 +92,7 @@
     },
     {
       "id": "google-drive-backup", "title": "Архивная интеграция Google Drive (пользовательский экран отключён)", "keywords": ["google", "drive", "cloud", "oauth", "облако", "бэкап"],
-      "js": ["app/js/core/google-drive-backup-utils.js", "app/js/core/google-drive-sync-utils.js", "app/js/core/cloud-payload-utils.js", "app/js/core/security-ui-utils.js", "app/js/core/security-recovery-utils.js"],
+      "js": ["app/js/core/google-drive-sync-utils.js", "app/js/core/cloud-payload-utils.js", "app/js/core/security-ui-utils.js", "app/js/core/security-recovery-utils.js"],
       "app_anchors": ["googleDriveBackupController", "googleDriveSyncController", "buildFullSecurityBackup"], "css": ["app/css/90-security.css"],
       "state": ["dedicated IndexedDB google drive preferences", "private per-user DPAPI credentials"],
       "smokes": ["tools/smoke_google_drive_runtime.js", "tools/smoke_google_drive_sync.js", "tools/smoke_google_drive_backup.py", "tools/smoke_google_drive_ui.js"],

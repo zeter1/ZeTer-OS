@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "runtime": 1,
-  "version": "4.0.125",
-  "build": "536562085a89e493bf6be0dde98efd1a82964cecc0c0bef86224a2f8aaf11ba8",
+  "version": "4.0.126",
+  "build": "b8fa0ea6ab43b89326b988080bfb9090b1e9bf7a73d394f9eecc24f134abb5d1",
   "files": [
     {
       "path": "assets/1.png",
@@ -190,19 +190,14 @@
       "sha256": "5a6ad131aa6cfee7f229db6cb184728e2b7aa3fbdf27d9de05bf7999d397f08b"
     },
     {
-      "path": "google-drive-config.json",
-      "size": 253,
-      "sha256": "988b54d80da57317fa3b2d50e3fdd1181c84980beab1a8a05910179070911729"
-    },
-    {
       "path": "index.html",
-      "size": 22000,
-      "sha256": "2d0c7bc81f113d4b9535523ce60fbee4380a7d8c9896813a1759adab187adeaf"
+      "size": 21905,
+      "sha256": "2b6932764bbf8e37fc0012fe77eaf26d947e6b5516b6f59bd2c4d7136f0bb5dd"
     },
     {
       "path": "js/app.js",
-      "size": 218594,
-      "sha256": "f4e33f8e1fb4d4796ec50493d7188225c567d57d465bf7d0cf3de5ba2c18e1b5"
+      "size": 217722,
+      "sha256": "a289b75644324c82ccbba8a56e713e92fc50d1790f4a6de118f585fdba2f9b3f"
     },
     {
       "path": "js/core/about-ui-utils.js",
@@ -385,19 +380,14 @@
       "sha256": "a5dffeca2daf5fa25a0f68a85b5842446110d8359fc8d4a6ac3c32643db3e833"
     },
     {
-      "path": "js/core/google-drive-backup-utils.js",
-      "size": 58051,
-      "sha256": "1e87ea9cbe56f1d1733519e9bbeb867150267f8df0a02f2a3b44c468c5a724a0"
-    },
-    {
       "path": "js/core/google-drive-sync-utils.js",
       "size": 35956,
       "sha256": "7b36cdb00fe1566f8ab017565bb04f3cc27df9a144695d0f947548cb6768dc7b"
     },
     {
       "path": "js/core/help-content.js",
-      "size": 205691,
-      "sha256": "e621c756ffdf001eccd539ead6c289e2ac39ce502bad8efb8f066291d6920d4c"
+      "size": 200482,
+      "sha256": "3172347201c75b8c9492b95408874a15f70682f1fc0add06a250d3889e7e645c"
     },
     {
       "path": "js/core/import-utils.js",
@@ -682,7 +672,7 @@
     {
       "path": "js/core/version.js",
       "size": 37,
-      "sha256": "69bea48ecc2f78f0e22b2ab076189ea19797d3d333520d683d69015a1139ea90"
+      "sha256": "4474f8fcc2df2d5e750ebee0ecd5992e784b4c989f35c11b79e5db3069fddfb3"
     },
     {
       "path": "js/core/visual-utils.js",
@@ -736,8 +726,8 @@
     },
     {
       "path": "service-worker.js",
-      "size": 17531,
-      "sha256": "65e20998f2f1ce2e2d163a7d8244ec47260c2b4f5695a13a69b237cbddd890e3"
+      "size": 17455,
+      "sha256": "e4666b1ebbe7e5555239357d7bcce166c9c61fd00a15573bd325cd8e7022d961"
     },
     {
       "path": "sticky-window.html",
