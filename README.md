@@ -271,8 +271,21 @@ node tools/run_smokes.js
 - Загрузка и восстановление ZIP требуют выбора пользователем; автоматический обмен через Google Drive из интерфейса отключён.
 - **Нет открытой лицензии:** доступность исходников на GitHub не означает разрешения свободно копировать, изменять или распространять код.
 
-**Разработчик:** [GitHub zeter1](https://github.com/zeter1) · [Email](mailto:zeter11@gmail.com) · [Telegram](https://t.me/zeter1) · [сообщество Telegram](https://t.me/zeterchat) · [LinkedIn](https://www.linkedin.com/in/zeter/)
-
-Другие профили: [Facebook](https://www.facebook.com/zeter1) · [ВКонтакте](https://vk.ru/zeter1) · [Instagram](https://www.instagram.com/zeter1992/) · [TenChat](https://tenchat.ru/zeter) · [X](https://x.com/zeter1) · [Threads](https://www.threads.com/@zeter1992) · [Одноклассники](https://ok.ru/zeter1).
+**Разработчик:** [GitHub zeter1](https://github.com/zeter1)
 
 Если хотите предложить улучшение или нашли ошибку, используйте [Issues](https://github.com/zeter1/ZeTer-OS/issues).
+
+## Контакты для связи:
+
+- [zeter11@gmail.com](mailto:zeter11@gmail.com)
+- [https://t.me/zeter1](https://t.me/zeter1)
+- [https://www.linkedin.com/in/zeter/](https://www.linkedin.com/in/zeter/)
+- [https://www.facebook.com/zeter1](https://www.facebook.com/zeter1)
+- [https://vk.ru/zeter1](https://vk.ru/zeter1)
+- [https://www.instagram.com/zeter1992/](https://www.instagram.com/zeter1992/)
+- [https://tenchat.ru/zeter](https://tenchat.ru/zeter)
+- [https://x.com/zeter1](https://x.com/zeter1)
+- [https://www.threads.com/@zeter1992](https://www.threads.com/@zeter1992)
+- [https://ok.ru/zeter1](https://ok.ru/zeter1)
+- [https://t.me/zeterchat](https://t.me/zeterchat) - Telegram-группа для общения
+- [https://dkoles.com/](https://dkoles.com/) - сайт.
