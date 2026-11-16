@@ -22,7 +22,8 @@
   function createBusinessCalculationsApp(params = {}, options = {}) {
     const doc = options.documentRef || document, controller = options.controller, root = doc.createElement("div");
     root.className = "business-calculations-app";
-    const drafts = new Map();
+    const drafts = new Map(), pendingOperations = new Set();
+    let closeRequest = null, preparingClose = false;
     let catalog = false, query = "", busy = 0, message = "", error = false, drag = null, resize = null, refreshPending = false;
     const view = doc.defaultView || window;
     const keyFor = (id, key) => `${id}:${key}`;
@@ -63,7 +64,8 @@
       catalogRows();
       root.querySelectorAll("[data-calc-card]").forEach(card => applyCardSize(card, data.sizes[card.dataset.calcCard]));
       root.querySelector("[data-calc-list]").scrollTop = previousScroll;
-      if (busy) root.querySelectorAll("button, select").forEach(node => { node.disabled = true; });
+      if (busy || preparingClose) root.querySelectorAll("button, select").forEach(node => { node.disabled = true; });
+      if (preparingClose) root.querySelectorAll("input").forEach(node => { node.disabled = true; });
       const focus = activeField ? root.querySelector(`[data-calc-card="${cardId}"] [data-calc-field="${activeField}"]`) : activeAction ? root.querySelector(`[data-calc-action="${activeAction}"]${activeId ? `[data-calc-id="${activeId}"]` : ""}`) : null;
       if (focus && !focus.disabled) { focus.focus({ preventScroll: true }); if (selection) focus.setSelectionRange(...selection); }
     }
@@ -73,24 +75,32 @@
       card.querySelectorAll("[data-calc-field]").forEach(input => input.setAttribute("aria-invalid", String(result.invalid.includes(input.dataset.calcField))));
     }
     function setBusy(delta) {
-      busy += delta; root.setAttribute("aria-busy", String(busy > 0));
+      busy += delta; root.setAttribute("aria-busy", String(busy > 0 || preparingClose));
+      root.querySelectorAll("input").forEach(node => { node.disabled = preparingClose; });
       // Re-render only controls; do not replace live input elements during a save.
       root.querySelectorAll("button, select").forEach(node => {
         const action = node.dataset.calcAction, id = node.dataset.calcId, selected = controller.data().selected;
-        node.disabled = busy > 0 || (action === "up" && selected.indexOf(id) === 0) || (action === "down" && selected.indexOf(id) === selected.length - 1) || (action === "add" && selected.includes(id));
+        node.disabled = busy > 0 || preparingClose || (action === "up" && selected.indexOf(id) === 0) || (action === "down" && selected.indexOf(id) === selected.length - 1) || (action === "add" && selected.includes(id));
       });
     }
-    async function saveField(id, key, value) {
-      let saved = false;
-      setBusy(1); status("Сохранение…");
-      try {
-        await controller.setInput(id, key, value);
-        saved = true;
-        if (drafts.get(keyFor(id, key)) === value) drafts.delete(keyFor(id, key));
-        options.onChange?.(); status(drafts.size ? "Есть несохранённый ввод. Выйдите из поля." : "Сохранено");
-        return true;
-      } catch (caught) { status(saved ? "Ввод сохранён, но другие окна не обновились. Откройте их заново." : `${caught.message || "Не удалось сохранить."} Ввод оставлен в этом окне.`, true); return saved; }
-      finally { setBusy(-1); }
+    function trackOperation(operation) {
+      pendingOperations.add(operation);
+      operation.then(() => pendingOperations.delete(operation), () => pendingOperations.delete(operation));
+      return operation;
+    }
+    function saveField(id, key, value) {
+      return trackOperation((async () => {
+        let saved = false;
+        setBusy(1); status("Сохранение…");
+        try {
+          await controller.setInput(id, key, value);
+          saved = true;
+          if (drafts.get(keyFor(id, key)) === value) drafts.delete(keyFor(id, key));
+          options.onChange?.(); status(drafts.size ? "Есть несохранённый ввод. Выйдите из поля." : "Сохранено");
+          return true;
+        } catch (caught) { status(saved ? "Ввод сохранён, но другие окна не обновились. Откройте их заново." : `${caught.message || "Не удалось сохранить."} Ввод оставлен в этом окне.`, true); return saved; }
+        finally { setBusy(-1); }
+      })());
     }
     async function flushDrafts() {
       for (const [key, value] of [...drafts]) {
@@ -99,13 +109,16 @@
       }
       return true;
     }
-    async function commit(operation, focusId = "") {
-      if (busy || !await flushDrafts()) { render(); return; }
-      let saved = false;
-      setBusy(1); status("Сохранение…");
-      try { await operation(); saved = true; options.onChange?.(); status("Сохранено"); }
-      catch (caught) { status(saved ? "Изменение сохранено, но другие окна не обновились. Откройте их заново." : caught.message || "Изменение не сохранено.", true); }
-      finally { setBusy(-1); render(); if (focusId) root.querySelector(`[data-calc-handle="${focusId}"]`)?.focus({ preventScroll: true }); }
+    function commit(operation, focusId = "") {
+      return trackOperation((async () => {
+        if (busy || !await flushDrafts()) { render(); return false; }
+        let saved = false;
+        setBusy(1); status("Сохранение…");
+        try { await operation(); saved = true; options.onChange?.(); status("Сохранено"); }
+        catch (caught) { status(saved ? "Изменение сохранено, но другие окна не обновились. Откройте их заново." : caught.message || "Изменение не сохранено.", true); }
+        finally { setBusy(-1); render(); if (focusId) root.querySelector(`[data-calc-handle="${focusId}"]`)?.focus({ preventScroll: true }); }
+        return saved;
+      })());
     }
     root.addEventListener("input", event => {
       if (event.target.matches("[data-calc-search]")) { query = event.target.value; catalogRows(); return; }
@@ -257,6 +270,30 @@
       const size = resizedValue(rect.width + (event.key === "ArrowRight" ? 20 : event.key === "ArrowLeft" ? -20 : 0), rect.height + (event.key === "ArrowDown" ? 20 : event.key === "ArrowUp" ? -20 : 0));
       commit(() => controller.setSize(id, size)).then(() => root.querySelector(`[data-calc-resize="${id}"]`)?.focus({ preventScroll: true }));
     });
+    root.requestCalculationsClose = () => {
+      if (closeRequest) return closeRequest;
+      if (drag) finishDrag({ pointerId: drag.pointerId, stopPropagation() {} }, true);
+      if (resize) finishResize({ pointerId: resize.pointerId, stopPropagation() {} }, true);
+      preparingClose = true; setBusy(1); status("Сохраняю перед закрытием…");
+      closeRequest = (async () => {
+        let allowed = false;
+        try {
+          const completed = await Promise.all([...pendingOperations]);
+          if (completed.some(saved => !saved) || !await flushDrafts()) {
+            status("Окно оставлено открытым: ввод не сохранён. Повторите сохранение.", true);
+            return false;
+          }
+          allowed = true; return true;
+        } catch (caught) {
+          status(`Окно оставлено открытым: ${caught.message || "не удалось сохранить ввод"}.`, true);
+          return false;
+        } finally {
+          if (!allowed) { preparingClose = false; closeRequest = null; }
+          setBusy(-1);
+        }
+      })();
+      return closeRequest;
+    };
     root.refreshCalculations = () => { if (drag || resize) { refreshPending = true; return; } render(); };
     render(); return root;
   }

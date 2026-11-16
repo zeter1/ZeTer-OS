@@ -404,7 +404,7 @@
         ["tasks", "taskProjects", "events", "notifications", "objectLinks", "automations"].forEach(key => array(oldData[key]).forEach(row => {
           if (!array(selection.data[key]).some(restored => restored.id === row.id)) changes.push({ kind: key, label: row.name || row.title || row.id, action: "remove" });
         }));
-        for (const [group, key] of [["timeTracking", "entries"], ["library", "entries"], ["library", "categories"], ["promptLibrary", "entries"], ["promptLibrary", "projects"], ["promptLibrary", "categories"], ["contacts", "entries"], ["contacts", "projects"], ["contacts", "categories"], ["expenses", "entries"], ["expenses", "categories"]]) {
+        for (const [group, key] of [["shopping", "projects"], ["shopping", "categories"], ["shopping", "items"], ["timeTracking", "entries"], ["library", "entries"], ["library", "categories"], ["promptLibrary", "entries"], ["promptLibrary", "projects"], ["promptLibrary", "categories"], ["contacts", "entries"], ["contacts", "projects"], ["contacts", "categories"], ["expenses", "entries"], ["expenses", "categories"]]) {
           array(oldData[group]?.[key]).forEach(row => {
             if (!array(selection.data[group]?.[key]).some(restored => restored.id === row.id)) changes.push({ kind: group, label: row.name || row.title || row.id, action: "remove" });
           });

@@ -308,6 +308,10 @@
       if (stickers?.requestStickerClose) {
         return Promise.resolve(stickers.requestStickerClose()).then(allowed => allowed && getWindows().get(winId) === record && finishCloseWindow(winId));
       }
+      const calculations = record?.el?.querySelector?.(".business-calculations-app");
+      if (calculations?.requestCalculationsClose) {
+        return Promise.resolve(calculations.requestCalculationsClose()).then(allowed => allowed && getWindows().get(winId) === record && finishCloseWindow(winId));
+      }
       const editor = record?.el?.querySelector?.("[data-managed-document]");
       if (!editor?.disposeManagedDocument) return finishCloseWindow(winId);
       if (record.closingDocument) return false;

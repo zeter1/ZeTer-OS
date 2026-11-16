@@ -48,7 +48,7 @@ function loadCore(name) {
   "system-settings-utils.js",
   "shortcut-utils.js",
   "link-library-utils.js",
-  "prompt-library-utils.js", "contacts-utils.js", "expenses-utils.js", "business-calculations-utils.js", "time-tracking-utils.js",
+  "prompt-library-utils.js", "contacts-utils.js", "shopping-utils.js", "expenses-utils.js", "business-calculations-utils.js", "time-tracking-utils.js",
   "pinning-utils.js",
   "deletion-utils.js",
   "asset-utils.js",

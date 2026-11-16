@@ -783,6 +783,7 @@
       prompts: renderPromptLibraryApp,
       calculations: renderBusinessCalculationsApp,
       expenses: renderExpensesApp,
+      shopping: renderShoppingApp,
       timeTracking: renderTimeTrackingApp,
       contacts: renderContactsApp,
       automationEditor: renderAutomationEditorApp,
@@ -3037,6 +3038,40 @@
       event.preventDefault(); event.returnValue = "";
     }
   });
+
+  function renderShoppingApp(params = {}, winId = "") {
+    const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();
+    const getWorkspace = () => state.desktops.find(desk => desk.id === workspaceId)?.data || null;
+    const controller = window.ZETER_SHOPPING_UTILS.createShoppingController({
+      getWorkspace, createId: uid, queueMutation: queueAutomationMutation,
+      persistTransaction: persistSearchAwareTransaction,
+      saveSnapshot: (write, shopping) => {
+        syncLegacyWorkspaceAliases(state);
+        const snapshot = JSON.parse(JSON.stringify(state));
+        const desktop = snapshot.desktops.find(desk => desk.id === workspaceId);
+        if (!desktop) throw new Error("Рабочий стол недоступен.");
+        desktop.data.shopping = shopping;
+        return write(snapshot);
+      }
+    });
+    return window.ZETER_SHOPPING_UI_UTILS.createShoppingApp(params, {
+      documentRef: document, controller, getWorkspace, confirm: confirmDialog,
+      renderDescription: text => richTextUtils.linkifyRichTextLine(text),
+      openExternal: target => {
+        const url = window.ZETER_SHORTCUT_UTILS.normalizeWebUrl(target);
+        if (!url) throw new Error("Ссылка имеет неподдерживаемый формат.");
+        return openExternalTarget(url);
+      },
+      getWorkspaceName: () => state.desktops.find(desk => desk.id === workspaceId)?.name || "",
+      onChange: () => {
+        writeSmallSettingsToLocalStorage(); scheduleExternalBackup();
+        securityRuntimeController.scheduleProtectionCheck();
+        [...ui.windows.entries()].forEach(([id, record]) => {
+          if (id !== winId && record.appId === "shopping" && record.desktopId === workspaceId) record.el.querySelector(".shopping-app")?.refreshShopping?.();
+        });
+      }
+    });
+  }
 
   function renderExpensesApp(params = {}, winId = "") {
     const workspaceId = ui.windows.get(winId)?.desktopId || getDesktopRoot();

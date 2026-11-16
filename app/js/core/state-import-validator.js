@@ -502,6 +502,7 @@
       if (desk?.data?.calculations != null) window.ZETER_BUSINESS_CALCULATIONS_UTILS.validateBusinessCalculations(desk.data.calculations);
       if (desk?.data?.promptLibrary != null) window.ZETER_PROMPT_LIBRARY_UTILS.validatePromptLibrary(desk.data.promptLibrary);
       if (desk?.data?.contacts != null) window.ZETER_CONTACTS_UTILS.validateContacts(desk.data.contacts);
+      if (desk?.data?.shopping != null) window.ZETER_SHOPPING_UTILS.validateShopping(desk.data.shopping);
       if (desk?.data?.expenses != null) window.ZETER_EXPENSES_UTILS.validateExpenses(desk.data.expenses);
       if (desk?.data?.timeTracking != null) window.ZETER_TIME_TRACKING_UTILS.validateTimeTracking(desk.data.timeTracking);
       validateImportString(desk?.id, `Рабочий стол #${index + 1}: ID`, 220);

@@ -110,6 +110,8 @@ REQUIRED_SCRIPT_ORDER = (
     "js/core/link-library-ui-utils.js",
     "js/core/prompt-library-utils.js",
     "js/core/contacts-utils.js",
+    "js/core/shopping-utils.js",
+    "js/core/shopping-ui-utils.js",
     "js/core/expenses-utils.js",
     "js/core/expenses-ui-utils.js",
     "js/core/contacts-ui-utils.js",

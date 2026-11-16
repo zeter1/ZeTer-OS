@@ -9,7 +9,7 @@ const source = path.join(__dirname, "../app/js/core/business-calculations-utils.
 assert.ok(fs.existsSync(source), "Business calculations need a production model");
 vm.runInContext(fs.readFileSync(source, "utf8"), sandbox);
 const model = sandbox.ZETER_BUSINESS_CALCULATIONS_UTILS;
-for (const name of ["utils.js", "config.js", "business-calculations-ui-utils.js", "shortcut-utils.js", "link-library-utils.js", "prompt-library-utils.js", "contacts-utils.js", "expenses-utils.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
+for (const name of ["utils.js", "config.js", "business-calculations-ui-utils.js", "shortcut-utils.js", "link-library-utils.js", "prompt-library-utils.js", "contacts-utils.js", "shopping-utils.js", "expenses-utils.js", "storage-utils.js", "asset-utils.js", "security-protection-utils.js", "import-utils.js", "export-utils.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js/core", name), "utf8"), sandbox);
 }
 sandbox.ZETER_DATA_NORMALIZERS = { TASK_TITLE_MAX_CHARS: 500, TASK_TAG_MAX_CHARS: 160, TASK_CHECKLIST_TEXT_MAX_CHARS: 500 };
@@ -42,6 +42,19 @@ assert.equal(values("acquiring", { amount: "2000", rate: "2,5", fixed: "0" }).fe
 model.validateBusinessCalculations(defaults);
 assert.throws(() => model.validateBusinessCalculations({ ...defaults, selected: ["margin", "margin"] }), /повтор/i);
 assert.throws(() => model.validateBusinessCalculations({ ...defaults, selected: ["unknown"] }), /подсч/i);
+// Exact decimal boundary oracles: expected counts are independent integer examples.
+for (const [id, inputs, key, expected] of [
+  ["breakeven", { fixed: "1000", price: "1.20", variable: "1.10" }, "units", 10000],
+  ["breakeven", { fixed: "0,30", price: "0,30", variable: "0,20" }, "units", 3],
+  ["breakeven", { fixed: "0.300000000001", price: "0.30", variable: "0.20" }, "units", 4],
+  ["breakeven", { fixed: "0.03", price: "0.015", variable: "0.005" }, "units", 3],
+  ["breakeven", { fixed: "0", price: "1.20", variable: "1.10" }, "units", 0],
+  ["plan", { revenue: "64.26", average: "1.02", days: "22" }, "orders", 63],
+  ["plan", { revenue: "64.2600001", average: "1.02", days: "22" }, "orders", 64],
+  ["plan", { revenue: "64.2599999", average: "1.02", days: "22" }, "orders", 63],
+  ["plan", { revenue: "0.07", average: "0.01", days: "22" }, "orders", 7],
+  ["plan", { revenue: "0", average: "0", days: "22" }, "orders", null]
+]) assert.equal(values(id, inputs)[key], expected, `${id}: ${JSON.stringify(inputs)}`);
 async function main() {
   const workspace = { calculations: defaults }, other = { calculations: model.normalizeBusinessCalculations() };
   let fail = false, snapshots = [], resolveSave;

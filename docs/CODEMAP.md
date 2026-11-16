@@ -5,9 +5,9 @@
 <!-- BEGIN GENERATED CORE SUMMARY -->
 > Этот блок обновляется командой `python tools/update_docs.py --write`.
 
-- Core-модулей: 101.
-- Публичных глобалов: 101.
-- Статических зависимостей: 232.
+- Core-модулей: 103.
+- Публичных глобалов: 103.
+- Статических зависимостей: 235.
 - Подробный порядок: [MODULE_DEPENDENCIES.md](MODULE_DEPENDENCIES.md).
 <!-- END GENERATED CORE SUMMARY -->
 
@@ -92,14 +92,16 @@
 | `app/js/core/native-storage.js` | `ZETER_NATIVE_STORAGE` | Адаптер к `window.pywebview.api` |
 | `app/js/core/shortcut-utils.js` | `ZETER_SHORTCUT_UTILS` | Нормализация Windows/URL/внутренних целей, модель и вложения ярлыков, окно создания и безопасные подписи/стандартные иконки |
 | `app/js/core/link-library-utils.js` | `ZETER_LINK_LIBRARY_UTILS` | Библиотека рабочего стола: нормализация/импорт, ключи дублей, категории, CRUD и подтверждённое сохранение с захваченным workspace и откатом только его library |
+| `app/js/core/shopping-utils.js` | `ZETER_SHOPPING_UTILS` | Списки покупок рабочего стола, строгая валидация, staged CRUD/ACK и защита устаревших форм |
+| `app/js/core/shopping-ui-utils.js` | `ZETER_SHOPPING_UI_UTILS` | Списки/товары, количество, примечания, поиск/фильтры, купленное и подтверждения удаления |
 | `app/js/core/expenses-utils.js` | `ZETER_EXPENSES_UTILS` | Доходы/расходы/возвраты в целых копейках, категории, лимиты с защитой выбранного ключа от устаревшей формы и копирование с проверкой предпросмотра, строгий импорт, общая выборка отчёта/CSV и staged сохранение с защитой stale edit |
 | `app/js/core/expenses-ui-utils.js` | `ZETER_EXPENSES_UI_UTILS` | Расходы и Доходы: обзор/сравнение месяцев, переход категории в журнал, фильтры/CSV и фокус при обновлении/раскрытии списка, переход к сохранённой строке, лимиты/копирование и modal-формы с последовательным вводом после ACK, повтором через новый черновик и подсказками периода/возврата |
 | `app/js/core/link-library-ui-utils.js` | `ZETER_LINK_LIBRARY_UI_UTILS` | Приложение Ссылки: категории с шестерёнкой и закреплением, поиск, карточки с кликабельным адресом, форма, избранное, ошибки и явные действия |
 | `app/js/core/prompt-library-utils.js` | `ZETER_PROMPT_LIBRARY_UTILS` | Библиотека промптов рабочего стола: проекты и общие промпты, категории, импорт, перенос/удаление проекта, staged snapshot и подтверждённая публикация под transaction barrier |
 | `app/js/core/time-tracking-utils.js` | `ZETER_TIME_TRACKING_UTILS` | Интервалы и паузы, ручные записи/пересечения, заметки, stale-edit guard, повтор/recovery, цель, прямое удаление после подтверждённой записи, локальные периоды, общая выборка сводки/CSV и staged сохранение |
 | `app/js/core/time-tracking-ui-utils.js` | `ZETER_TIME_TRACKING_UI_UTILS` | Таймер и live-сводка, график/цель, недавние занятия, фильтруемый журнал по 30 записей, modal-формы с фокусом и черновиками, порядок проект→задача, создание общих задач/проектов, перенос будущей работы в календарь, карточки с подписями проекта/задачи/дат/промежутка/пауз, pending-удаление без блокировки формы, подтверждение и повтор после отказа и CSV через adapter |
-| `app/js/core/business-calculations-utils.js` | `ZETER_BUSINESS_CALCULATIONS_UTILS` | 10 формул BizPilot, поля и ограничения, выбранные карточки, перенос на позицию цели и размеры, валидация импорта и staged сохранение под transaction barrier |
-| `app/js/core/business-calculations-ui-utils.js` | `ZETER_BUSINESS_CALCULATIONS_UI_UTILS` | Подсчёты: каталог, живой пересчёт, ввод с автосохранением, локальное pointer-перетаскивание с движущейся карточкой, resize/сброс размера, кнопки выше/ниже и ошибки записи |
+| `app/js/core/business-calculations-utils.js` | `ZETER_BUSINESS_CALCULATIONS_UTILS` | 10 формул BizPilot, точное десятичное округление количества продаж, поля и ограничения, выбранные карточки, перенос на позицию цели и размеры, валидация импорта и staged сохранение под transaction barrier |
+| `app/js/core/business-calculations-ui-utils.js` | `ZETER_BUSINESS_CALCULATIONS_UI_UTILS` | Подсчёты: каталог, живой пересчёт, ввод с автосохранением и requestCalculationsClose до ACK с сохранением черновика при отказе, локальное pointer-перетаскивание с движущейся карточкой, resize/сброс размера, кнопки выше/ниже и ошибки записи |
 | `app/js/core/prompt-library-ui-utils.js` | `ZETER_PROMPT_LIBRARY_UI_UTILS` | Промпты: выбор проекта или общего раздела, категории, поиск, избранное, название/текст, копирование текста, черновик и themed dialogs создания/удаления |
 | `app/js/core/managed-file-utils.js` | `ZETER_MANAGED_FILE_UTILS` | Полные chunked-копии Windows-файлов в `data`, позиционируемые inline-маркеры, перенос ссылок через drag/drop, копирование через Ctrl+C/Ctrl+V, координаты и размер файлов в ячейках, открытие и lifecycle удаления |
 | `app/js/core/storage-utils.js` | `ZETER_STORAGE_UTILS` | Полный storage runtime: явные результаты native/IndexedDB load/save, запрет записи до успеха, primary records, малый localStorage snapshot, legacy/подтверждённый fallback, отклонение Promise при полном отказе, последовательная очередь, size/boot lifecycle и очистка старых browser-хранилищ |
@@ -214,6 +216,7 @@
 | `app/css/69-contacts.css` | Контакты: проекты, категории, список/детали и адаптивный редактор своих полей |
 | `app/css/70-expenses.css` | Расходы и Доходы: обзор, операции, категории, лимиты и адаптивные формы |
 | `app/css/71-stickers.css` | Стикеры: библиотека карточек, проекты, редактор, поиск и адаптация узкого окна |
+| `app/css/72-shopping.css` | Покупки: списки, товары, формы и адаптация узких окон |
 | `app/css/80-overrides.css` | Поздние shell/app overrides |
 | `app/css/85-explorer-plus.css` | Tabs, address, preview и selection |
 | `app/css/90-security.css` | Центр безопасности |

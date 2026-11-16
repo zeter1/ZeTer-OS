@@ -6,6 +6,8 @@ const { spawnSync } = require("node:child_process");
 const projectRoot = path.resolve(__dirname, "..");
 const smokeFiles = [
   "smoke_sticker_library.js",
+  "smoke_shopping.js",
+  "smoke_shopping_integration.js",
   "smoke_expenses.js",
   "smoke_expenses_integration.js",
   "smoke_contacts.js",

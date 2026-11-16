@@ -75,6 +75,7 @@
     }
   ],
   "scenarios": [
+    {"id": "shopping", "title": "Покупки рабочего стола", "keywords": ["покупки", "товары", "список покупок", "shopping"], "js": ["app/js/core/shopping-utils.js", "app/js/core/shopping-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js", "app/js/core/security-restore-utils.js"], "app_anchors": ["renderShoppingApp"], "css": ["app/css/72-shopping.css"], "state": ["workspace.shopping"], "smokes": ["tools/smoke_shopping.js", "tools/smoke_shopping_integration.js", "tools/smoke_shopping_ui.js"], "manual": "Два списка, кнопка Добавить покупку и отдельное окно с видимым описанием, категории, счётчики и фильтры, шестерёнка настроек и два окна, отмена добавления/удаления, отказ/повтор и reload; 390/320 px."},
     {
       "id": "app-dialogs", "title": "Подтверждения, ввод и сообщения ZeTer OS", "keywords": ["диалог", "подтверждение", "confirm", "prompt", "alert"],
       "js": ["app/js/core/dialog-utils.js", "app/js/core/deletion-utils.js", "app/js/core/task-app-ui-utils.js"],
@@ -124,11 +125,11 @@
     },
     {
       "id": "business-calculations", "title": "Подсчёты и порядок карточек", "keywords": ["calculations", "подсчёты", "BizPilot", "маржа", "карточки", "перетаскивание"],
-      "js": ["app/js/core/business-calculations-utils.js", "app/js/core/business-calculations-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js"],
+      "js": ["app/js/core/business-calculations-utils.js", "app/js/core/business-calculations-ui-utils.js", "app/js/core/window-ui-utils.js", "app/js/core/workspace-utils.js", "app/js/core/state-import-validator.js"],
       "app_anchors": ["renderBusinessCalculationsApp"], "css": ["app/css/67-business-calculations.css"],
       "state": ["workspace.calculations"],
-      "smokes": ["tools/smoke_business_calculations.js", "tools/smoke_state_migration.js"],
-      "manual": "Добавить и убрать карточки, перетащить за ручку на позицию выбранной карточки внутри окна, проверить обе половины и кнопки выше/ниже, сохранение полей и порядка, два окна и столы, reload и узкую ширину."
+      "smokes": ["tools/smoke_business_calculations.js", "tools/smoke_calculations_close_ui.js", "tools/smoke_state_migration.js"],
+      "manual": "Добавить и убрать карточки, перетащить за ручку на позицию выбранной карточки внутри окна, проверить обе половины и кнопки выше/ниже, сохранение полей и порядка, два окна и столы, reload и узкую ширину. Закрытие при pending ACK: отказ/повтор, поздний ввод и двойное закрытие; десятичные границы количества продаж."
     },
     {
       "id": "contacts", "title": "Контакты, проекты и категории", "keywords": ["contacts", "контакты", "телефон", "email", "соцсети", "поля контакта"],
@@ -340,6 +341,7 @@
     }
   ],
   "ui_contracts": [
+    {"id": "shopping-app", "title": "Приложение Покупки", "scenario": "shopping", "keywords": ["покупки", "shopping UI"], "files": ["app/js/core/shopping-ui-utils.js", "app/css/72-shopping.css"], "hooks": ["shopping-app", "data-shop-settings", "data-shop-project-menu", "data-shop-list", "data-shop-action", "data-shop-item", "data-shop-item-menu", "data-shop-category-menu", "data-shop-search", "data-shop-filter", "data-shop-category", "data-shop-status"]},
     {
       "id": "sticker-library-app", "title": "Стикеры: библиотека и редактор",
       "scenario": "sticker-library", "keywords": ["стикеры", "stickers", "desktop selector"],
@@ -523,6 +525,7 @@
     }
   ],
   "state_lifecycle": [
+    {"id": "shopping", "title": "Списки и товары рабочего стола", "state_paths": ["workspace.shopping"], "stages": {"defaults": [{"path": "app/js/core/workspace-utils.js", "anchors": ["workspaceDefaults"]}], "normalizers": [{"path": "app/js/core/shopping-utils.js", "anchors": ["normalizeShopping"]}], "migration": [{"path": "app/js/core/workspace-utils.js", "anchors": ["normalizeWorkspaceData"]}], "validator": [{"path": "app/js/core/state-import-validator.js", "anchors": ["validateImportedStateForImport"]}], "serializer": [{"path": "app/js/core/export-utils.js", "anchors": ["buildDownloadOsDataZipModel"]}], "storage": [{"path": "app/js/core/storage-utils.js", "anchors": ["createPrimaryStateSaveQueue"]}]}, "smokes": ["tools/smoke_shopping.js", "tools/smoke_shopping_integration.js"]},
     {
       "id": "sticker-library", "title": "Реестр стикеров и проекты рабочего стола",
       "state_paths": ["workspace.noteStickies", "workspace.stickyLibrary", "state.fs[noteId]"],

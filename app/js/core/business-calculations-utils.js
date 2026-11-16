@@ -47,8 +47,16 @@
       item.fields.forEach(entry => { if (typeof fields[entry.key] !== "string" || fields[entry.key].length > 48) throw new Error("Подсчёты: некорректное значение поля."); });
     });
   }
+  const calculationNumberText = value => String(value ?? "").trim().replace(/\s/g, "").replace(",", ".");
+  // Validated decimal strings retain their entered precision, including sub-cent values.
+  function scaledCalculationNumbers(values) {
+    const parts = values.map(value => calculationNumberText(value).split("."));
+    const precision = Math.max(...parts.map(([, fraction = ""]) => fraction.length));
+    return { scale: 10n ** BigInt(precision), values: parts.map(([whole, fraction = ""]) => BigInt((whole || "0") + fraction.padEnd(precision, "0"))) };
+  }
+  const ceilCalculationRatio = (numerator, denominator) => denominator > 0n ? Number((numerator + denominator - 1n) / denominator) : null;
   function parseCalculationNumber(value, entry) {
-    const text = String(value ?? "").trim().replace(/\s/g, "").replace(",", ".");
+    const text = calculationNumberText(value);
     if (!text || !/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return null;
     const number = Number(text);
     return Number.isFinite(number) && number >= 0 && number <= 1e15 && (entry.max == null || number <= entry.max) ? number : null;
@@ -68,7 +76,13 @@
       bar("Цена", n.price); bar("Затраты", n.cost); bar("Прибыль", profit);
       if (n.price === 0 || n.cost === 0) note = "При нулевой цене или затратах соответствующий процент не рассчитывается.";
     } else if (id === "breakeven") {
-      const contribution = n.price - n.variable, units = contribution > 0 ? Math.ceil(n.fixed / contribution) : null;
+      let contribution = n.price - n.variable, units = null;
+      if (!invalid.length) {
+        const exact = scaledCalculationNumbers([inputs.fixed, inputs.price, inputs.variable]);
+        const difference = exact.values[1] - exact.values[2];
+        contribution = Number(difference) / Number(exact.scale);
+        units = ceilCalculationRatio(exact.values[0], difference);
+      }
       metric("units", "Нужно продаж", units, "шт."); metric("revenue", "Выручка для нуля", units === null ? null : units * n.price); metric("contribution", "Вклад с продажи", contribution > 0 ? contribution : null);
       bar("Постоянные расходы", n.fixed); bar("Выручка для нуля", units === null ? null : units * n.price);
       if (contribution <= 0) note = "Цена единицы должна быть выше переменных расходов: иначе продажи не покрывают постоянные расходы.";
@@ -89,7 +103,8 @@
       metric("cac", "Стоимость привлечения (CAC)", cac); metric("ltv", "Выручка с клиента (LTV)", ltv); metric("ratio", "LTV / CAC", cac > 0 ? ltv / cac : null, "×");
       note = "LTV здесь — выручка от покупок клиента; себестоимость и маржа в неё не входят.";
     } else if (id === "plan") {
-      const orders = n.average > 0 ? Math.ceil(n.revenue / n.average) : null;
+      const exact = invalid.length ? null : scaledCalculationNumbers([inputs.revenue, inputs.average]);
+      const orders = exact ? ceilCalculationRatio(exact.values[0], exact.values[1]) : null;
       metric("orders", "Заказов в месяц", orders, "шт."); metric("daily", "Выручка в рабочий день", n.days > 0 ? n.revenue / n.days : null); metric("weekly", "Заказов в неделю", orders === null ? null : orders / 4.33, "шт./нед.");
       note = "Месячные заказы округляются вверх. В недельном плане — 4,33 недели в месяце.";
     } else if (id === "runway") {

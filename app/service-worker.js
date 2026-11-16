@@ -1,5 +1,5 @@
 const ZETER_CACHE_REVISION = "web-snapshots-1";
-const ZETER_CACHE = "zeter-os-4.0.126-web-snapshots-1";
+const ZETER_CACHE = "zeter-os-4.0.138-web-snapshots-1";
 const ZETER_ASSETS = [
   "./",
   "./index.html",
@@ -37,6 +37,9 @@ const ZETER_ASSETS = [
   "./js/core/link-library-ui-utils.js",
   "./js/core/prompt-library-utils.js",
   "./js/core/contacts-utils.js",
+  "./js/core/shopping-utils.js",
+  "./js/core/shopping-ui-utils.js",
+  "./css/72-shopping.css",
   "./js/core/expenses-utils.js",
   "./js/core/expenses-ui-utils.js",
   "./css/70-expenses.css",

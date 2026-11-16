@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "runtime": 1,
-  "version": "4.0.126",
-  "build": "b8fa0ea6ab43b89326b988080bfb9090b1e9bf7a73d394f9eecc24f134abb5d1",
+  "version": "4.0.138",
+  "build": "d5c8c1d89a293a39fe62af8b17a0d441f7bbf84521f953b7b49c71220e05e250",
   "files": [
     {
       "path": "assets/1.png",
@@ -160,6 +160,11 @@
       "sha256": "0c912ff376ca56a1c98a0093ac76f2030cc9a24dfa7cf8f7038c85e2c3d4b447"
     },
     {
+      "path": "css/72-shopping.css",
+      "size": 13719,
+      "sha256": "44dd0b0df33433bae9d1b9ff2d64e814b47c8f9dfdef948c0aaec5c396de7376"
+    },
+    {
       "path": "css/80-overrides.css",
       "size": 9261,
       "sha256": "ee2f19930d516406f98183cf95265e841c814f358c1bb2f5c733328de28fdf74"
@@ -186,18 +191,18 @@
     },
     {
       "path": "css/style.css",
-      "size": 909,
-      "sha256": "5a6ad131aa6cfee7f229db6cb184728e2b7aa3fbdf27d9de05bf7999d397f08b"
+      "size": 943,
+      "sha256": "6ee2f921c2c59a07e27abcde70eba7477f001c54a4cdc123e2a495fe52e26824"
     },
     {
       "path": "index.html",
-      "size": 21905,
-      "sha256": "2b6932764bbf8e37fc0012fe77eaf26d947e6b5516b6f59bd2c4d7136f0bb5dd"
+      "size": 22076,
+      "sha256": "a69f04094c8567d7146039d0fb74d8aaf90e781b3e8fbf265ced8f231eec12c3"
     },
     {
       "path": "js/app.js",
-      "size": 217722,
-      "sha256": "a289b75644324c82ccbba8a56e713e92fc50d1790f4a6de118f585fdba2f9b3f"
+      "size": 219595,
+      "sha256": "4911f810d026f1f2380a1680340019c704190ded6359b128812eba68823ac98c"
     },
     {
       "path": "js/core/about-ui-utils.js",
@@ -206,8 +211,8 @@
     },
     {
       "path": "js/core/app-catalog.js",
-      "size": 9392,
-      "sha256": "18100eac5ae413c7738a66d8c0dd7aa51a7f0b86047fd6af2e5892e1906dbbee"
+      "size": 9712,
+      "sha256": "0ea344cfee33d9f2c52c6beb67d91fec4d6d8460648022bfe6b87741503a8548"
     },
     {
       "path": "js/core/app-center-ui-utils.js",
@@ -236,13 +241,13 @@
     },
     {
       "path": "js/core/business-calculations-ui-utils.js",
-      "size": 24602,
-      "sha256": "13a0c7558a8f3b2e5e5cbf34fc99c9413769537979f46fc5f93b1972942ce77e"
+      "size": 26535,
+      "sha256": "243f83d114d3eefe8d0eb617040c0443fe2d0d9d8fbf783d24d86959c1eef161"
     },
     {
       "path": "js/core/business-calculations-utils.js",
-      "size": 17549,
-      "sha256": "0fe72e499838ad611dfe5e78e2f91125daf7165def8773d2df4cca117362ad9b"
+      "size": 18605,
+      "sha256": "05e030de96f989888a57ebaed955e60b361ba34bbfced384f6d316777edb2196"
     },
     {
       "path": "js/core/calculator-ui-utils.js",
@@ -386,8 +391,8 @@
     },
     {
       "path": "js/core/help-content.js",
-      "size": 200482,
-      "sha256": "3172347201c75b8c9492b95408874a15f70682f1fc0add06a250d3889e7e645c"
+      "size": 205460,
+      "sha256": "51f199a070026d999327246525ae208fa777bf410fa81b244485f55cbb724f48"
     },
     {
       "path": "js/core/import-utils.js",
@@ -541,8 +546,8 @@
     },
     {
       "path": "js/core/security-restore-utils.js",
-      "size": 29841,
-      "sha256": "eb65290f1a1b3a741f47343c168300116b60362454c46f95aff33e1666a6f5e0"
+      "size": 29918,
+      "sha256": "d5c1ece329628f23b1df2288950a8b90df2f83b6d73e48d02b6e59e3b0fc9e98"
     },
     {
       "path": "js/core/security-ui-utils.js",
@@ -570,6 +575,16 @@
       "sha256": "528bfc264bf93404113d078df398eacff43af6e1aace50cefeee2b72e45eb850"
     },
     {
+      "path": "js/core/shopping-ui-utils.js",
+      "size": 31202,
+      "sha256": "6fda71adab447580c568fa16b9dcccc251d620570e76b61d203751a4d768a412"
+    },
+    {
+      "path": "js/core/shopping-utils.js",
+      "size": 12135,
+      "sha256": "1d0bda12dc3f472005d8e4015fbc9d7091809e2a9ef1e2245ce86b8a8a2f2b90"
+    },
+    {
       "path": "js/core/shortcut-utils.js",
       "size": 11013,
       "sha256": "a1c42e81782da7df9c2d5b042b3f737f342af47b4bbc46a210dfc41c66ac118e"
@@ -581,8 +596,8 @@
     },
     {
       "path": "js/core/state-import-validator.js",
-      "size": 44911,
-      "sha256": "4f6910cbc60921c4363564ae505300fe7231d6bda592af56c78885f699fe3da2"
+      "size": 45017,
+      "sha256": "d827de293b233ffbc74fe930dd3a3bf5239793a5f2d18bccb256c4118ffd83c3"
     },
     {
       "path": "js/core/state-maintenance-utils.js",
@@ -672,7 +687,7 @@
     {
       "path": "js/core/version.js",
       "size": 37,
-      "sha256": "4474f8fcc2df2d5e750ebee0ecd5992e784b4c989f35c11b79e5db3069fddfb3"
+      "sha256": "663acf6b7b0198a5f878b808f8f2dd700a1cbf93aa4484d01fc6d964171bac49"
     },
     {
       "path": "js/core/visual-utils.js",
@@ -691,13 +706,13 @@
     },
     {
       "path": "js/core/window-ui-utils.js",
-      "size": 28821,
-      "sha256": "212b123dfb3da2a886716be438ab6a8f13325213e175eb91899dae34e5678033"
+      "size": 29135,
+      "sha256": "0b50617fd702fe139094f01492ec04f3787c1220df61183cd98e1d85a7a0c3ef"
     },
     {
       "path": "js/core/workspace-utils.js",
-      "size": 39451,
-      "sha256": "35afafbbf8d0600008e78e5180833ffb1c5a2762e588368e8ce25fa4ddf4118e"
+      "size": 40042,
+      "sha256": "1bfbc8d31b98cba828281abed62a475221ef393329d58a987e45738b87a9f8cc"
     },
     {
       "path": "js/core/xlsx-utils.js",
@@ -726,8 +741,8 @@
     },
     {
       "path": "service-worker.js",
-      "size": 17455,
-      "sha256": "e4666b1ebbe7e5555239357d7bcce166c9c61fd00a15573bd325cd8e7022d961"
+      "size": 17551,
+      "sha256": "830c3ca5dc249c2d22c0985ed3925805106b1766657e4db1cbb4e0b83da1f177"
     },
     {
       "path": "sticky-window.html",
